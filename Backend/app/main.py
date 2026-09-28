@@ -1,26 +1,33 @@
+"""Punto de entrada de la API."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
+
+from .config import ORIGENES_PERMITIDOS
 from .db import engine
+from .routers import auth, consultas
 
 app = FastAPI(title="Prototipo de consultas geoespaciales - API")
 
-# CORS abierto para desarrollo (restringir en producción)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ORIGENES_PERMITIDOS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
+app.include_router(consultas.router)
 
-@app.get("/health")
+
+@app.get("/health", tags=["estado"])
 def health():
     """Chequeo simple de que la API está viva."""
     return {"status": "ok"}
 
 
-@app.get("/db-check")
+@app.get("/db-check", tags=["estado"])
 def db_check():
     """Verifica la conexión a la BD contando los roles cargados por las migraciones."""
     with engine.connect() as conn:
