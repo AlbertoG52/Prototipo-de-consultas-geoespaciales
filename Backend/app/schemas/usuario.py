@@ -4,6 +4,7 @@ import re
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from ..config import LONGITUD_MAXIMA_PASSWORD, LONGITUD_MINIMA_PASSWORD
+from ..sanitizacion import sanitizar_texto
 
 
 def validar_password(valor: str) -> str:
@@ -35,7 +36,9 @@ class RegistroRequest(BaseModel):
     @field_validator("nombre")
     @classmethod
     def _nombre(cls, v: str) -> str:
-        limpio = v.strip()
+        # RR_00_08. La contraseña no pasa por aquí: sanitizarla cambiaría la
+        # credencial que el usuario escribió.
+        limpio = sanitizar_texto(v)
         if not limpio:
             raise ValueError("El nombre es requerido.")
         return limpio

@@ -4,15 +4,17 @@
  * Requerimientos que se implementan aquí:
  *  - RR_02 campo de texto para la consulta
  *  - RR_10 copiar la respuesta
+ *  - RR_15 descarga de la respuesta y del mapa
  *  - RR_17 selección de especie ante múltiples coincidencias
  *  - RR_18 alternancia entre mapa y lista de registros
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type Ref } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuth } from "../context/AuthContext";
 import { useConsultas, type Mensaje } from "../context/ConsultasContext";
 import type { RegistroPresencia, RespuestaConsulta } from "../types";
+import { descargarArchivo, descargarSvg, nombreBase, respuestaATexto } from "../utils/descarga";
 
 const CONSULTAS_DE_EJEMPLO = [
   "¿Dónde se encuentra la guaria morada?",
@@ -27,8 +29,16 @@ const CONSULTAS_DE_EJEMPLO = [
  * pertenece a este sprint. Esto dibuja los registros que sí tenemos sobre una
  * silueta del país, proyectando latitud y longitud a coordenadas del SVG, para
  * que la alternancia de RR_18 tenga las dos vistas que compara.
+ *
+ * `ref` expone el elemento SVG para poder descargarlo (RR_15).
  */
-function MapaDistribucion({ registros }: { registros: RegistroPresencia[] }) {
+function MapaDistribucion({
+  registros,
+  ref,
+}: {
+  registros: RegistroPresencia[];
+  ref?: Ref<SVGSVGElement>;
+}) {
   // Recuadro aproximado de Costa Rica.
   const LON_MIN = -86.0;
   const LON_MAX = -82.5;
@@ -39,7 +49,7 @@ function MapaDistribucion({ registros }: { registros: RegistroPresencia[] }) {
   const aY = (lat: number) => 150 - ((lat - LAT_MIN) / (LAT_MAX - LAT_MIN)) * 100;
 
   return (
-    <svg viewBox="0 0 340 180" className="w-full h-full" style={{ background: "#e8f0e8" }} role="img" aria-label="Mapa de distribución en Costa Rica">
+    <svg ref={ref} viewBox="0 0 340 180" className="w-full h-full" style={{ background: "#e8f0e8" }} role="img" aria-label="Mapa de distribución en Costa Rica">
       <path
         d="M60,90 Q80,60 120,55 Q160,50 200,60 Q230,65 250,80 Q270,90 260,110 Q250,130 220,140 Q180,150 140,148 Q100,145 75,130 Q50,115 60,90 Z"
         fill="#c8dfc0"
@@ -72,16 +82,50 @@ function MapaDistribucion({ registros }: { registros: RegistroPresencia[] }) {
   );
 }
 
+function IconoDescarga() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function TarjetaRespuesta({
+  consulta,
   respuesta,
   onVerFicha,
 }: {
+  consulta: string;
   respuesta: RespuestaConsulta;
   onVerFicha: (nombre: string) => void;
 }) {
   const [copiado, setCopiado] = useState(false);
   // RR_18 — el usuario alterna entre las dos vistas de los mismos registros.
   const [vista, setVista] = useState<"mapa" | "lista">("mapa");
+  const mapaRef = useRef<SVGSVGElement>(null);
+
+  /** RR_15 — la respuesta completa, con la consulta que la originó. */
+  const descargarRespuesta = () => {
+    descargarArchivo(
+      `${nombreBase(respuesta)}.txt`,
+      respuestaATexto(consulta, respuesta),
+      "text/plain;charset=utf-8",
+    );
+  };
+
+  /**
+   * RR_15 — el mapa tal como se muestra. El botón solo existe en la vista de
+   * mapa, así que el SVG siempre está montado cuando se usa.
+   */
+  const descargarMapa = () => {
+    if (mapaRef.current) descargarSvg(mapaRef.current, `${nombreBase(respuesta)}-mapa.svg`);
+  };
 
   /** RR_10 — copiar el texto de la respuesta y confirmarlo visualmente. */
   const copiar = async () => {
@@ -177,9 +221,18 @@ function TarjetaRespuesta({
                     <span className="text-sm font-medium" style={{ color: "#2d5a3d" }}>
                       Distribución en Costa Rica
                     </span>
+                    {/* RR_15 — descargar el mapa mostrado. */}
+                    <button
+                      onClick={descargarMapa}
+                      className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all"
+                      style={{ background: "transparent", color: "#8aab92", border: "none", cursor: "pointer" }}
+                    >
+                      <IconoDescarga />
+                      Descargar mapa
+                    </button>
                   </div>
                   <div className="rounded-xl overflow-hidden" style={{ height: 170, border: "1px solid #dde8df" }}>
-                    <MapaDistribucion registros={respuesta.registros} />
+                    <MapaDistribucion ref={mapaRef} registros={respuesta.registros} />
                   </div>
                 </>
               ) : (
@@ -244,6 +297,15 @@ function TarjetaRespuesta({
                   <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" strokeWidth="2" />
                 </svg>
                 {copiado ? "Copiado" : "Copiar"}
+              </button>
+              {/* RR_15 — descargar la respuesta como texto. */}
+              <button
+                onClick={descargarRespuesta}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
+                style={{ background: "transparent", color: "#8aab92", border: "none", cursor: "pointer" }}
+              >
+                <IconoDescarga />
+                Descargar
               </button>
               <button
                 onClick={() => onVerFicha(respuesta.especie.nombre_cientifico)}
@@ -413,6 +475,7 @@ export function ChatPage() {
         return (
           <TarjetaRespuesta
             key={m.id}
+            consulta={m.consulta}
             respuesta={m.respuesta}
             onVerFicha={(nombre) => navigate(`/species/${encodeURIComponent(nombre)}`)}
           />
