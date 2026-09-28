@@ -17,7 +17,7 @@ const REGLAS = [
   { etiqueta: "Al menos 8 caracteres", cumple: (p: string) => p.length >= 8 },
   { etiqueta: "Una letra mayúscula", cumple: (p: string) => /[A-Z]/.test(p) },
   { etiqueta: "Un número", cumple: (p: string) => /\d/.test(p) },
-  { etiqueta: "Un carácter especial (!@#$%^&*)", cumple: (p: string) => /[!@#$%^&*]/.test(p) },
+  { etiqueta: "Un carácter especial o símbolo", cumple: (p: string) => /[^A-Za-z0-9]/.test(p) },
 ];
 
 function FuerzaContrasena({ password }: { password: string }) {
