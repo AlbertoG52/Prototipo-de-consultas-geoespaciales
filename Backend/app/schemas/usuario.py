@@ -17,8 +17,8 @@ def validar_password(valor: str) -> str:
         raise ValueError("La contraseña debe incluir al menos una letra mayúscula.")
     if not re.search(r"\d", valor):
         raise ValueError("La contraseña debe incluir al menos un número.")
-    if not re.search(r"[!@#$%^&*]", valor):
-        raise ValueError("La contraseña debe incluir al menos un carácter especial (!@#$%^&*).")
+    if not re.search(r"[^A-Za-z0-9]", valor):
+        raise ValueError("La contraseña debe incluir al menos un carácter especial o símbolo.")
     return valor
 
 

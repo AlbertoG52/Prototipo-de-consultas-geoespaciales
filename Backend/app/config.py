@@ -25,9 +25,10 @@ MINUTOS_EXPIRACION_TOKEN_ANONIMO = int(
 LIMITE_CONSULTAS_ANONIMO = int(os.environ.get("LIMITE_CONSULTAS_ANONIMO", "5"))
 
 # --- reglas de contraseña ---------------------------------------------------
-# bcrypt trunca a 72 bytes, así que el máximo es un límite real.
+# bcrypt tiene un límite real de 72 bytes. El proyecto puede permitir contraseñas
+# largas, pero al hashear con bcrypt se deben truncar a 72 bytes antes del hash.
 LONGITUD_MINIMA_PASSWORD = 8
-LONGITUD_MAXIMA_PASSWORD = 72
+LONGITUD_MAXIMA_PASSWORD = 255
 
 # --- consultas --------------------------------------------------------------
 LONGITUD_MAXIMA_CONSULTA = 500

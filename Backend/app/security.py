@@ -33,11 +33,11 @@ TIPO_ANONIMO = "anonimo"
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(_password_bcrypt_compatible(password))
 
 
 def verificar_password(password: str, hash_guardado: str) -> bool:
-    return pwd_context.verify(password, hash_guardado)
+    return pwd_context.verify(_password_bcrypt_compatible(password), hash_guardado)
 
 
 def _crear_token(datos: dict, minutos: int) -> str:
@@ -151,3 +151,8 @@ def obtener_usuario_actual(
             detail="Necesitas iniciar sesión para acceder a esto.",
         )
     return identidad.usuario
+
+
+def _password_bcrypt_compatible(password: str) -> str:
+    """bcrypt solo acepta 72 bytes; truncamos antes de hashear/verificar."""
+    return password.encode("utf-8")[:72].decode("utf-8", errors="ignore")
