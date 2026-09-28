@@ -30,7 +30,8 @@ import { useAuth } from "./AuthContext";
 export type Mensaje =
   | { clase: "consulta"; id: string; texto: string }
   | { clase: "cargando"; id: string }
-  | { clase: "respuesta"; id: string; respuesta: RespuestaConsulta }
+  /** `consulta` es el texto que produjo la respuesta; lo usa la descarga (RR_15). */
+  | { clase: "respuesta"; id: string; consulta: string; respuesta: RespuestaConsulta }
   | { clase: "opciones"; id: string; texto: string; candidatos: EspecieCandidata[]; mensaje: string }
   | { clase: "aviso"; id: string; mensaje: string }
   | { clase: "error"; id: string; mensaje: string; textoOriginal: string };
@@ -132,7 +133,8 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
 
           return [
             ...sinCarga,
-            { clase: "respuesta", id: nuevoId(), respuesta: salida.respuesta! },
+            // salida.texto es la consulta ya sanitizada por el servidor (RR_00_08).
+            { clase: "respuesta", id: nuevoId(), consulta: salida.texto, respuesta: salida.respuesta! },
           ];
         });
 
@@ -178,7 +180,7 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
       setMensajes((prev) => [
         ...prev,
         { clase: "consulta", id: nuevoId(), texto: entrada.texto },
-        { clase: "respuesta", id: nuevoId(), respuesta: entrada.respuesta! },
+        { clase: "respuesta", id: nuevoId(), consulta: entrada.texto, respuesta: entrada.respuesta! },
       ]);
     },
     [historial],

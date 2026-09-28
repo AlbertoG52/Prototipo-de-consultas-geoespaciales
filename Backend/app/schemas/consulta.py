@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, field_validator
 
 from ..config import LONGITUD_MAXIMA_CONSULTA
+from ..sanitizacion import sanitizar_texto
 
 
 class RegistroPresencia(BaseModel):
@@ -43,12 +44,18 @@ class ConsultaRequest(BaseModel):
 
     # RR_17: cuando la consulta coincide con varias especies, el frontend
     # reenvía la misma consulta indicando cuál eligió el usuario.
-    especie_id: str | None = None
+    # RR_00_08: los identificadores del catálogo son slugs; cualquier otro
+    # carácter se rechaza en vez de limpiarse, porque no hay forma legítima
+    # de que llegue.
+    especie_id: str | None = Field(default=None, max_length=100, pattern=r"^[a-z0-9-]+$")
 
     @field_validator("texto")
     @classmethod
     def _texto(cls, v: str) -> str:
-        limpio = v.strip()
+        # RR_00_08: se sanitiza antes de comprobar si quedó vacía, para que
+        # una consulta hecha solo de marcado o caracteres invisibles se
+        # rechace igual que una vacía.
+        limpio = sanitizar_texto(v)
         if not limpio:
             raise ValueError("La consulta no puede estar vacía.")
         return limpio

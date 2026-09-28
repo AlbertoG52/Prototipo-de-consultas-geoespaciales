@@ -1,0 +1,3 @@
+# Los scripts se ejecutan dentro de contenedores Linux: deben conservar LF
+# aunque se clonen en Windows con core.autocrlf=true.
+*.sh text eol=lf
