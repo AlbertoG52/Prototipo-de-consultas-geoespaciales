@@ -6,3 +6,8 @@ dist/
 .vite/
 CLAUDE.md
 .claude/settings.local.json
+
+# Certificados y llaves: nunca se suben (ver certs/README.md)
+certs/*
+!certs/README.md
+*.pem

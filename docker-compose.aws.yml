@@ -1,0 +1,29 @@
+# Modo AWS: conecta el backend a la base de datos de AWS (RDS) en vez del
+# Postgres local. NO reemplaza a docker-compose.yml, se aplica encima:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.aws.yml up --build
+#
+# Requisitos (detalle en certs/README.md):
+#   - DATABASE_URL_AWS definida en el .env
+#   - el certificado de RDS en certs/global-bundle.pem
+#   - Docker Compose 2.24.4 o superior (por el "!reset" de abajo)
+#
+# Uso previsto: demos e integración desde main. El desarrollo diario sigue
+# siendo local con "docker compose up".
+
+services:
+  db:
+    # El Postgres local no se levanta en este modo. Solo arrancaría si alguien
+    # pide explícitamente el perfil "solo-local".
+    profiles: ["solo-local"]
+
+  backend:
+    environment:
+      # Reemplaza la URL que apunta al contenedor "db". Si falta la variable,
+      # Compose se detiene con este mensaje en lugar de arrancar a medias.
+      DATABASE_URL: ${DATABASE_URL_AWS:?Falta DATABASE_URL_AWS en el .env. Ver certs/README.md}
+    volumes:
+      # Solo lectura: el contenedor puede leer el certificado, no modificarlo.
+      - ./certs:/certs:ro
+    # Ya no hay que esperar al Postgres local.
+    depends_on: !reset {}
