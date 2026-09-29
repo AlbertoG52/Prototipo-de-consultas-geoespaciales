@@ -22,6 +22,14 @@ Al levantar:
 - API:      http://localhost:8000/health  y  http://localhost:8000/db-check
 - API docs: http://localhost:8000/docs
 - Postgres: localhost:5432 (para inspeccionar con pgAdmin/DBeaver, opcional)
+
+## Modo AWS (demos e integración)
+Por defecto todo corre local. Para conectar el backend a la base de datos de AWS:
+```bash
+docker compose -f docker-compose.yml -f docker-compose.aws.yml up --build
+```
+Requiere el certificado en `certs/` y `DATABASE_URL_AWS` en el `.env`. Pasos completos en [`certs/README.md`](certs/README.md).
+
 ---
 
 ## Arquitectura
