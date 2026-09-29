@@ -94,6 +94,7 @@ Cada cambio a la base es un archivo SQL numerado en `Backend/migrations/`:
 | `008_nombre_usuario.sql` | columna `nombre`, que pide la vista de registro |
 | `009_sesion_en_consultas.sql` | `sesion_id` y `respuesta`, para RR_09 |
 | `010_consumo_anonimo.sql` | contador diario del visitante, para RR_00_11 |
+| `011_auditoria_actor_inmutable.sql` | quién hizo cada cambio y auditoría no modificable, para RR_00_09 |
 
 Para agregar un cambio:
 1. Se crea un archivo nuevo, p.ej. `011_....sql`.
@@ -107,15 +108,37 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 
 ## Endpoints
 
-| Método | Ruta | Para qué |
-|---|---|---|
-| POST | `/auth/registro` | crear cuenta |
-| POST | `/auth/login` | iniciar sesión |
-| POST | `/auth/anonimo` | entrar sin cuenta |
-| POST | `/auth/logout` | cerrar la sesión activa |
-| GET | `/auth/sesion` | quién soy y cuántas consultas me quedan |
-| POST | `/consultas` | enviar una consulta |
-| GET | `/consultas/historial` | consultas de la sesión activa |
+| Método | Ruta | Para qué | Quién puede usarlo |
+|---|---|---|---|
+| POST | `/auth/registro` | crear cuenta | público |
+| POST | `/auth/login` | iniciar sesión | público |
+| POST | `/auth/anonimo` | entrar sin cuenta | público |
+| POST | `/auth/logout` | cerrar la sesión activa | cualquier sesión |
+| GET | `/auth/sesion` | quién soy y cuántas consultas me quedan | cualquier sesión |
+| POST | `/consultas` | enviar una consulta | cualquier sesión |
+| GET | `/consultas/historial` | consultas de la sesión activa | cualquier sesión (el visitante recibe una lista vacía) |
+| GET | `/admin/usuarios` | usuarios registrados | supermoderador |
+| PATCH | `/admin/usuarios/{id}/estado` | activar o desactivar (no a sí mismo: 409) | supermoderador |
+| PATCH | `/admin/usuarios/{id}/rol` | cambiar el rol (no a sí mismo: 409) | supermoderador |
+| GET | `/admin/auditoria` | registro de acciones administrativas (RR_00_09) | supermoderador |
+
+### Control de acceso por rol
+
+- La validación se hace en el servidor con la dependencia `requiere_rol(...)`
+  de `security.py`. Sin cuenta responde **401**; con cuenta y otro rol, **403**.
+- El router `/admin` la declara a nivel de router: cualquier endpoint nuevo bajo
+  `/admin` queda restringido al supermoderador. `tests/test_roles.py` falla si
+  se quita.
+- El rol se lee de la BD en cada petición, no del token: un cambio de rol aplica
+  de inmediato.
+- En el frontend, `RequiereRol` (`routes.tsx`) solo evita mostrar la vista;
+  no es la barrera de seguridad.
+
+El registro siempre crea cuentas con rol `usuario`. Para asignar otro rol:
+
+```bash
+docker compose exec backend python cambiar_rol.py <correo> supermoderador
+```
 
 `POST /consultas` devuelve uno de tres estados:
 

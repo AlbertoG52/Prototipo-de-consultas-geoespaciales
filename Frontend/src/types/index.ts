@@ -81,6 +81,18 @@ export interface ConsultaOut {
   consultas_restantes: number;
 }
 
+// Administración (RR_00_09)
+
+export interface RegistroAuditoria {
+  id: number;
+  accion: string;
+  detalle: string | null;
+  fecha: string;
+  afectado: string | null;
+  /** null = el cambio se hizo desde el servidor, no desde la aplicación. */
+  actor: string | null;
+}
+
 export interface ItemHistorial {
   id: number;
   texto: string;

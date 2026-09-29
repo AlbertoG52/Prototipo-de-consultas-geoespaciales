@@ -1,21 +1,29 @@
 /**
  * Panel de administración
  *
- * Corresponde al módulo 4 (RR_69 a RR_78). Se conserva con datos de
- * ejemplo. La ruta ya está protegida en Root: solo aparece en la barra
- * lateral si el rol de la sesión es supermoderador.
+ * "Usuarios" y "Auditoría" usan datos reales (RR_00_09); la ruta está
+ * protegida por rol (RR_00_10). Las tarjetas superiores, "Roles y permisos"
+ * y "Estadísticas" son del módulo 4 (RR_69 a RR_78) y siguen con datos de
+ * ejemplo.
  */
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-const USERS = [
-  { id: 1, name: "Ana Rodríguez", email: "ana.rodriguez@tec.ac.cr", role: "supermoderador", status: "activo", queries: 87, lastQuery: "hace 5 min" },
-  { id: 2, name: "Carlos Méndez", email: "carlos.mendez@tec.ac.cr", role: "moderador", status: "activo", queries: 54, lastQuery: "hace 2 h" },
-  { id: 3, name: "María González", email: "maria.gonzalez@gmail.com", role: "usuario", status: "activo", queries: 18, lastQuery: "ayer" },
-  { id: 4, name: "José Vargas", email: "jose.vargas@ucr.ac.cr", role: "usuario", status: "activo", queries: 12, lastQuery: "lun" },
-  { id: 5, name: "Laura Brenes", email: "laura.brenes@gmail.com", role: "moderador", status: "inactivo", queries: 31, lastQuery: "hace 3 días" },
-  { id: 6, name: "Diego Solís", email: "diego.solis@tec.ac.cr", role: "usuario", status: "inactivo", queries: 5, lastQuery: "hace 1 sem" },
-  { id: 7, name: "Sofía Castro", email: "sofia.castro@gmail.com", role: "usuario", status: "activo", queries: 22, lastQuery: "hoy" },
-];
+import { useAuth } from "../context/AuthContext";
+import * as api from "../services/api";
+import type { RegistroAuditoria, Usuario } from "../types";
+
+const ACCIONES: Record<string, string> = {
+  cambio_rol: "Cambio de rol",
+  cambio_estado: "Cambio de estado",
+};
+
+function DatosDeEjemplo() {
+  return (
+    <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "#fef3c7", color: "#92400e" }}>
+      Datos de ejemplo
+    </span>
+  );
+}
 
 const STATS = [
   { label: "Usuarios totales", value: "7", icon: "👥", change: "+2 este mes" },
@@ -36,26 +44,48 @@ const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> =
 };
 
 export function AdminPage() {
-  const [users, setUsers] = useState(USERS);
+  const { sesion } = useAuth();
+  const miId = sesion?.usuario?.id;
+  const [users, setUsers] = useState<Usuario[]>([]);
+  const [auditoria, setAuditoria] = useState<RegistroAuditoria[]>([]);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("todos");
   const [activeSection, setActiveSection] = useState("usuarios");
   const [editingUser, setEditingUser] = useState<number | null>(null);
   const [limitConfig, setLimitConfig] = useState({ usuario: 20, moderador: 100, supermoderador: 1000 });
 
+  const cargar = useCallback(async () => {
+    try {
+      const [u, a] = await Promise.all([api.listarUsuarios(), api.obtenerAuditoria()]);
+      setUsers(u);
+      setAuditoria(a);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudieron cargar los datos.");
+    }
+  }, []);
+
+  useEffect(() => {
+    void cargar();
+  }, [cargar]);
+
   const filtered = users.filter((u) => {
-    const matchSearch = u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase());
-    const matchRole = roleFilter === "todos" || u.role === roleFilter;
+    const texto = search.toLowerCase();
+    const matchSearch = (u.nombre ?? "").toLowerCase().includes(texto) || u.correo.toLowerCase().includes(texto);
+    const matchRole = roleFilter === "todos" || u.rol === roleFilter;
     return matchSearch && matchRole;
   });
 
-  const toggleStatus = (id: number) => {
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, status: u.status === "activo" ? "inactivo" : "activo" } : u));
-  };
-
-  const changeRole = (id: number, role: string) => {
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, role } : u));
+  /** Aplica el cambio en el servidor y recarga usuarios y auditoría. */
+  const cambiar = async (id: number, campo: "estado" | "rol", valor: string) => {
     setEditingUser(null);
+    setError("");
+    try {
+      await api.cambiarUsuario(id, campo, valor);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo aplicar el cambio.");
+    }
+    await cargar();
   };
 
   const sections = [
@@ -63,13 +93,6 @@ export function AdminPage() {
     { id: "roles", label: "Roles y permisos", icon: "🔑" },
     { id: "estadisticas", label: "Estadísticas", icon: "📊" },
     { id: "auditoria", label: "Auditoría", icon: "📋" },
-  ];
-
-  const AUDIT_LOG = [
-    { action: "Cambio de rol", user: "Laura Brenes", by: "Ana Rodríguez", date: "hoy 14:32", detail: "usuario → moderador" },
-    { action: "Cuenta desactivada", user: "Diego Solís", by: "Ana Rodríguez", date: "ayer 09:15", detail: "estado: activo → inactivo" },
-    { action: "Límite actualizado", user: "Sistema", by: "Ana Rodríguez", date: "lun 16:00", detail: "usuario: 15 → 20 consultas" },
-    { action: "Reactivación", user: "Pedro Mora", by: "Ana Rodríguez", date: "vie 11:30", detail: "estado: inactivo → activo" },
   ];
 
   return (
@@ -93,7 +116,14 @@ export function AdminPage() {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6" style={{ background: "#f7f8f5" }}>
 
+          {error && (
+            <div className="rounded-xl px-4 py-3 mb-4 text-sm" style={{ background: "#fef3f2", border: "1px solid #fca5a5", color: "#991b1b" }}>
+              {error}
+            </div>
+          )}
+
           {/* Stats row */}
+          <div className="mb-2"><DatosDeEjemplo /></div>
           <div className="grid grid-cols-4 gap-4 mb-6">
             {STATS.map((s) => (
               <div key={s.label} className="rounded-2xl p-4" style={{ background: "#ffffff", border: "1px solid #dde8df" }}>
@@ -134,53 +164,56 @@ export function AdminPage() {
                 <table className="w-full text-sm">
                   <thead style={{ background: "#f0f5f1" }}>
                     <tr>
-                      {["Usuario", "Correo", "Rol", "Estado", "Consultas", "Última actividad", "Acciones"].map((h) => (
+                      {["Usuario", "Correo", "Rol", "Estado", "Acciones"].map((h) => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-medium" style={{ color: "#374a3c" }}>{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((u) => (
+                    {filtered.map((u) => {
+                      // La propia fila no tiene acciones: el servidor también lo rechaza (409).
+                      const esYo = u.id === miId;
+                      const nombre = u.nombre ?? u.correo;
+                      return (
                       <tr key={u.id} style={{ borderTop: "1px solid #f0f5f1" }}>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2.5">
                             <div className="flex items-center justify-center rounded-full text-xs font-bold" style={{ width: 32, height: 32, background: "#2d5a3d", color: "#fff", flexShrink: 0 }}>
-                              {u.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                              {nombre.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
                             </div>
-                            <span className="font-medium" style={{ color: "#1e3d2a" }}>{u.name}</span>
+                            <span className="font-medium" style={{ color: "#1e3d2a" }}>{nombre}{esYo && " (tú)"}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-xs" style={{ color: "#6b8f74" }}>{u.email}</td>
+                        <td className="px-4 py-3 text-xs" style={{ color: "#6b8f74" }}>{u.correo}</td>
                         <td className="px-4 py-3">
                           {editingUser === u.id ? (
-                            <select autoFocus defaultValue={u.role} onChange={(e) => changeRole(u.id, e.target.value)} onBlur={() => setEditingUser(null)} className="text-xs rounded-lg px-2 py-1 outline-none" style={{ border: "1.5px solid #2d5a3d", background: "#f0f5f1", color: "#1e3d2a", cursor: "pointer" }}>
+                            <select autoFocus defaultValue={u.rol} onChange={(e) => void cambiar(u.id, "rol", e.target.value)} onBlur={() => setEditingUser(null)} className="text-xs rounded-lg px-2 py-1 outline-none" style={{ border: "1.5px solid #2d5a3d", background: "#f0f5f1", color: "#1e3d2a", cursor: "pointer" }}>
                               {["usuario", "moderador", "supermoderador"].map((r) => <option key={r} value={r}>{r}</option>)}
                             </select>
                           ) : (
-                            <button onClick={() => setEditingUser(u.id)} className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: ROLE_COLORS[u.role].bg, color: ROLE_COLORS[u.role].text, border: "none", cursor: "pointer" }}>
-                              {u.role}
+                            <button onClick={() => !esYo && setEditingUser(u.id)} disabled={esYo} className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: ROLE_COLORS[u.rol].bg, color: ROLE_COLORS[u.rol].text, border: "none", cursor: esYo ? "default" : "pointer" }}>
+                              {u.rol}
                             </button>
                           )}
                         </td>
                         <td className="px-4 py-3">
                           <span className="flex items-center gap-1.5 text-xs">
-                            <span className="rounded-full" style={{ width: 6, height: 6, background: STATUS_COLORS[u.status].dot, display: "inline-block" }} />
-                            <span style={{ color: STATUS_COLORS[u.status].text }}>{u.status}</span>
+                            <span className="rounded-full" style={{ width: 6, height: 6, background: STATUS_COLORS[u.estado].dot, display: "inline-block" }} />
+                            <span style={{ color: STATUS_COLORS[u.estado].text }}>{u.estado}</span>
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-xs" style={{ color: "#374a3c" }}>{u.queries}</td>
-                        <td className="px-4 py-3 text-xs" style={{ color: "#8aab92" }}>{u.lastQuery}</td>
                         <td className="px-4 py-3">
-                          {u.role === "supermoderador" ? (
+                          {esYo ? (
                             <span className="text-xs px-3 py-1 rounded-lg" style={{ color: "#c5dccb", background: "transparent" }}>—</span>
                           ) : (
-                            <button onClick={() => toggleStatus(u.id)} className="text-xs px-3 py-1 rounded-lg transition-all" style={{ background: u.status === "activo" ? "#fef3f2" : "#e8f0eb", color: u.status === "activo" ? "#dc2626" : "#2d5a3d", border: "none", cursor: "pointer" }}>
-                              {u.status === "activo" ? "Desactivar" : "Reactivar"}
+                            <button onClick={() => void cambiar(u.id, "estado", u.estado === "activo" ? "inactivo" : "activo")} className="text-xs px-3 py-1 rounded-lg transition-all" style={{ background: u.estado === "activo" ? "#fef3f2" : "#e8f0eb", color: u.estado === "activo" ? "#dc2626" : "#2d5a3d", border: "none", cursor: "pointer" }}>
+                              {u.estado === "activo" ? "Desactivar" : "Reactivar"}
                             </button>
                           )}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -189,6 +222,7 @@ export function AdminPage() {
 
           {activeSection === "roles" && (
             <div className="flex flex-col gap-4">
+              <div><DatosDeEjemplo /></div>
               <div className="rounded-2xl p-6" style={{ background: "#ffffff", border: "1px solid #dde8df" }}>
                 <h2 className="font-semibold mb-4" style={{ color: "#1e3d2a" }}>Límite de consultas por rol</h2>
                 <p className="text-xs mb-5" style={{ color: "#8aab92" }}>Define cuántas consultas puede realizar cada rol. El límite se restablece periódicamente.</p>
@@ -265,6 +299,7 @@ export function AdminPage() {
 
           {activeSection === "estadisticas" && (
             <div className="flex flex-col gap-4">
+              <div><DatosDeEjemplo /></div>
               <div className="rounded-2xl p-6" style={{ background: "#ffffff", border: "1px solid #dde8df" }}>
                 <h2 className="font-semibold mb-4" style={{ color: "#1e3d2a" }}>Uso del sistema por rol</h2>
                 {[
@@ -321,20 +356,23 @@ export function AdminPage() {
                 <p className="text-xs mt-0.5" style={{ color: "#8aab92" }}>Solo lectura. Acciones administrativas registradas del sistema.</p>
               </div>
               <div className="divide-y" style={{ borderColor: "#f0f5f1" }}>
-                {AUDIT_LOG.map((log, i) => (
-                  <div key={i} className="px-6 py-4 flex items-start gap-4">
+                {auditoria.length === 0 && (
+                  <p className="px-6 py-4 text-sm" style={{ color: "#8aab92" }}>Todavía no hay acciones registradas.</p>
+                )}
+                {auditoria.map((log) => (
+                  <div key={log.id} className="px-6 py-4 flex items-start gap-4">
                     <div className="rounded-full p-2 shrink-0 mt-0.5" style={{ background: "#e8f0eb" }}>
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="#2d5a3d" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="text-sm font-medium" style={{ color: "#1e3d2a" }}>{log.action}</span>
-                        <span className="text-xs" style={{ color: "#8aab92" }}>{log.date}</span>
+                        <span className="text-sm font-medium" style={{ color: "#1e3d2a" }}>{ACCIONES[log.accion] ?? log.accion}</span>
+                        <span className="text-xs" style={{ color: "#8aab92" }}>{new Date(log.fecha).toLocaleString("es-CR")}</span>
                       </div>
                       <div className="text-xs" style={{ color: "#6b8f74" }}>
-                        Usuario afectado: <strong style={{ color: "#374a3c" }}>{log.user}</strong> · Por: <strong style={{ color: "#374a3c" }}>{log.by}</strong>
+                        Usuario afectado: <strong style={{ color: "#374a3c" }}>{log.afectado ?? "—"}</strong> · Por: <strong style={{ color: "#374a3c" }}>{log.actor ?? "Servidor"}</strong>
                       </div>
-                      <div className="text-xs mt-0.5 font-mono" style={{ color: "#8aab92" }}>{log.detail}</div>
+                      <div className="text-xs mt-0.5 font-mono" style={{ color: "#8aab92" }}>{log.detalle}</div>
                     </div>
                   </div>
                 ))}

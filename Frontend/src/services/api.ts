@@ -8,6 +8,7 @@
 import type {
   ConsultaOut,
   ItemHistorial,
+  RegistroAuditoria,
   RegistroRequest,
   Sesion,
   TokenOut,
@@ -134,4 +135,30 @@ export async function enviarConsulta(texto: string, especieId?: string): Promise
 export async function obtenerHistorial(): Promise<ItemHistorial[]> {
   const res = await fetch(`${API_URL}/consultas/historial`, { headers: cabeceras() });
   return manejar<ItemHistorial[]>(res);
+}
+
+// Administración — solo supermoderador (RR_00_10); el servidor responde 403 al resto.
+
+export async function listarUsuarios(): Promise<Usuario[]> {
+  const res = await fetch(`${API_URL}/admin/usuarios`, { headers: cabeceras() });
+  return manejar<Usuario[]>(res);
+}
+
+/** RR_00_09 — el cambio queda en la auditoría con quien lo hizo. */
+export async function cambiarUsuario(
+  id: number,
+  campo: "estado" | "rol",
+  valor: string,
+): Promise<Usuario> {
+  const res = await fetch(`${API_URL}/admin/usuarios/${id}/${campo}`, {
+    method: "PATCH",
+    headers: cabeceras(),
+    body: JSON.stringify({ [campo]: valor }),
+  });
+  return manejar<Usuario>(res);
+}
+
+export async function obtenerAuditoria(): Promise<RegistroAuditoria[]> {
+  const res = await fetch(`${API_URL}/admin/auditoria`, { headers: cabeceras() });
+  return manejar<RegistroAuditoria[]>(res);
 }

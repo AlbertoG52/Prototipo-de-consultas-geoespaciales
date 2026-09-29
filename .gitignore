@@ -6,6 +6,7 @@ dist/
 .vite/
 CLAUDE.md
 .claude/settings.local.json
+pruebas-locales.md
 
 # Certificados y llaves: nunca se suben (ver certs/README.md)
 certs/*
