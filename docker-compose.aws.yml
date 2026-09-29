@@ -1,11 +1,20 @@
-# Modo AWS: conecta el backend a la base de datos de AWS (RDS) en vez del
-# Postgres local. NO reemplaza a docker-compose.yml, se aplica encima:
+# Modo AWS: conecta el backend a la base de datos Postgres que corre en la EC2
+# de AWS, en vez del Postgres local. NO reemplaza a docker-compose.yml, se
+# aplica encima:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.aws.yml up --build
 #
-# Requisitos (detalle en certs/README.md):
+# La conexión pasa por un túnel SSH que se abre ANTES, en otra terminal, con la
+# llave .pem (detalle en certs/README.md):
+#
+#   ssh -i certs/llave-aws.pem -N -L 5433:localhost:5432 USUARIO_EC2@IP_EC2
+#
+# El túnel expone la base de la EC2 en el puerto 5433 de tu máquina, y el
+# contenedor llega a tu máquina por el nombre host.docker.internal.
+#
+# Requisitos:
+#   - túnel SSH abierto
 #   - DATABASE_URL_AWS definida en el .env
-#   - el certificado de RDS en certs/global-bundle.pem
 #   - Docker Compose 2.24.4 o superior (por el "!reset" de abajo)
 #
 # Uso previsto: demos e integración desde main. El desarrollo diario sigue
@@ -22,8 +31,9 @@ services:
       # Reemplaza la URL que apunta al contenedor "db". Si falta la variable,
       # Compose se detiene con este mensaje en lugar de arrancar a medias.
       DATABASE_URL: ${DATABASE_URL_AWS:?Falta DATABASE_URL_AWS en el .env. Ver certs/README.md}
-    volumes:
-      # Solo lectura: el contenedor puede leer el certificado, no modificarlo.
-      - ./certs:/certs:ro
+    # Docker Desktop ya resuelve host.docker.internal; esta línea lo garantiza
+    # también en Linux.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     # Ya no hay que esperar al Postgres local.
     depends_on: !reset {}
