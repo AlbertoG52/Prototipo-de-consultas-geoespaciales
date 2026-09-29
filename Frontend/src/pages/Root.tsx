@@ -115,13 +115,14 @@ export function Root() {
         </div>
 
         {/*
-          RR_09 — historial de la sesión activa, en orden cronológico.
+          RR_09 — historial de la cuenta, la consulta más reciente primero.
+          Se conserva aunque la persona cierre sesión y vuelva a entrar.
           Para un visitante sin cuenta la lista no existe: sus consultas no se
           guardan (RR_00_11.
         */}
         <div className="flex-1 overflow-y-auto px-3">
           <div className="text-xs font-medium mb-2 px-2" style={{ color: "#6b8f74" }}>
-            Consultas de esta sesión
+            Tu historial
           </div>
 
           {!sesion?.guarda_historial ? (

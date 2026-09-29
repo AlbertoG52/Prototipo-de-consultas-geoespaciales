@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
 @import 'tailwindcss';
 
 html,
@@ -22,9 +22,38 @@ body,
   --font-serif: 'Lora', serif;
 }
 
+/* La fuente se elige en Perfil → Preferencias (utils/apariencia.ts). */
+:root {
+  --fuente-app: 'Inter', sans-serif;
+}
+
 * {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--fuente-app);
   box-sizing: border-box;
+}
+
+/*
+  Modo oscuro (Perfil → Preferencias).
+
+  Las vistas usan colores escritos directamente en cada componente, así que en
+  vez de redefinirlos uno por uno se invierte toda la aplicación y se gira el
+  tono 180° para que el verde siga siendo verde. Las imágenes, videos, lienzos
+  y mapas se vuelven a invertir para que conserven sus colores reales.
+
+  Si un elemento nuevo debe verse con sus colores originales (por ejemplo, un
+  mapa hecho con SVG), basta con ponerle el atributo data-sin-invertir.
+*/
+html[data-tema="oscuro"] {
+  background: #000;
+}
+
+html[data-tema="oscuro"] #root {
+  background: #fff;
+  filter: invert(1) hue-rotate(180deg);
+}
+
+html[data-tema="oscuro"] #root :is(img, video, canvas, picture, iframe, [data-sin-invertir]) {
+  filter: invert(1) hue-rotate(180deg);
 }
 
 ::-webkit-scrollbar {
