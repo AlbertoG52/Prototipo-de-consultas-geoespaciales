@@ -28,7 +28,7 @@ Por defecto todo corre local. Para conectar el backend a la base de datos de AWS
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.aws.yml up --build
 ```
-Requiere el certificado en `certs/` y `DATABASE_URL_AWS` en el `.env`. Pasos completos en [`certs/README.md`](certs/README.md).
+Requiere el túnel SSH abierto con la llave `.pem` y `DATABASE_URL_AWS` en el `.env`. Pasos completos en [`certs/README.md`](certs/README.md).
 
 ---
 
