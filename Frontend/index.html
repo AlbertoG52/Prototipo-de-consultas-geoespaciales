@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Prototipo de consultas geoespaciales</title>
+    <!--
+      Aplica el modo oscuro antes de que cargue la aplicación, para que no
+      parpadee en blanco. La clave debe coincidir con src/utils/apariencia.ts.
+    -->
+    <script>
+      try {
+        if (localStorage.getItem("apariencia.tema") === "oscuro") {
+          document.documentElement.dataset.tema = "oscuro";
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

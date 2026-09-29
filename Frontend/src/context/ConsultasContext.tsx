@@ -1,9 +1,9 @@
 /**
- * Conversación con el agente e historial de la sesión.
+ * Conversación con el agente e historial de consultas.
  *
  * Acá se maneja:
  *
- *  - RR_09  historial de la sesión activa
+ *  - RR_09  historial de la cuenta (se conserva al cerrar e iniciar sesión)
  *  - RR_17  selección de especie cuando la consulta coincide con varias
  *  - RR_00_11 al visitante sin cuenta no se le guarda nada
  *
@@ -47,7 +47,7 @@ interface EstadoConsultas {
   /** Vuelve a mostrar una respuesta guardada sin reprocesarla (RR_09). */
   verDelHistorial: (id: number) => void;
 
-  /** Limpia la conversación. El historial de la sesión no se borra. */
+  /** Limpia la conversación. El historial no se borra. */
   nuevaConsulta: () => void;
 
   /** Texto de la última consulta, para reintentar tras un error. */
@@ -139,16 +139,18 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
         });
 
         // Solo una consulta resuelta entra al historial y consume del límite.
+        // Va al inicio: el historial se muestra con la más reciente primero,
+        // igual que lo devuelve el servidor.
         if (salida.estado === "resuelta") {
           if (salida.id !== null && salida.respuesta) {
             setHistorial((prev) => [
-              ...prev,
               {
                 id: salida.id!,
                 texto: salida.texto,
                 respuesta: salida.respuesta,
                 realizada_en: salida.realizada_en ?? new Date().toISOString(),
               },
+              ...prev,
             ]);
           }
           await refrescarSesion();

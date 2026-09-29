@@ -116,7 +116,9 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | POST | `/auth/logout` | cerrar la sesión activa | cualquier sesión |
 | GET | `/auth/sesion` | quién soy y cuántas consultas me quedan | cualquier sesión |
 | POST | `/consultas` | enviar una consulta | cualquier sesión |
-| GET | `/consultas/historial` | consultas de la sesión activa | cualquier sesión (el visitante recibe una lista vacía) |
+| GET | `/consultas/historial` | historial de la cuenta (últimas 50, la más reciente primero) | cualquier sesión (el visitante recibe una lista vacía) |
+| PATCH | `/perfil` | cambiar el nombre de la cuenta | solo cuentas registradas |
+| POST | `/perfil/password` | cambiar la contraseña (pide la actual) | solo cuentas registradas |
 | GET | `/admin/usuarios` | usuarios registrados | supermoderador |
 | PATCH | `/admin/usuarios/{id}/estado` | activar o desactivar (no a sí mismo: 409) | supermoderador |
 | PATCH | `/admin/usuarios/{id}/rol` | cambiar el rol (no a sí mismo: 409) | supermoderador |

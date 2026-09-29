@@ -11,6 +11,9 @@ from ..services.uso import consultas_hoy, limite_de, registrar_consumo_anonimo
 
 router = APIRouter(prefix="/consultas", tags=["consultas"])
 
+# RR_09: cuántas consultas anteriores devuelve el historial.
+LIMITE_HISTORIAL = 50
+
 
 @router.post("", response_model=ConsultaOut)
 def enviar_consulta(
@@ -127,26 +130,27 @@ def historial_de_sesion(
     identidad: Identidad = Depends(obtener_identidad),
     db: Session = Depends(get_db),
 ):
-    """RR_09 — consultas de la sesión activa, en orden cronológico.
+    """RR_09 — historial de consultas de la cuenta, la más reciente primero.
 
-    Se filtra por 'sesion_id', que se genera al iniciar sesión: el criterio 3
-    pide el historial de la sesión activa, no el histórico completo de la
-    cuenta.
+    Se filtra por usuario y no por sesión: el historial se conserva aunque la
+    persona cierre sesión y vuelva a entrar con la misma cuenta. 'sesion_id'
+    se sigue guardando en cada consulta, pero ya no se usa para filtrar.
+
+    Se devuelven como máximo LIMITE_HISTORIAL consultas para que la respuesta
+    no crezca sin fin con el uso.
 
     Un visitante anónimo recibe una lista vacía: sus consultas no se guardan
     (RR_00_11 criterio 1) y su historial vive solo en el navegador mientras no
     recargue la página.
     """
-    if identidad.es_anonimo or not identidad.sesion_id:
+    if identidad.es_anonimo or identidad.usuario is None:
         return []
 
     filas = (
         db.query(Consulta)
-        .filter(
-            Consulta.usuario_id == identidad.usuario.id,
-            Consulta.sesion_id == identidad.sesion_id,
-        )
-        .order_by(Consulta.realizada_en.asc())
+        .filter(Consulta.usuario_id == identidad.usuario.id)
+        .order_by(Consulta.realizada_en.desc(), Consulta.id.desc())
+        .limit(LIMITE_HISTORIAL)
         .all()
     )
 

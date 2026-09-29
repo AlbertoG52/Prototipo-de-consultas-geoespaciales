@@ -131,10 +131,32 @@ export async function enviarConsulta(texto: string, especieId?: string): Promise
   return manejar<ConsultaOut>(res);
 }
 
-/** RR_09 — consultas de la sesión activa, en orden cronológico. */
+/** RR_09 — historial de la cuenta, la consulta más reciente primero. */
 export async function obtenerHistorial(): Promise<ItemHistorial[]> {
   const res = await fetch(`${API_URL}/consultas/historial`, { headers: cabeceras() });
   return manejar<ItemHistorial[]>(res);
+}
+
+// Perfil — solo cuentas registradas; un visitante recibe 401.
+
+/** Cambia el nombre visible de la cuenta. Devuelve el usuario actualizado. */
+export async function cambiarNombre(nombre: string): Promise<Usuario> {
+  const res = await fetch(`${API_URL}/perfil`, {
+    method: "PATCH",
+    headers: cabeceras(),
+    body: JSON.stringify({ nombre }),
+  });
+  return manejar<Usuario>(res);
+}
+
+/** Cambia la contraseña. El servidor verifica la actual y valida la nueva (RR_00_03). */
+export async function cambiarPassword(passwordActual: string, passwordNueva: string): Promise<void> {
+  const res = await fetch(`${API_URL}/perfil/password`, {
+    method: "POST",
+    headers: cabeceras(),
+    body: JSON.stringify({ password_actual: passwordActual, password_nueva: passwordNueva }),
+  });
+  return manejar<void>(res);
 }
 
 // Administración — solo supermoderador (RR_00_10); el servidor responde 403 al resto.
