@@ -1,7 +1,8 @@
 """Hash de contraseñas, tokens y resolución de la identidad de cada petición.
 
-Aquí viven RR_00_02 (almacenamiento seguro de contraseñas) y la mitad de
-RR_00_11 (el visitante sin cuenta también recibe una identidad, anónima).
+Aquí viven RR_00_02 (almacenamiento seguro de contraseñas), la mitad de
+RR_00_11 (el visitante sin cuenta también recibe una identidad, anónima) y
+RR_00_10 (control de acceso por rol).
 """
 from __future__ import annotations
 
@@ -31,6 +32,11 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 TIPO_USUARIO = "usuario"
 TIPO_ANONIMO = "anonimo"
 
+# Nombres de la tabla 'roles' (sembrados en 001_crear_tabla_roles.sql).
+ROL_USUARIO = "usuario"
+ROL_MODERADOR = "moderador"
+ROL_SUPERMODERADOR = "supermoderador"
+
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(_password_bcrypt_compatible(password))
@@ -58,6 +64,9 @@ def crear_token_usuario(usuario: Usuario) -> tuple[str, str]:
         {
             "sub": str(usuario.id),
             "tipo": TIPO_USUARIO,
+            # Solo informativo. La autorización (RR_00_10) lee el rol desde la
+            # BD en cada petición: un cambio de rol aplica de inmediato y un
+            # token con este campo alterado no concede nada.
             "rol": usuario.rol.nombre if usuario.rol else None,
             "sid": sesion_id,
         },
@@ -151,6 +160,35 @@ def obtener_usuario_actual(
             detail="Necesitas iniciar sesión para acceder a esto.",
         )
     return identidad.usuario
+
+
+def requiere_rol(*roles_permitidos: str):
+    """Dependencia que deja pasar solo a los roles indicados — RR_00_10.
+
+    Uso: `Depends(requiere_rol(ROL_SUPERMODERADOR))`, en un endpoint o en
+    las `dependencies` de un router completo.
+
+    - Sin cuenta: 401 (lo lanza obtener_usuario_actual); iniciar sesión puede
+      resolverlo.
+    - Con cuenta pero con otro rol: 403; iniciar sesión no lo resuelve.
+
+    Los roles se enumeran explícitamente en vez de usar una jerarquía: el
+    moderador no hereda las funciones de administración del supermoderador.
+    El rol sale de la BD (vía obtener_identidad), nunca del token.
+    """
+    if not roles_permitidos:
+        raise ValueError("requiere_rol necesita al menos un rol.")
+    permitidos = frozenset(roles_permitidos)
+
+    def verificar(usuario: Usuario = Depends(obtener_usuario_actual)) -> Usuario:
+        if usuario.rol is None or usuario.rol.nombre not in permitidos:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes permiso para realizar esta acción.",
+            )
+        return usuario
+
+    return verificar
 
 
 def _password_bcrypt_compatible(password: str) -> str:
