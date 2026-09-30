@@ -97,6 +97,7 @@ Cada cambio a la base es un archivo SQL numerado en `Backend/migrations/`:
 | `011_auditoria_actor_inmutable.sql` | quién hizo cada cambio y auditoría inmutable, para RR_00_09 |
 | `012_conversaciones.sql` | historial por conversaciones y los tres estados de una consulta, para RR_09 y RR_17 |
 | `013_inactividad_sesion.sql` | minutos de inactividad elegidos por cada usuario, para RR_00_04 |
+| `014_verificar_cuentas_existentes.sql` | marca como verificadas las cuentas creadas antes de RR_00_07 |
 | `011_auditoria_actor_inmutable.sql` | quién hizo cada cambio y auditoría no modificable, para RR_00_09 |
 
 Para agregar un cambio:
@@ -116,6 +117,10 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | POST | `/auth/registro` | crear cuenta | público |
 | POST | `/auth/login` | iniciar sesión | público |
 | POST | `/auth/anonimo` | entrar sin cuenta | público |
+| POST | `/auth/verificar` | verificar el correo con el token del enlace (RR_00_07) | público |
+| POST | `/auth/reenviar-verificacion` | enviar un enlace de verificación nuevo (RR_00_07) | público |
+| POST | `/auth/recuperar` | enviar el enlace para cambiar la contraseña olvidada (RR_00_06) | público |
+| POST | `/auth/restablecer` | guardar la contraseña nueva con el token del enlace (RR_00_06) | público |
 | POST | `/auth/logout` | cerrar la sesión activa | cualquier sesión |
 | GET | `/auth/sesion` | quién soy y cuántas consultas me quedan | cualquier sesión |
 | POST | `/consultas` | enviar una consulta | cualquier sesión |
@@ -210,3 +215,13 @@ crean al terminar.
   login responde **423** con la duración del bloqueo (RR_00_05). Mientras dure
   se rechaza incluso la contraseña correcta; un login correcto reinicia el contador.
 - Las reglas de contraseña se validan en el servidor, no solo en el navegador.
+- Verificación de correo (RR_00_07): al registrarse se envía un enlace que vence
+  en 24 horas y sirve una sola vez; hasta usarlo, el login responde **403** y la
+  persona puede seguir como visitante. En la tabla `tokens` se guarda solo el
+  hash SHA-256 del token. El envío usa Gmail (SMTP) con las variables `SMTP_*`
+  del `.env`; sin ellas, el enlace se escribe en `docker compose logs backend`.
+- Recuperación de contraseña (RR_00_06): `/auth/recuperar` envía un enlace que
+  vence en 30 minutos y sirve una sola vez, y responde lo mismo exista o no la
+  cuenta. Al guardar la contraseña nueva se quita el bloqueo de RR_00_05 y el
+  correo queda verificado. Los enlaces de verificación y de recuperación no son
+  intercambiables, y entre dos envíos a la misma cuenta hay al menos 60 segundos.
