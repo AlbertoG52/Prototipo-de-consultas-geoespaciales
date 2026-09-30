@@ -7,8 +7,8 @@
  *    navegador. La configuración de respuestas (RR_67 / RR_68) sigue siendo
  *    solo interfaz: la implementa otro requerimiento.
  *  - Seguridad: cambio de contraseña, validado en el servidor con las mismas
- *    reglas del registro (RR_00_03). El tiempo de inactividad (RR_00_04)
- *    sigue siendo solo interfaz.
+ *    reglas del registro (RR_00_03), y tiempo de inactividad que cierra la
+ *    sesión (RR_00_04), guardado en la cuenta.
  *
  * No tiene pestaña de historial: el historial ya está en la barra lateral
  * (RR_09).
@@ -46,6 +46,18 @@ const REGLAS_PASSWORD: { texto: string; cumple: (p: string) => boolean }[] = [
   { texto: "Una letra mayúscula", cumple: (p) => /[A-Z]/.test(p) },
   { texto: "Un número", cumple: (p) => /\d/.test(p) },
   { texto: "Un carácter especial o símbolo", cumple: (p) => /[^A-Za-z0-9]/.test(p) },
+];
+
+// RR_00_04 — mismas opciones que acepta el servidor (config.OPCIONES_INACTIVIDAD).
+// 0 = la sesión no se cierra por inactividad.
+const OPCIONES_INACTIVIDAD: { label: string; minutos: number }[] = [
+  { label: "30 minutos", minutos: 30 },
+  { label: "1 hora", minutos: 60 },
+  { label: "6 horas", minutos: 360 },
+  { label: "12 horas", minutos: 720 },
+  { label: "24 horas", minutos: 1440 },
+  { label: "1 semana", minutos: 10080 },
+  { label: "Nunca", minutos: 0 },
 ];
 
 const ESTILO_INPUT = {
@@ -439,8 +451,27 @@ function PestanaSeguridad() {
   const [exito, setExito] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // RR_00_04: solo interfaz por ahora; la expiración real la define otro requerimiento.
-  const [inactividad, setInactividad] = useState("30m");
+  // RR_00_04 criterio 2: el periodo de inactividad es configurable por cuenta.
+  const { sesion, refrescarSesion } = useAuth();
+  const inactividad = sesion?.minutos_inactividad ?? null;
+  const [guardandoInactividad, setGuardandoInactividad] = useState(false);
+  const [errorInactividad, setErrorInactividad] = useState<string | null>(null);
+
+  async function elegirInactividad(minutos: number) {
+    if (minutos === inactividad || guardandoInactividad) return;
+    setGuardandoInactividad(true);
+    setErrorInactividad(null);
+    try {
+      await api.cambiarInactividad(minutos);
+      await refrescarSesion();
+    } catch (err) {
+      setErrorInactividad(
+        err instanceof Error ? err.message : "No se pudo guardar el tiempo de inactividad.",
+      );
+    } finally {
+      setGuardandoInactividad(false);
+    }
+  }
 
   const cumpleReglas = REGLAS_PASSWORD.every((r) => r.cumple(nueva));
   const coinciden = nueva.length > 0 && nueva === confirmacion;
@@ -526,35 +557,30 @@ function PestanaSeguridad() {
 
       <Tarjeta
         titulo="Tiempo de inactividad"
-        etiqueta="Próximamente"
         descripcion="Elige cuánto tiempo debe pasar sin actividad para cerrar la sesión automáticamente."
       >
-        <div className="flex flex-col gap-2">
-          {[
-            { label: "30 minutos", value: "30m" },
-            { label: "1 hora", value: "1h" },
-            { label: "6 horas", value: "6h" },
-            { label: "12 horas", value: "12h" },
-            { label: "24 horas", value: "24h" },
-            { label: "1 semana", value: "1w" },
-            { label: "Nunca", value: "never" },
-          ].map((opt) => {
-            const elegida = inactividad === opt.value;
+        {errorInactividad && <Aviso tipo="error">{errorInactividad}</Aviso>}
+        <div className="flex flex-col gap-2" role="radiogroup" aria-label="Tiempo de inactividad">
+          {OPCIONES_INACTIVIDAD.map((opt) => {
+            const elegida = inactividad === opt.minutos;
             return (
               <label
-                key={opt.value}
-                className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
+                key={opt.minutos}
+                className="flex items-center gap-3 p-3 rounded-xl transition-all"
                 style={{
                   background: elegida ? "#e8f0eb" : "#f0f5f1",
                   border: `1.5px solid ${elegida ? "#2d5a3d" : "transparent"}`,
+                  cursor: guardandoInactividad ? "default" : "pointer",
+                  opacity: guardandoInactividad && !elegida ? 0.6 : 1,
                 }}
               >
                 <input
                   type="radio"
                   name="inactividad"
-                  value={opt.value}
+                  value={opt.minutos}
                   checked={elegida}
-                  onChange={() => setInactividad(opt.value)}
+                  disabled={guardandoInactividad}
+                  onChange={() => void elegirInactividad(opt.minutos)}
                   style={{ accentColor: "#2d5a3d" }}
                 />
                 <span
@@ -563,7 +589,7 @@ function PestanaSeguridad() {
                 >
                   {opt.label}
                 </span>
-                {opt.value === "30m" && (
+                {opt.minutos === 30 && (
                   <span className="text-xs ml-auto" style={{ color: "#8aab92" }}>
                     Recomendado
                   </span>

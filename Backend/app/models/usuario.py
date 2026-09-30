@@ -25,6 +25,8 @@ class Usuario(Base):
     intentos_fallidos = Column(Integer, nullable=False, default=0)
     bloqueado_hasta = Column(DateTime(timezone=True))
     ultimo_acceso = Column(DateTime(timezone=True))
+    # RR_00_04 (migración 012): NULL = valor por defecto, 0 = nunca.
+    minutos_inactividad = Column(Integer)
 
     # RR_67 / RR_68.
     incluir_mapa = Column(Boolean, nullable=False, default=True)

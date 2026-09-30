@@ -1,4 +1,4 @@
-"""Perfil del usuario autenticado: editar su nombre y cambiar su contraseña.
+"""Perfil del usuario autenticado: nombre, contraseña e inactividad de la sesión.
 
 Todo el router exige una cuenta: un visitante anónimo recibe 401. Cada
 persona solo puede modificar su propia cuenta; el id sale del token, nunca
@@ -12,9 +12,18 @@ from sqlalchemy.orm import Session
 
 from ..db import get_db
 from ..models import Usuario
-from ..schemas.perfil import CambioNombreRequest, CambioPasswordRequest
+from ..schemas.auth import TokenOut
+from ..schemas.perfil import CambioInactividadRequest, CambioNombreRequest, CambioPasswordRequest
 from ..schemas.usuario import UsuarioOut
-from ..security import hash_password, obtener_usuario_actual, verificar_password
+from ..security import (
+    TIPO_USUARIO,
+    Identidad,
+    crear_token_usuario,
+    hash_password,
+    obtener_identidad,
+    obtener_usuario_actual,
+    verificar_password,
+)
 
 router = APIRouter(prefix="/perfil", tags=["perfil"])
 
@@ -69,3 +78,22 @@ def cambiar_password(
     # RR_00_02: solo se guarda el hash.
     usuario.password_hash = hash_password(datos.password_nueva)
     db.commit()
+
+
+@router.patch("/inactividad", response_model=TokenOut)
+def cambiar_inactividad(
+    datos: CambioInactividadRequest,
+    identidad: Identidad = Depends(obtener_identidad),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """RR_00_04 criterio 2 — cambia cuánto tiempo sin actividad cierra la sesión.
+
+    Devuelve un token nuevo para que el periodo elegido aplique desde ya, sin
+    esperar a la siguiente renovación.
+    """
+    usuario.minutos_inactividad = datos.minutos
+    db.commit()
+    db.refresh(usuario)
+    token, _ = crear_token_usuario(usuario, sesion_id=identidad.sesion_id or None)
+    return TokenOut(access_token=token, tipo=TIPO_USUARIO)

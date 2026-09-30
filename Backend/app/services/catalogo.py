@@ -13,10 +13,11 @@ provisional son los datos y la forma de emparejarlos. Cuando llegue la API de
 CR-BioLM se reescribe SOLO este archivo, respetando las dos funciones
 públicas, y nada más del proyecto cambia.
 
-Las dos funciones que hay que mantener:
+Las funciones que hay que mantener:
 
     buscar_especies(texto)            -> list[EspecieCandidata]
     construir_respuesta(especie, texto) -> RespuestaConsulta
+    obtener_ficha(especie)            -> FichaEspecie   (RR_20)
 
 Los datos de abajo son ilustrativos y sirven para probar los tres caminos de
 una consulta: coincidencia única, coincidencia múltiple y sin coincidencias.
@@ -26,7 +27,7 @@ from __future__ import annotations
 
 import unicodedata
 
-from ..schemas.consulta import EspecieCandidata, RegistroPresencia, RespuestaConsulta
+from ..schemas.consulta import EspecieCandidata, FichaEspecie, RegistroPresencia, RespuestaConsulta
 
 # --- datos provisionales ----------------------------------------------------
 # 'alias' son los términos que hacen que una consulta apunte a esta especie.
@@ -39,6 +40,7 @@ _CATALOGO: list[dict] = [
         "nombre_cientifico": "Guarianthe skinneri",
         "familia": "Orchidaceae",
         "alias": ["guaria", "guaria morada", "guarianthe skinneri"],
+        "habitat": "Bosque húmedo premontano; crece como epífita sobre troncos y ramas.",
         "elevacion": "800 – 1600 msnm",
         "texto": (
             "Guarianthe skinneri es una orquídea epífita de bosque húmedo "
@@ -59,6 +61,7 @@ _CATALOGO: list[dict] = [
         "nombre_cientifico": "Guarianthe aurantiaca",
         "familia": "Orchidaceae",
         "alias": ["guaria", "guaria naranja", "guarianthe aurantiaca"],
+        "habitat": "Bosque estacionalmente seco; epífita o sobre rocas.",
         "elevacion": "300 – 1200 msnm",
         "texto": (
             "Guarianthe aurantiaca es una orquídea de flores anaranjadas "
@@ -76,6 +79,7 @@ _CATALOGO: list[dict] = [
         "nombre_cientifico": "Cedrela odorata",
         "familia": "Meliaceae",
         "alias": ["cedro", "cedro amargo", "cedrela odorata"],
+        "habitat": "Bosque húmedo y seco de tierras bajas y premontano.",
         "elevacion": "0 – 1200 msnm",
         "texto": (
             "Cedrela odorata es un árbol caducifolio de amplia distribución en "
@@ -94,6 +98,7 @@ _CATALOGO: list[dict] = [
         "nombre_cientifico": "Cedrela tonduzii",
         "familia": "Meliaceae",
         "alias": ["cedro", "cedro dulce", "cedrela tonduzii"],
+        "habitat": "Bosque montano de las cordilleras centrales y de Talamanca.",
         "elevacion": "1200 – 2800 msnm",
         "texto": (
             "Cedrela tonduzii ocupa el bosque montano de las cordilleras "
@@ -111,6 +116,7 @@ _CATALOGO: list[dict] = [
         "nombre_cientifico": "Quercus costaricensis",
         "familia": "Fagaceae",
         "alias": ["roble", "roble negro", "quercus costaricensis"],
+        "habitat": "Robledal de altura (bosque montano y subalpino).",
         "elevacion": "2200 – 3300 msnm",
         "texto": (
             "Quercus costaricensis domina el robledal de altura de la "
@@ -128,6 +134,7 @@ _CATALOGO: list[dict] = [
         "nombre_cientifico": "Bactris gasipaes",
         "familia": "Arecaceae",
         "alias": ["pejibaye", "pejivalle", "bactris gasipaes"],
+        "habitat": "Tierras bajas húmedas; cultivada en fincas y huertos.",
         "elevacion": "0 – 1200 msnm",
         "texto": (
             "Bactris gasipaes es una palma cultivada desde tiempos "
@@ -157,6 +164,20 @@ def _a_candidata(entrada: dict) -> EspecieCandidata:
         nombre_cientifico=entrada["nombre_cientifico"],
         familia=entrada["familia"],
     )
+
+
+def _registros(entrada: dict) -> list[RegistroPresencia]:
+    return [
+        RegistroPresencia(
+            localidad=localidad,
+            fecha=fecha,
+            latitud=lat,
+            longitud=lon,
+            elevacion_m=elev,
+            fuente="GBIF",
+        )
+        for localidad, fecha, lat, lon, elev in entrada["registros"]
+    ]
 
 
 def buscar_especies(texto: str) -> list[EspecieCandidata]:
@@ -193,22 +214,46 @@ def construir_respuesta(especie_id: str, texto_consulta: str) -> RespuestaConsul
     if entrada is None:
         return None
 
-    registros = [
-        RegistroPresencia(
-            localidad=localidad,
-            fecha=fecha,
-            latitud=lat,
-            longitud=lon,
-            elevacion_m=elev,
-            fuente="GBIF",
-        )
-        for localidad, fecha, lat, lon, elev in entrada["registros"]
-    ]
+    registros = _registros(entrada)
 
     return RespuestaConsulta(
         especie=_a_candidata(entrada),
         texto=entrada["texto"],
         elevacion=entrada["elevacion"],
+        registros=registros,
+        total_registros=len(registros),
+        fuentes=list(_FUENTES),
+    )
+
+
+def obtener_ficha(especie: str) -> FichaEspecie | None:
+    """RR_20 — ficha completa de una especie del catálogo.
+
+    Acepta el id ('guarianthe-skinneri') o el nombre científico
+    ('Guarianthe skinneri'), para que los enlaces viejos a la ficha, que usaban
+    el nombre científico, sigan funcionando. None si no está en el catálogo.
+    """
+    buscado = _normalizar(especie.strip())
+    entrada = next(
+        (
+            e
+            for e in _CATALOGO
+            if e["id"] == buscado or _normalizar(e["nombre_cientifico"]) == buscado
+        ),
+        None,
+    )
+    if entrada is None:
+        return None
+
+    registros = _registros(entrada)
+    return FichaEspecie(
+        id=entrada["id"],
+        nombre_comun=entrada["nombre_comun"],
+        nombre_cientifico=entrada["nombre_cientifico"],
+        familia=entrada["familia"],
+        habitat=entrada.get("habitat"),
+        elevacion=entrada.get("elevacion"),
+        descripcion=entrada["texto"],
         registros=registros,
         total_registros=len(registros),
         fuentes=list(_FUENTES),

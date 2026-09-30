@@ -12,3 +12,6 @@ pruebas-locales.md
 certs/*
 !certs/README.md
 *.pem
+
+# Archivos que genera TypeScript al compilar
+*.tsbuildinfo

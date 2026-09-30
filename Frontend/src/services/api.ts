@@ -9,10 +9,12 @@ import type {
   ConsultaOut,
   ConversacionDetalle,
   ConversacionResumen,
+  FichaEspecie,
   ItemHistorial,
   RegistroAuditoria,
   RegistroRequest,
   Sesion,
+  TipoSesion,
   TokenOut,
   Usuario,
 } from "../types";
@@ -33,6 +35,35 @@ export function borrarToken() {
   localStorage.removeItem(CLAVE_TOKEN);
 }
 
+/**
+ * Tipo de sesión del token guardado, leído de su contenido sin verificar la
+ * firma. Solo sirve para decisiones de interfaz (p. ej. avisar que una sesión
+ * de usuario expiró); el servidor es quien valida el token.
+ */
+export function tipoDeToken(token: string | null = obtenerToken()): TipoSesion | null {
+  if (!token) return null;
+  try {
+    const base64 = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    const datos = JSON.parse(atob(base64));
+    return datos.tipo === "usuario" || datos.tipo === "anonimo" ? datos.tipo : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * RR_00_04 — aviso de sesión expirada.
+ *
+ * Cuando una petición hecha con el token de un usuario registrado recibe 401,
+ * el token venció (por inactividad) o dejó de ser válido. AuthContext se
+ * suscribe aquí para cerrar la sesión y pedir un nuevo inicio de sesión.
+ */
+let alExpirar: (() => void) | null = null;
+
+export function alExpirarSesion(fn: (() => void) | null) {
+  alExpirar = fn;
+}
+
 function cabeceras(): Record<string, string> {
   const h: Record<string, string> = { "Content-Type": "application/json" };
   const token = obtenerToken();
@@ -51,6 +82,12 @@ export class ErrorApi extends Error {
 }
 
 async function manejar<T>(res: Response): Promise<T> {
+  // RR_00_04: un 401 con el token de un usuario = la sesión venció.
+  // (Se excluye el login: ahí un 401 significa credenciales incorrectas.)
+  if (res.status === 401 && tipoDeToken() === "usuario" && !res.url.endsWith("/auth/login")) {
+    alExpirar?.();
+  }
+
   if (res.status === 204) return undefined as T;
 
   if (!res.ok) {
@@ -114,6 +151,17 @@ export async function cerrarSesion(): Promise<void> {
 export async function obtenerSesion(): Promise<Sesion> {
   const res = await fetch(`${API_URL}/auth/sesion`, { headers: cabeceras() });
   return manejar<Sesion>(res);
+}
+
+/**
+ * RR_00_04 — renueva la sesión porque hubo actividad. El servidor devuelve un
+ * token con el periodo de inactividad completo. Si el token ya venció,
+ * responde 401 y se dispara el aviso de sesión expirada.
+ */
+export async function renovarSesion(): Promise<void> {
+  const res = await fetch(`${API_URL}/auth/renovar`, { method: "POST", headers: cabeceras() });
+  const datos = await manejar<TokenOut>(res);
+  guardarToken(datos.access_token);
 }
 
 // Consultas 
@@ -183,6 +231,31 @@ export async function cambiarPassword(passwordActual: string, passwordNueva: str
     body: JSON.stringify({ password_actual: passwordActual, password_nueva: passwordNueva }),
   });
   return manejar<void>(res);
+}
+
+/**
+ * RR_00_04 — minutos sin actividad que cierran la sesión (0 = nunca). Guarda
+ * el token nuevo que devuelve el servidor para que aplique de inmediato.
+ */
+export async function cambiarInactividad(minutos: number): Promise<void> {
+  const res = await fetch(`${API_URL}/perfil/inactividad`, {
+    method: "PATCH",
+    headers: cabeceras(),
+    body: JSON.stringify({ minutos }),
+  });
+  const datos = await manejar<TokenOut>(res);
+  guardarToken(datos.access_token);
+}
+
+/**
+ * RR_20 — ficha completa de una especie, por su id del catálogo. No consume
+ * consultas del límite diario. Si la especie no existe el servidor responde 404.
+ */
+export async function obtenerFicha(especieId: string): Promise<FichaEspecie> {
+  const res = await fetch(`${API_URL}/especies/${encodeURIComponent(especieId)}`, {
+    headers: cabeceras(),
+  });
+  return manejar<FichaEspecie>(res);
 }
 
 // Administración — solo supermoderador (RR_00_10); el servidor responde 403 al resto.

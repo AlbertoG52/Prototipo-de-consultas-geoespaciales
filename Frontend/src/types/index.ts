@@ -22,6 +22,8 @@ export interface Sesion {
   consultas_restantes: number;
   /** false para un visitante: sus consultas no se guardan (RR_00_11). */
   guarda_historial: boolean;
+  /** RR_00_04: minutos sin actividad que cierran la sesión; 0 = nunca; null = visitante. */
+  minutos_inactividad: number | null;
 }
 
 export interface TokenOut {
@@ -58,6 +60,20 @@ export interface RespuestaConsulta {
   especie: EspecieCandidata;
   texto: string;
   elevacion: string | null;
+  registros: RegistroPresencia[];
+  total_registros: number;
+  fuentes: string[];
+}
+
+/** RR_20 — ficha completa de una especie. Lo que no se conoce llega como null. */
+export interface FichaEspecie {
+  id: string;
+  nombre_comun: string | null;
+  nombre_cientifico: string;
+  familia: string;
+  habitat: string | null;
+  elevacion: string | null;
+  descripcion: string | null;
   registros: RegistroPresencia[];
   total_registros: number;
   fuentes: string[];

@@ -1,14 +1,20 @@
 /**
  * Inicio de sesión — RR_00_01.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
 import { useAuth } from "../context/AuthContext";
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { entrar, limpiarError } = useAuth();
+  const { entrar, limpiarError, sesionExpirada, limpiarExpiracion } = useAuth();
+  // RR_00_04: se recuerda el motivo para mostrarlo y se limpia del contexto,
+  // así volver al agente sin iniciar sesión no redirige otra vez aquí.
+  const [porInactividad] = useState(sesionExpirada);
+  useEffect(() => {
+    if (sesionExpirada) limpiarExpiracion();
+  }, [sesionExpirada, limpiarExpiracion]);
   const [correo, setCorreo] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -70,6 +76,16 @@ export function LoginPage() {
           <h2 className="text-lg font-semibold mb-6" style={{ color: "#1e3d2a" }}>
             Iniciar sesión
           </h2>
+
+          {porInactividad && !error && (
+            <div
+              role="status"
+              className="rounded-xl p-3.5 mb-5 text-sm"
+              style={{ background: "#fff8e6", border: "1px solid #f3d58a", color: "#7a5a00" }}
+            >
+              Tu sesión se cerró por inactividad. Inicia sesión de nuevo para continuar.
+            </div>
+          )}
 
           {error && (
             <div

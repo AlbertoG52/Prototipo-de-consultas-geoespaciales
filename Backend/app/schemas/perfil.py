@@ -1,4 +1,4 @@
-"""Esquemas de la página de perfil: editar el nombre y cambiar la contraseña.
+"""Esquemas de la página de perfil: nombre, contraseña e inactividad de la sesión.
 
 Reutiliza las reglas que ya existen en vez de duplicarlas:
 
@@ -8,6 +8,7 @@ Reutiliza las reglas que ya existen en vez de duplicarlas:
 """
 from pydantic import BaseModel, Field, field_validator
 
+from ..config import OPCIONES_INACTIVIDAD
 from ..sanitizacion import sanitizar_texto
 from .usuario import validar_password
 
@@ -41,3 +42,19 @@ class CambioPasswordRequest(BaseModel):
     @classmethod
     def _nueva(cls, v: str) -> str:
         return validar_password(v)
+
+
+class CambioInactividadRequest(BaseModel):
+    """RR_00_04 criterio 2 — el periodo de inactividad es configurable.
+
+    Solo se aceptan las opciones que ofrece el perfil; 0 significa "Nunca".
+    """
+
+    minutos: int
+
+    @field_validator("minutos")
+    @classmethod
+    def _minutos(cls, v: int) -> int:
+        if v not in OPCIONES_INACTIVIDAD:
+            raise ValueError("Elige una de las opciones de tiempo de inactividad disponibles.")
+        return v
