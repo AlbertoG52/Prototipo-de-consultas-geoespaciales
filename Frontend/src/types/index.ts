@@ -88,6 +88,8 @@ export type EstadoConsulta = "resuelta" | "ambigua" | "sin_coincidencias";
 
 export interface ConsultaOut {
   id: number | null;
+  /** RR_09: conversación donde quedó guardada; null para un visitante. */
+  conversacion_id: number | null;
   estado: EstadoConsulta;
   texto: string;
   respuesta: RespuestaConsulta | null;
@@ -95,6 +97,32 @@ export interface ConsultaOut {
   mensaje: string | null;
   realizada_en: string | null;
   consultas_restantes: number;
+}
+
+// Historial por conversaciones (RR_09)
+
+/** Una consulta guardada dentro de una conversación, en cualquiera de sus estados. */
+export interface ConsultaGuardada {
+  id: number;
+  texto: string;
+  estado: EstadoConsulta;
+  respuesta: RespuestaConsulta | null;
+  /** Solo en "ambigua": las opciones, que se pueden elegir al reabrirla. */
+  candidatos: EspecieCandidata[];
+  mensaje: string | null;
+  realizada_en: string;
+}
+
+/** Una entrada de la barra lateral. */
+export interface ConversacionResumen {
+  id: number;
+  titulo: string;
+  creada_en: string;
+  actualizada_en: string;
+}
+
+export interface ConversacionDetalle extends ConversacionResumen {
+  consultas: ConsultaGuardada[];
 }
 
 // Administración (RR_00_09)
