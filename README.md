@@ -73,7 +73,7 @@ al día. Cerrar sesión no deja a nadie fuera, devuelve a la sesión anónima.
 | | Visitante | Usuario registrado |
 |---|---|---|
 | Consultas diarias | 5 (`LIMITE_CONSULTAS_ANONIMO`) | 20 (`roles.limite_consultas`) |
-| Historial | en memoria, se pierde al recargar | guardado en `consultas` |
+| Historial | en memoria, se pierde al recargar | conversaciones guardadas (`conversaciones` y `consultas`) |
 | Qué se guarda de él | solo un contador diario | correo, consultas y respuestas |
 
 ---
@@ -94,6 +94,9 @@ Cada cambio a la base es un archivo SQL numerado en `Backend/migrations/`:
 | `008_nombre_usuario.sql` | columna `nombre`, que pide la vista de registro |
 | `009_sesion_en_consultas.sql` | `sesion_id` y `respuesta`, para RR_09 |
 | `010_consumo_anonimo.sql` | contador diario del visitante, para RR_00_11 |
+| `011_auditoria_actor_inmutable.sql` | quién hizo cada cambio y auditoría inmutable, para RR_00_09 |
+| `012_conversaciones.sql` | historial por conversaciones y los tres estados de una consulta, para RR_09 y RR_17 |
+| `013_inactividad_sesion.sql` | minutos de inactividad elegidos por cada usuario, para RR_00_04 |
 | `011_auditoria_actor_inmutable.sql` | quién hizo cada cambio y auditoría no modificable, para RR_00_09 |
 
 Para agregar un cambio:
@@ -116,7 +119,9 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | POST | `/auth/logout` | cerrar la sesión activa | cualquier sesión |
 | GET | `/auth/sesion` | quién soy y cuántas consultas me quedan | cualquier sesión |
 | POST | `/consultas` | enviar una consulta | cualquier sesión |
-| GET | `/consultas/historial` | historial de la cuenta (últimas 50, la más reciente primero) | cualquier sesión (el visitante recibe una lista vacía) |
+| GET | `/consultas/historial` | consultas resueltas de la cuenta en lista plana (últimas 50) | cualquier sesión (el visitante recibe una lista vacía) |
+| GET | `/conversaciones` | conversaciones de la cuenta para la barra lateral (últimas 50) | solo cuentas registradas |
+| GET | `/conversaciones/{id}` | una conversación completa, para reabrirla | solo el dueño (otra persona recibe 404) |
 | PATCH | `/perfil` | cambiar el nombre de la cuenta | solo cuentas registradas |
 | POST | `/perfil/password` | cambiar la contraseña (pide la actual) | solo cuentas registradas |
 | GET | `/admin/usuarios` | usuarios registrados | supermoderador |
@@ -149,6 +154,13 @@ docker compose exec backend python cambiar_rol.py <correo> supermoderador
   misma consulta con `especie_id` (RR_17). Desambiguar no cuesta una consulta.
 - `sin_coincidencias` — no se reconoció ninguna especie.
 
+Con cuenta, los tres estados se guardan dentro de una conversación (RR_09):
+`POST /consultas` recibe `conversacion_id` para seguir una conversación, o crea
+una nueva si no viene. Una consulta `ambigua` queda **pendiente**: al reabrir la
+conversación se pueden elegir sus opciones, y se resuelve enviando
+`consulta_id` + `especie_id`. Se actualiza esa misma consulta, así que se cobra
+una sola vez y cuenta el día en que se resuelve. Del visitante no se guarda nada.
+
 ---
 
 ## El catálogo de especies es provisional
@@ -178,8 +190,10 @@ verifican comportamiento y no datos, así que siguen sirviendo después.
 docker compose exec backend python -m pytest tests -q
 ```
 
-20 pruebas unitarias sobre el hash de contraseñas, la validación de entrada y la
-lógica de coincidencias. No necesitan base de datos.
+Cubren el hash de contraseñas, la validación y sanitización de entradas, los
+roles, la auditoría, el perfil y el historial por conversaciones. Las de
+auditoría y conversaciones usan la base de datos del contenedor y borran lo que
+crean al terminar.
 
 ---
 

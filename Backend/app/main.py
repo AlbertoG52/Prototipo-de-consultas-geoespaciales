@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from .config import ORIGENES_PERMITIDOS
 from .db import engine
-from .routers import admin, auth, consultas, especies, perfil
+from .routers import admin, auth, consultas, conversaciones, especies, perfil
 
 app = FastAPI(title="Prototipo de consultas geoespaciales - API")
 
@@ -19,6 +19,7 @@ app.add_middleware(
 
 app.include_router(auth.router)
 app.include_router(consultas.router)
+app.include_router(conversaciones.router)
 app.include_router(admin.router)
 app.include_router(perfil.router)
 app.include_router(especies.router)

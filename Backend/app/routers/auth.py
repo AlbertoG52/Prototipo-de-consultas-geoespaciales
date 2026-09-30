@@ -121,11 +121,17 @@ def estado_sesion(
     El frontend lo consulta al cargar para saber qué mostrar: un visitante no
     tiene historial ni perfil, y su límite de consultas es menor.
 
-    RR_00_04: si llega un token vencido (por inactividad) responde 401. El
-    frontend lo usa para avisar que la sesión expiró y pedir un nuevo inicio
-    de sesión, en lugar de convertir a la persona en visitante sin decirle nada.
+    Si el token no sirve responde 401, en dos casos:
+
+    - RR_00_04: el token de un usuario venció por inactividad. El frontend
+      avisa que la sesión expiró y pide un nuevo inicio de sesión, en lugar de
+      convertir a la persona en visitante sin decirle nada.
+    - Cualquier otro token inválido (firmado con otra SECRET_KEY o de una
+      cuenta que ya no existe en esta base de datos). El frontend lo descarta y
+      pide uno anónimo nuevo; si respondiera 200, el navegador se quedaría con
+      un token con el que no puede enviar consultas.
     """
-    if identidad.token_invalido:
+    if identidad.token_invalido or (identidad.es_anonimo and not identidad.anon_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Tu sesión expiró. Inicia sesión de nuevo.",

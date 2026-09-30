@@ -7,6 +7,8 @@
  */
 import type {
   ConsultaOut,
+  ConversacionDetalle,
+  ConversacionResumen,
   FichaEspecie,
   ItemHistorial,
   RegistroAuditoria,
@@ -167,19 +169,43 @@ export async function renovarSesion(): Promise<void> {
 /**
  * Envía una consulta en lenguaje natural.
  *
- * `especieId` se usa para reenviar la misma consulta cuando el usuario ya
- * eligió entre varias coincidencias (RR_17).
+ * - `especieId`: la especie que eligió el usuario entre varias coincidencias (RR_17).
+ * - `conversacionId`: la conversación donde se guarda; sin ella el servidor
+ *   crea una nueva (RR_09). Solo aplica con cuenta.
+ * - `consultaId`: la consulta ambigua guardada que se está resolviendo. El
+ *   servidor resuelve esa misma consulta, así que no se cobra dos veces.
  */
-export async function enviarConsulta(texto: string, especieId?: string): Promise<ConsultaOut> {
+export async function enviarConsulta(
+  texto: string,
+  especieId?: string,
+  opciones: { conversacionId?: number | null; consultaId?: number | null } = {},
+): Promise<ConsultaOut> {
   const res = await fetch(`${API_URL}/consultas`, {
     method: "POST",
     headers: cabeceras(),
-    body: JSON.stringify({ texto, especie_id: especieId ?? null }),
+    body: JSON.stringify({
+      texto,
+      especie_id: especieId ?? null,
+      conversacion_id: opciones.conversacionId ?? null,
+      consulta_id: opciones.consultaId ?? null,
+    }),
   });
   return manejar<ConsultaOut>(res);
 }
 
-/** RR_09 — historial de la cuenta, la consulta más reciente primero. */
+/** RR_09 — conversaciones de la cuenta, la de actividad más reciente primero. */
+export async function listarConversaciones(): Promise<ConversacionResumen[]> {
+  const res = await fetch(`${API_URL}/conversaciones`, { headers: cabeceras() });
+  return manejar<ConversacionResumen[]>(res);
+}
+
+/** RR_09 — una conversación completa, para reabrirla sin repetir las consultas. */
+export async function obtenerConversacion(id: number): Promise<ConversacionDetalle> {
+  const res = await fetch(`${API_URL}/conversaciones/${id}`, { headers: cabeceras() });
+  return manejar<ConversacionDetalle>(res);
+}
+
+/** Consultas resueltas de la cuenta en una lista plana. La barra lateral usa las conversaciones. */
 export async function obtenerHistorial(): Promise<ItemHistorial[]> {
   const res = await fetch(`${API_URL}/consultas/historial`, { headers: cabeceras() });
   return manejar<ItemHistorial[]>(res);
