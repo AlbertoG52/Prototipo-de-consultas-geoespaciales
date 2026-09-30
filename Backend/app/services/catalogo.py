@@ -146,6 +146,26 @@ _CATALOGO: list[dict] = [
             ("Puntarenas, Golfito", "30 ene 2024", 8.6333, -83.1667, 40),
         ],
     },
+    # RR_06 criterio 5 — especie SIN registros de presencia georreferenciados.
+    # Sirve para probar que la respuesta se muestra sin el panel del mapa
+    # cuando no hay datos geoespaciales.
+    {
+        "id": "hylocereus-costaricensis",
+        "nombre_comun": "Pitahaya",
+        "nombre_cientifico": "Hylocereus costaricensis",
+        "familia": "Cactaceae",
+        "alias": ["pitahaya", "pitaya", "hylocereus costaricensis"],
+        "habitat": "Bosque seco del Pacífico norte; trepadora sobre árboles y cercas.",
+        "elevacion": "0 – 500 msnm",
+        "texto": (
+            "Hylocereus costaricensis es un cactus trepador de flores blancas "
+            "nocturnas y fruto rojo. Se asocia al bosque seco del Pacífico "
+            "norte, pero por ahora no hay registros de presencia "
+            "georreferenciados disponibles, por lo que no se puede mostrar un "
+            "mapa de distribución."
+        ),
+        "registros": [],
+    },
 ]
 
 _FUENTES = ["GBIF", "Manual de Plantas de CR"]
