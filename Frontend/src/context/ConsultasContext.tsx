@@ -9,6 +9,7 @@
  *           cuenta, la consulta ambigua queda guardada y pendiente: se puede
  *           elegir la especie incluso al reabrir la conversación otro día.
  *  - RR_00_11 al visitante sin cuenta no se le guarda nada
+ *  - RR_05  el error de una consulta se explica en lenguaje sencillo
  *
  * Las conversaciones del usuario registrado se cargan del servidor. La del
  * visitante vive solo aquí, en memoria, y desaparece al recargar la página.
@@ -92,6 +93,26 @@ const nuevoId = () => `m${++contador}`;
 
 const MENSAJE_AMBIGUA = "Selecciona la especie que te interesa.";
 const MENSAJE_SIN_COINCIDENCIAS = "No se encontró información para esa consulta.";
+
+const MENSAJE_SIN_CONEXION =
+  "No se pudo conectar con el servidor. Revisa tu conexión a internet e intenta de nuevo.";
+const MENSAJE_FALLO_SERVIDOR =
+  "Ocurrió un problema al procesar tu consulta. Intenta de nuevo en un momento.";
+
+/**
+ * RR_05 criterio 1 — el error de una consulta explicado en lenguaje sencillo.
+ *
+ * - Sin respuesta del servidor, fetch lanza un TypeError ("Failed to fetch").
+ * - Un 5xx o un error sin detalle solo trae "Error 500" y similares.
+ * - Los demás (límite de consultas, validaciones) ya vienen del backend
+ *   redactados para el usuario y se muestran tal cual.
+ */
+function mensajeDeError(err: unknown): string {
+  if (err instanceof TypeError) return MENSAJE_SIN_CONEXION;
+  if (!(err instanceof api.ErrorApi)) return MENSAJE_FALLO_SERVIDOR;
+  if (err.status >= 500 || /^Error \d+$/.test(err.message)) return MENSAJE_FALLO_SERVIDOR;
+  return err.message;
+}
 
 /** Reconstruye en pantalla una consulta guardada, según su estado. */
 function aMensajes(c: ConsultaGuardada): Mensaje[] {
@@ -267,8 +288,7 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
         // Solo una consulta resuelta consume del límite.
         if (salida.estado === "resuelta") await refrescarSesion();
       } catch (err) {
-        const mensaje =
-          err instanceof Error ? err.message : "No se pudo procesar la consulta.";
+        const mensaje = mensajeDeError(err);
         setMensajes((prev) => [
           ...prev.filter((m) => m.id !== idCarga),
           { clase: "error", id: nuevoId(), mensaje, textoOriginal: limpio },
