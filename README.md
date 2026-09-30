@@ -205,4 +205,8 @@ crean al terminar.
   versiones 4.1 y posteriores eliminaron. Sin ese pin el hash falla al arrancar.
 - El login responde lo mismo ante un correo inexistente y ante una contraseña
   incorrecta, para no revelar qué correos están registrados.
+- Tras `INTENTOS_LOGIN_MAXIMOS` contraseñas incorrectas seguidas (5 por defecto)
+  la cuenta se bloquea `MINUTOS_BLOQUEO_LOGIN` minutos (15 por defecto) y el
+  login responde **423** con la duración del bloqueo (RR_00_05). Mientras dure
+  se rechaza incluso la contraseña correcta; un login correcto reinicia el contador.
 - Las reglas de contraseña se validan en el servidor, no solo en el navegador.

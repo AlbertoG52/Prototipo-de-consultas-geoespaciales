@@ -1,8 +1,12 @@
-"""Registro, inicio y cierre de sesión — RR_00_01, RR_00_02, RR_00_04, RR_00_11."""
+"""Registro, inicio y cierre de sesión — RR_00_01, RR_00_02, RR_00_04, RR_00_05, RR_00_11."""
+import math
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from ..config import LIMITE_CONSULTAS_ANONIMO
+from ..config import INTENTOS_LOGIN_MAXIMOS, LIMITE_CONSULTAS_ANONIMO, MINUTOS_BLOQUEO_LOGIN
 from ..db import get_db
 from ..models import Rol, Usuario
 from ..schemas.auth import RegistroOut, SesionOut, TokenOut
@@ -77,19 +81,64 @@ def registrar(datos: RegistroRequest, db: Session = Depends(get_db)):
     )
 
 
+def _minutos_de_bloqueo(usuario: Usuario, ahora: datetime) -> Optional[int]:
+    """RR_00_05 — minutos que le quedan al bloqueo, o None si no está bloqueada."""
+    if usuario.bloqueado_hasta is None or usuario.bloqueado_hasta <= ahora:
+        return None
+    return max(math.ceil((usuario.bloqueado_hasta - ahora).total_seconds() / 60), 1)
+
+
+def _error_bloqueo(minutos: int) -> HTTPException:
+    """RR_00_05 criterio 3 — avisar del bloqueo y de cuánto dura."""
+    unidad = "minuto" if minutos == 1 else "minutos"
+    return HTTPException(
+        status_code=status.HTTP_423_LOCKED,
+        detail=(
+            "Tu cuenta está bloqueada temporalmente por demasiados intentos fallidos. "
+            f"Intenta de nuevo en {minutos} {unidad}."
+        ),
+    )
+
+
 @router.post("/login", response_model=TokenOut)
 def iniciar_sesion(datos: LoginRequest, db: Session = Depends(get_db)):
-    """RR_00_01 criterios 1 y 3 — iniciar sesión y rechazar credenciales inválidas."""
+    """RR_00_01 criterios 1 y 3 — iniciar sesión y rechazar credenciales inválidas.
+
+    RR_00_05: tras INTENTOS_LOGIN_MAXIMOS contraseñas incorrectas seguidas la
+    cuenta se bloquea MINUTOS_BLOQUEO_LOGIN minutos. Mientras dure el bloqueo
+    se rechaza incluso la contraseña correcta. Un inicio de sesión correcto
+    reinicia el contador.
+    """
     correo = datos.correo.lower().strip()
     usuario = db.query(Usuario).filter(Usuario.correo == correo).first()
+    ahora = datetime.now(timezone.utc)
+
+    if usuario:
+        minutos = _minutos_de_bloqueo(usuario, ahora)
+        if minutos is not None:
+            raise _error_bloqueo(minutos)
 
     # Un solo mensaje para correo inexistente y contraseña incorrecta: decir
     # cuál de los dos falló le confirmaría a un atacante qué correos existen.
     if not usuario or not verificar_password(datos.password, usuario.password_hash):
+        if usuario:
+            usuario.intentos_fallidos = (usuario.intentos_fallidos or 0) + 1
+            bloquear = usuario.intentos_fallidos >= INTENTOS_LOGIN_MAXIMOS
+            if bloquear:
+                usuario.bloqueado_hasta = ahora + timedelta(minutes=MINUTOS_BLOQUEO_LOGIN)
+                usuario.intentos_fallidos = 0
+            db.commit()
+            if bloquear:
+                raise _error_bloqueo(MINUTOS_BLOQUEO_LOGIN)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Correo o contraseña incorrectos.",
         )
+
+    if usuario.intentos_fallidos or usuario.bloqueado_hasta is not None:
+        usuario.intentos_fallidos = 0
+        usuario.bloqueado_hasta = None
+        db.commit()
 
     if not usuario.activo:
         raise HTTPException(
