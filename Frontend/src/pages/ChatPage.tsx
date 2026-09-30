@@ -5,16 +5,20 @@
  *  - RR_02 campo de texto para la consulta
  *  - RR_10 copiar la respuesta
  *  - RR_15 descarga de la respuesta y del mapa
+ *  - RR_12 detalle de un punto del mapa al seleccionarlo
  *  - RR_17 selección de especie ante múltiples coincidencias
  *  - RR_18 alternancia entre mapa y lista de registros
+ *  - RR_19 filtrado de los puntos del mapa por rango de elevación
+ *  - RR_20 acceso a la ficha completa desde la respuesta
  */
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuth } from "../context/AuthContext";
 import { useConsultas, type Mensaje } from "../context/ConsultasContext";
 import type { RegistroPresencia, RespuestaConsulta } from "../types";
 import { descargarArchivo, descargarSvg, nombreBase, respuestaATexto } from "../utils/descarga";
+import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/elevacion";
 
 const CONSULTAS_DE_EJEMPLO = [
   "¿Dónde se encuentra la guaria morada?",
@@ -30,13 +34,21 @@ const CONSULTAS_DE_EJEMPLO = [
  * silueta del país, proyectando latitud y longitud a coordenadas del SVG, para
  * que la alternancia de RR_18 tenga las dos vistas que compara.
  *
- * `ref` expone el elemento SVG para poder descargarlo (RR_15).
+ * - `indices` son los registros visibles; el filtro de RR_19 puede ocultar algunos.
+ * - `seleccionado` es el índice del punto cuyo detalle está abierto (RR_12).
+ * - `ref` expone el elemento SVG para poder descargarlo (RR_15).
  */
 function MapaDistribucion({
   registros,
+  indices,
+  seleccionado,
+  onSeleccionar,
   ref,
 }: {
   registros: RegistroPresencia[];
+  indices: number[];
+  seleccionado: number | null;
+  onSeleccionar: (indice: number | null) => void;
   ref?: Ref<SVGSVGElement>;
 }) {
   // Recuadro aproximado de Costa Rica.
@@ -48,29 +60,65 @@ function MapaDistribucion({
   const aX = (lon: number) => 60 + ((lon - LON_MIN) / (LON_MAX - LON_MIN)) * 220;
   const aY = (lat: number) => 150 - ((lat - LAT_MIN) / (LAT_MAX - LAT_MIN)) * 100;
 
+  // El punto seleccionado se dibuja al final para que quede encima de los demás.
+  const orden = indices.filter((i) => i !== seleccionado);
+  if (seleccionado !== null && indices.includes(seleccionado)) orden.push(seleccionado);
+
   return (
-    <svg ref={ref} viewBox="0 0 340 180" className="w-full h-full" style={{ background: "#e8f0e8" }} role="img" aria-label="Mapa de distribución en Costa Rica">
+    <svg
+      ref={ref}
+      viewBox="0 0 340 180"
+      className="w-full h-full"
+      style={{ background: "#e8f0e8" }}
+      role="group"
+      aria-label="Mapa de distribución en Costa Rica"
+      // RR_12 criterio 3: un clic fuera de los puntos cierra el detalle.
+      onClick={() => onSeleccionar(null)}
+    >
       <path
         d="M60,90 Q80,60 120,55 Q160,50 200,60 Q230,65 250,80 Q270,90 260,110 Q250,130 220,140 Q180,150 140,148 Q100,145 75,130 Q50,115 60,90 Z"
         fill="#c8dfc0"
         stroke="#9ab89a"
         strokeWidth="1.5"
       />
-      {registros.map((r, i) => (
-        <circle
-          key={i}
-          cx={aX(r.longitud)}
-          cy={aY(r.latitud)}
-          r={4.5}
-          fill="#5b4fcf"
-          opacity={0.85}
-        >
-          <title>{`${r.localidad} — ${r.fecha}`}</title>
-        </circle>
-      ))}
+      {orden.map((i) => {
+        const r = registros[i];
+        const activo = i === seleccionado;
+        const alternar = () => onSeleccionar(activo ? null : i);
+        return (
+          <circle
+            key={i}
+            cx={aX(r.longitud)}
+            cy={aY(r.latitud)}
+            r={activo ? 7 : 4.5}
+            fill={activo ? "#e0552b" : "#5b4fcf"}
+            stroke={activo ? "#ffffff" : "none"}
+            strokeWidth={activo ? 2 : 0}
+            opacity={activo ? 1 : 0.85}
+            role="button"
+            tabIndex={0}
+            aria-pressed={activo}
+            aria-label={`Registro en ${r.localidad}, ${r.fecha}. Ver detalle.`}
+            style={{ cursor: "pointer" }}
+            // RR_12 criterio 1: al seleccionar un punto se abre su detalle.
+            onClick={(e) => {
+              e.stopPropagation();
+              alternar();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                alternar();
+              }
+            }}
+          >
+            <title>{`${r.localidad} — ${r.fecha}`}</title>
+          </circle>
+        );
+      })}
       <circle cx="100" cy="160" r="5" fill="#5b4fcf" opacity="0.85" />
       <text x="110" y="164" fontSize="9" fill="#555" fontFamily="Inter, sans-serif">
-        Registros de presencia ({registros.length})
+        Registros de presencia ({indices.length})
       </text>
       <line x1="240" y1="162" x2="290" y2="162" stroke="#666" strokeWidth="1.5" />
       <line x1="240" y1="158" x2="240" y2="162" stroke="#666" strokeWidth="1.5" />
@@ -79,6 +127,147 @@ function MapaDistribucion({
         50 km
       </text>
     </svg>
+  );
+}
+
+/**
+ * RR_12 — detalle del punto seleccionado.
+ *
+ * Va debajo del mapa (HTML, no dentro del SVG) para que no lo tape ni salga en
+ * la descarga del mapa (RR_15). Se cierra con la X, con Escape, con un clic en
+ * el fondo del mapa o volviendo a hacer clic en el mismo punto.
+ */
+function DetallePunto({ registro, onCerrar }: { registro: RegistroPresencia; onCerrar: () => void }) {
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCerrar();
+    };
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+  }, [onCerrar]);
+
+  const filas: [string, string][] = [
+    ["Localidad", registro.localidad],
+    ["Fecha del registro", registro.fecha],
+    ["Coordenadas", `${registro.latitud.toFixed(4)}, ${registro.longitud.toFixed(4)}`],
+    ["Elevación", registro.elevacion_m !== null ? `${registro.elevacion_m} msnm` : "Sin dato"],
+    ["Fuente", registro.fuente],
+  ];
+
+  return (
+    <div
+      role="region"
+      aria-live="polite"
+      aria-label={`Detalle del registro en ${registro.localidad}`}
+      className="mt-2 rounded-xl px-4 py-3 text-xs"
+      style={{ background: "#f7faf7", border: "1px solid #c5dccb" }}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="flex items-center gap-1.5 font-semibold" style={{ color: "#1e3d2a" }}>
+          <span className="inline-block rounded-full" style={{ width: 8, height: 8, background: "#e0552b" }} />
+          Detalle del registro
+        </span>
+        <button
+          onClick={onCerrar}
+          aria-label="Cerrar detalle"
+          className="flex items-center gap-1 px-2 py-1 rounded-md"
+          style={{ border: "none", background: "transparent", color: "#6b8f74", cursor: "pointer" }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          Cerrar
+        </button>
+      </div>
+      <dl className="grid gap-x-4 gap-y-1" style={{ gridTemplateColumns: "auto 1fr" }}>
+        {filas.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt style={{ color: "#8aab92" }}>{k}</dt>
+            <dd className="font-medium" style={{ color: "#374a3c" }}>
+              {v}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+/** RR_19 — campos para definir el rango de elevación y quitar el filtro. */
+function FiltroElevacion({
+  rango,
+  onCambiar,
+  visibles,
+  total,
+  activo,
+  error,
+}: {
+  rango: RangoElevacion;
+  onCambiar: (rango: RangoElevacion) => void;
+  visibles: number;
+  total: number;
+  activo: boolean;
+  error: string | null;
+}) {
+  const hayTexto = rango.min !== "" || rango.max !== "";
+  const estiloCampo = {
+    width: 84,
+    border: `1.5px solid ${error ? "#fca5a5" : "#c5dccb"}`,
+    background: "#f7f8f5",
+    color: "#1e3d2a",
+  };
+
+  return (
+    <div className="mb-3">
+      <div className="flex items-center gap-2 flex-wrap text-xs" role="group" aria-label="Filtrar por elevación">
+        <span className="font-medium" style={{ color: "#374a3c" }}>
+          Elevación (msnm):
+        </span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          placeholder="Mínima"
+          aria-label="Elevación mínima en metros"
+          value={rango.min}
+          onChange={(e) => onCambiar({ ...rango, min: e.target.value })}
+          className="rounded-lg px-2 py-1 outline-none"
+          style={estiloCampo}
+        />
+        <span style={{ color: "#8aab92" }}>a</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          placeholder="Máxima"
+          aria-label="Elevación máxima en metros"
+          value={rango.max}
+          onChange={(e) => onCambiar({ ...rango, max: e.target.value })}
+          className="rounded-lg px-2 py-1 outline-none"
+          style={estiloCampo}
+        />
+        {/* RR_19 criterio 3: volver a ver todos los puntos. */}
+        {hayTexto && (
+          <button
+            onClick={() => onCambiar(RANGO_VACIO)}
+            className="px-2 py-1 rounded-lg font-medium"
+            style={{ border: "1px solid #c5dccb", background: "transparent", color: "#2d5a3d", cursor: "pointer" }}
+          >
+            Quitar filtro
+          </button>
+        )}
+        {activo && (
+          <span aria-live="polite" style={{ color: "#6b8f74" }}>
+            Mostrando {visibles} de {total} registros
+          </span>
+        )}
+      </div>
+      {error && (
+        <p role="alert" className="text-xs mt-1" style={{ color: "#991b1b" }}>
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -103,12 +292,25 @@ function TarjetaRespuesta({
 }: {
   consulta: string;
   respuesta: RespuestaConsulta;
-  onVerFicha: (nombre: string) => void;
+  /** RR_20 criterio 3 — abre la ficha de la especie de esta respuesta (por su id). */
+  onVerFicha: (especieId: string) => void;
 }) {
   const [copiado, setCopiado] = useState(false);
   // RR_18 — el usuario alterna entre las dos vistas de los mismos registros.
   const [vista, setVista] = useState<"mapa" | "lista">("mapa");
   const mapaRef = useRef<SVGSVGElement>(null);
+  // RR_12 — punto del mapa cuyo detalle está abierto (índice en respuesta.registros).
+  const [seleccionado, setSeleccionado] = useState<number | null>(null);
+  const cerrarDetalle = useCallback(() => setSeleccionado(null), []);
+  // RR_19 — rango de elevación del filtro del mapa ("" = sin límite).
+  const [rango, setRango] = useState<RangoElevacion>(RANGO_VACIO);
+  const filtro = filtrarPorElevacion(respuesta.registros, rango);
+
+  // Si el filtro oculta el punto cuyo detalle está abierto, el detalle se cierra
+  // (RR_12 criterio 2: el detalle siempre corresponde a un punto visible).
+  useEffect(() => {
+    if (seleccionado !== null && !filtro.indices.includes(seleccionado)) setSeleccionado(null);
+  }, [seleccionado, filtro.indices]);
 
   /** RR_15 — la respuesta completa, con la consulta que la originó. */
   const descargarRespuesta = () => {
@@ -192,7 +394,10 @@ function TarjetaRespuesta({
                 {(["mapa", "lista"] as const).map((v) => (
                   <button
                     key={v}
-                    onClick={() => setVista(v)}
+                    onClick={() => {
+                      setVista(v);
+                      setSeleccionado(null);
+                    }}
                     aria-pressed={vista === v}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                     style={{
@@ -231,9 +436,35 @@ function TarjetaRespuesta({
                       Descargar mapa
                     </button>
                   </div>
+                  {/* RR_19 — va dentro de la vista de mapa: si el mapa no se muestra, tampoco el filtro. */}
+                  <FiltroElevacion
+                    rango={rango}
+                    onCambiar={setRango}
+                    visibles={filtro.indices.length}
+                    total={respuesta.registros.length}
+                    activo={filtro.activo}
+                    error={filtro.error}
+                  />
                   <div className="rounded-xl overflow-hidden" style={{ height: 170, border: "1px solid #dde8df" }}>
-                    <MapaDistribucion ref={mapaRef} registros={respuesta.registros} />
+                    <MapaDistribucion
+                      ref={mapaRef}
+                      registros={respuesta.registros}
+                      indices={filtro.indices}
+                      seleccionado={seleccionado}
+                      onSeleccionar={setSeleccionado}
+                    />
                   </div>
+                  {filtro.activo && filtro.indices.length === 0 ? (
+                    <p role="status" className="mt-1.5 text-xs" style={{ color: "#7a5a00" }}>
+                      Ningún registro está dentro de ese rango de elevación. Ajusta el rango o quita el filtro.
+                    </p>
+                  ) : seleccionado !== null && respuesta.registros[seleccionado] ? (
+                    <DetallePunto registro={respuesta.registros[seleccionado]} onCerrar={cerrarDetalle} />
+                  ) : (
+                    <p className="mt-1.5 text-xs" style={{ color: "#8aab92" }}>
+                      Haz clic en un punto para ver el detalle del registro.
+                    </p>
+                  )}
                 </>
               ) : (
                 <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #dde8df" }}>
@@ -308,7 +539,7 @@ function TarjetaRespuesta({
                 Descargar
               </button>
               <button
-                onClick={() => onVerFicha(respuesta.especie.nombre_cientifico)}
+                onClick={() => onVerFicha(respuesta.especie.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
                 style={{ background: "transparent", color: "#8aab92", border: "none", cursor: "pointer" }}
               >
@@ -495,7 +726,7 @@ export function ChatPage() {
             key={m.id}
             consulta={m.consulta}
             respuesta={m.respuesta}
-            onVerFicha={(nombre) => navigate(`/species/${encodeURIComponent(nombre)}`)}
+            onVerFicha={(especieId) => navigate(`/species/${encodeURIComponent(especieId)}`)}
           />
         );
 

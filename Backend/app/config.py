@@ -7,10 +7,26 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 SECRET_KEY = os.environ.get("SECRET_KEY", "dev")
 ALGORITMO_JWT = "HS256"
 
-# Duración de la sesión de un usuario registrado.
-# La expiración por inactividad (RR_00_04) es de otro sprint; por ahora el token
-# simplemente vence a las 8 horas.
-MINUTOS_EXPIRACION_TOKEN = int(os.environ.get("MINUTOS_EXPIRACION_TOKEN", "480"))
+# RR_00_04 — expiración de la sesión por inactividad.
+#
+# El token de un usuario registrado vence a los N minutos de emitido y el
+# frontend lo renueva (POST /auth/renovar) mientras la persona tenga actividad.
+# Si deja de usar la aplicación durante N minutos, el token vence en el servidor
+# y tiene que volver a iniciar sesión.
+#
+# N es configurable en dos niveles:
+#   - MINUTOS_INACTIVIDAD_SESION: valor por defecto del sistema (.env).
+#   - usuarios.minutos_inactividad: lo que la persona elija en su perfil,
+#     restringido a OPCIONES_INACTIVIDAD. 0 significa "Nunca".
+MINUTOS_INACTIVIDAD_SESION = max(int(os.environ.get("MINUTOS_INACTIVIDAD_SESION", "30")), 1)
+
+# Opciones que el perfil ofrece (minutos). Deben coincidir con las del frontend
+# (ProfilePage.tsx).
+OPCIONES_INACTIVIDAD = (30, 60, 360, 720, 1440, 10080, 0)
+
+# Con "Nunca" el token igual necesita un vencimiento; se usa este, y se sigue
+# renovando con la actividad.
+MINUTOS_TOKEN_SIN_INACTIVIDAD = 60 * 24 * 30
 
 # El visitante anónimo (RR_00_11) no tiene cuenta, así que su token dura más:
 # es solo el identificador del navegador para poder contarle las consultas.

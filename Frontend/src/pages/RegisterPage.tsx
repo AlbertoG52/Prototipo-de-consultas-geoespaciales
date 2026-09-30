@@ -75,7 +75,9 @@ export function RegisterPage() {
     if (!form.nombre.trim()) e.nombre = "El nombre es requerido.";
     if (!form.correo.includes("@")) e.correo = "Ingresa un correo válido.";
     const faltantes = REGLAS.filter((r) => !r.cumple(form.password));
-    if (faltantes.length) e.password = "La contraseña no cumple todos los requisitos.";
+    // RR_00_03 criterio 2: se indica el motivo concreto, no solo que falla.
+    if (faltantes.length)
+      e.password = `La contraseña no cumple: ${faltantes.map((r) => r.etiqueta.toLowerCase()).join(", ")}.`;
     if (form.password !== form.confirmar) e.confirmar = "Las contraseñas no coinciden.";
     return e;
   };

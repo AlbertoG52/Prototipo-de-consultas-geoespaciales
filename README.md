@@ -96,6 +96,7 @@ Cada cambio a la base es un archivo SQL numerado en `Backend/migrations/`:
 | `010_consumo_anonimo.sql` | contador diario del visitante, para RR_00_11 |
 | `011_auditoria_actor_inmutable.sql` | quién hizo cada cambio y auditoría inmutable, para RR_00_09 |
 | `012_conversaciones.sql` | historial por conversaciones y los tres estados de una consulta, para RR_09 y RR_17 |
+| `013_inactividad_sesion.sql` | minutos de inactividad elegidos por cada usuario, para RR_00_04 |
 | `011_auditoria_actor_inmutable.sql` | quién hizo cada cambio y auditoría no modificable, para RR_00_09 |
 
 Para agregar un cambio:

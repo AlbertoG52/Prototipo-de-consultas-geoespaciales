@@ -31,3 +31,6 @@ class SesionOut(BaseModel):
     consultas_realizadas: int
     consultas_restantes: int
     guarda_historial: bool
+    # RR_00_04: minutos sin actividad que cierran la sesión. None para el
+    # visitante (no tiene nada que proteger); 0 = "Nunca".
+    minutos_inactividad: int | None = None
