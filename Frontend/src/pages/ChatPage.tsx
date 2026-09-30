@@ -5,6 +5,7 @@
  *  - RR_02 campo de texto para la consulta
  *  - RR_10 copiar la respuesta
  *  - RR_15 descarga de la respuesta y del mapa
+ *  - RR_16 sugerencias de nombres de especie mientras se escribe
  *  - RR_12 detalle de un punto del mapa al seleccionarlo
  *  - RR_13 reformulación de la última consulta
  *  - RR_17 selección de especie ante múltiples coincidencias
@@ -17,7 +18,8 @@ import { useNavigate } from "react-router";
 
 import { useAuth } from "../context/AuthContext";
 import { useConsultas, type Mensaje } from "../context/ConsultasContext";
-import type { RegistroPresencia, RespuestaConsulta } from "../types";
+import * as api from "../services/api";
+import type { EspecieCandidata, RegistroPresencia, RespuestaConsulta } from "../types";
 import { descargarArchivo, descargarSvg, nombreBase, respuestaATexto } from "../utils/descarga";
 import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/elevacion";
 
@@ -26,6 +28,39 @@ const CONSULTAS_DE_EJEMPLO = [
   "Distribución de Cedrela odorata",
   "¿Dónde crece el pejibaye?",
 ];
+
+// --- RR_16: sugerencias de nombres ------------------------------------------
+
+/** Minúsculas y sin tildes, igual que la comparación del servidor. */
+const normalizar = (s: string) => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+
+/** Última palabra que se está escribiendo (letras y guiones al final del texto). */
+const palabraEnCurso = (texto: string) => texto.match(/[\p{L}\p{M}-]+$/u)?.[0] ?? "";
+
+/**
+ * Reemplaza por `nombre` el final del texto que ya coincide con su comienzo,
+ * para que "guaria mo" pase a "Guaria morada" y no a "guaria Guaria morada".
+ * Si ningún final coincide, reemplaza solo la palabra en curso.
+ */
+function incorporarNombre(texto: string, nombre: string): string {
+  const objetivo = normalizar(nombre);
+  let inicio = texto.length - palabraEnCurso(texto).length;
+  for (let i = 0; i < inicio; i++) {
+    if ((i === 0 || /\s/.test(texto[i - 1])) && objetivo.startsWith(normalizar(texto.slice(i)))) {
+      inicio = i;
+      break;
+    }
+  }
+  return `${texto.slice(0, inicio)}${nombre} `;
+}
+
+/** Se inserta el nombre común, o el científico si fue ese el que se escribió. */
+function nombreAInsertar(especie: EspecieCandidata, fragmento: string): string {
+  const comun = especie.nombre_comun;
+  const buscado = normalizar(fragmento);
+  const enComun = comun && normalizar(comun).split(/\s+/).some((p) => p.startsWith(buscado));
+  return enComun ? comun : especie.nombre_cientifico;
+}
 
 /**
  * Mapa de distribución.
@@ -659,6 +694,28 @@ export function ChatPage() {
   const finRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
 
+  // RR_16 — se piden sugerencias 250 ms después de la última tecla, a partir de
+  // 2 letras. Si llega una respuesta de una palabra anterior, se descarta.
+  const [sugerencias, setSugerencias] = useState<EspecieCandidata[]>([]);
+  const fragmento = palabraEnCurso(entrada);
+  useEffect(() => {
+    if (fragmento.length < 2) {
+      setSugerencias([]);
+      return;
+    }
+    let vigente = true;
+    const espera = setTimeout(() => {
+      api
+        .sugerirEspecies(fragmento)
+        .then((s) => vigente && setSugerencias(s))
+        .catch(() => vigente && setSugerencias([]));
+    }, 250);
+    return () => {
+      vigente = false;
+      clearTimeout(espera);
+    };
+  }, [fragmento]);
+
   // Se lleva a la vista el mensaje nuevo. Casi siempre es el último, pero al
   // elegir la especie de una consulta pendiente en una conversación reabierta
   // (RR_17) la respuesta aparece en medio, justo debajo de sus opciones.
@@ -873,8 +930,33 @@ export function ChatPage() {
       </div>
 
       <div className="px-8 py-5 border-t shrink-0" style={{ background: "#ffffff", borderColor: "#dde8df" }}>
-        {/* RR_02  ejemplos orientativos de lo que se puede preguntar. */}
+        {/*
+          RR_16 — mientras hay sugerencias ocupan el lugar de los ejemplos (RR_02).
+          Cada una muestra el nombre común y el científico; al elegirla se
+          incorpora al campo en lugar de lo que se venía escribiendo.
+        */}
         <div className="flex items-center gap-2 flex-wrap mb-3">
+          {sugerencias.length > 0 ? (
+            <>
+              <span className="text-xs" style={{ color: "#8aab92" }}>Sugerencias:</span>
+              {sugerencias.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => {
+                    setEntrada(incorporarNombre(entrada, nombreAInsertar(s, fragmento)));
+                    setSugerencias([]);
+                    areaRef.current?.focus();
+                  }}
+                  className="text-xs px-3 py-1.5 rounded-full"
+                  style={{ border: "1px solid #2d5a3d", color: "#2d5a3d", background: "#e8f0eb", cursor: "pointer" }}
+                >
+                  {s.nombre_comun ?? s.nombre_cientifico}
+                  {s.nombre_comun && <em style={{ color: "#6b8f74" }}> · {s.nombre_cientifico}</em>}
+                </button>
+              ))}
+            </>
+          ) : (
+          <>
           <span className="text-xs" style={{ color: "#8aab92" }}>Ejemplos:</span>
           {CONSULTAS_DE_EJEMPLO.map((ej) => (
             <button
@@ -895,6 +977,8 @@ export function ChatPage() {
               {ej}
             </button>
           ))}
+          </>
+          )}
         </div>
 
         {!sesion && (

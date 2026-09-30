@@ -9,6 +9,7 @@ import type {
   ConsultaOut,
   ConversacionDetalle,
   ConversacionResumen,
+  EspecieCandidata,
   FichaEspecie,
   ItemHistorial,
   RegistroAuditoria,
@@ -296,6 +297,14 @@ export async function obtenerFicha(especieId: string): Promise<FichaEspecie> {
     headers: cabeceras(),
   });
   return manejar<FichaEspecie>(res);
+}
+
+/** RR_16 — especies ya consultadas cuyo nombre coincide con `fragmento` (2+ letras). */
+export async function sugerirEspecies(fragmento: string): Promise<EspecieCandidata[]> {
+  const res = await fetch(`${API_URL}/especies?q=${encodeURIComponent(fragmento)}`, {
+    headers: cabeceras(),
+  });
+  return manejar<EspecieCandidata[]>(res);
 }
 
 // Administración — solo supermoderador (RR_00_10); el servidor responde 403 al resto.
