@@ -1,4 +1,5 @@
-"""Registro, inicio y cierre de sesión — RR_00_01, RR_00_02, RR_00_04, RR_00_05, RR_00_11."""
+"""Registro, inicio y cierre de sesión — RR_00_01, RR_00_02, RR_00_04, RR_00_05, RR_00_06, RR_00_07, RR_00_11."""
+import html
 import math
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -6,10 +7,26 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from ..config import INTENTOS_LOGIN_MAXIMOS, LIMITE_CONSULTAS_ANONIMO, MINUTOS_BLOQUEO_LOGIN
+from ..config import (
+    HORAS_TOKEN_VERIFICACION,
+    INTENTOS_LOGIN_MAXIMOS,
+    LIMITE_CONSULTAS_ANONIMO,
+    MINUTOS_BLOQUEO_LOGIN,
+    MINUTOS_TOKEN_RECUPERACION,
+    URL_FRONTEND,
+)
 from ..db import get_db
 from ..models import Rol, Usuario
-from ..schemas.auth import RegistroOut, SesionOut, TokenOut
+from ..schemas.auth import (
+    MensajeOut,
+    RecuperarPasswordRequest,
+    ReenviarVerificacionRequest,
+    RegistroOut,
+    RestablecerPasswordRequest,
+    SesionOut,
+    TokenOut,
+    VerificarCorreoRequest,
+)
 from ..schemas.usuario import LoginRequest, RegistroRequest, UsuarioOut
 from ..security import (
     TIPO_ANONIMO,
@@ -22,6 +39,14 @@ from ..security import (
     obtener_identidad,
     obtener_usuario_actual,
     verificar_password,
+)
+from ..services.correo import enviar_correo, logger
+from ..services.tokens import (
+    TIPO_RECUPERACION,
+    TIPO_VERIFICACION,
+    consumir_token,
+    crear_token,
+    segundos_desde_ultimo,
 )
 from ..services.uso import consultas_hoy, limite_de
 
@@ -70,14 +95,102 @@ def registrar(datos: RegistroRequest, db: Session = Depends(get_db)):
         password_hash=hash_password(datos.password),
         rol_id=rol.id,
         estado="activo",
+        # RR_00_07 criterio 2: la cuenta nace sin verificar.
+        correo_verificado=False,
     )
     db.add(usuario)
     db.commit()
     db.refresh(usuario)
 
-    return RegistroOut(
-        mensaje="Cuenta creada. Ya puedes iniciar sesión.",
-        usuario=_a_salida(usuario),
+    # RR_00_07 criterio 1: se envía el enlace de verificación. Si el correo no
+    # sale, la cuenta igual queda creada y se puede pedir el reenvío.
+    if _enviar_verificacion(db, usuario):
+        mensaje = f"Cuenta creada. Te enviamos un enlace a {correo} para verificar tu correo."
+    else:
+        mensaje = (
+            "Cuenta creada, pero no pudimos enviar el correo de verificación. "
+            "Pide que te lo reenviemos."
+        )
+
+    return RegistroOut(mensaje=mensaje, usuario=_a_salida(usuario))
+
+
+def _enviar_enlace(
+    db: Session,
+    usuario: Usuario,
+    *,
+    tipo: str,
+    duracion: timedelta,
+    vigencia: str,
+    ruta: str,
+    asunto: str,
+    motivo: str,
+    boton: str,
+    si_no_fuiste: str,
+) -> bool:
+    """Emite un token y envía por correo el enlace que lo lleva.
+
+    Lo usan RR_00_07 (verificación) y RR_00_06 (recuperación). Devuelve False
+    si el envío falló (el detalle queda en el log).
+    """
+    token = crear_token(db, usuario.id, tipo, duracion)
+    db.commit()
+
+    enlace = f"{URL_FRONTEND}{ruta}?token={token}"
+    nombre = usuario.nombre or "Hola"
+    texto = (
+        f"{nombre}:\n\n{motivo}, abre este enlace:\n\n{enlace}\n\n"
+        f"El enlace vence en {vigencia} y solo se puede usar una vez.\n{si_no_fuiste}"
+    )
+    html_correo = (
+        f"<p>{html.escape(nombre)}:</p>"
+        f"<p>{html.escape(motivo)}, haz clic en el botón:</p>"
+        f'<p><a href="{html.escape(enlace)}" style="display:inline-block;padding:10px 18px;'
+        'background:#2d5a3d;color:#ffffff;text-decoration:none;border-radius:8px">'
+        f"{html.escape(boton)}</a></p>"
+        f"<p>O copia este enlace en el navegador:<br>{html.escape(enlace)}</p>"
+        f"<p>El enlace vence en {vigencia} y solo se puede usar una vez. "
+        f"{html.escape(si_no_fuiste)}</p>"
+    )
+    try:
+        enviar_correo(usuario.correo, asunto, texto, html_correo)
+        return True
+    except Exception:
+        logger.exception("No se pudo enviar el correo (%s) a %s", tipo, usuario.correo)
+        return False
+
+
+def _enviar_verificacion(db: Session, usuario: Usuario) -> bool:
+    """RR_00_07 criterio 1 — enlace para verificar el correo."""
+    return _enviar_enlace(
+        db,
+        usuario,
+        tipo=TIPO_VERIFICACION,
+        duracion=timedelta(hours=HORAS_TOKEN_VERIFICACION),
+        vigencia=f"{HORAS_TOKEN_VERIFICACION} horas",
+        ruta="/verify-email",
+        asunto="Verifica tu correo en FloraBot CR",
+        motivo="Gracias por registrarte en FloraBot CR. Para activar tu cuenta",
+        boton="Verificar mi correo",
+        si_no_fuiste="Si no creaste esta cuenta, ignora este correo.",
+    )
+
+
+def _enviar_recuperacion(db: Session, usuario: Usuario) -> bool:
+    """RR_00_06 criterio 2 — enlace para establecer una contraseña nueva."""
+    return _enviar_enlace(
+        db,
+        usuario,
+        tipo=TIPO_RECUPERACION,
+        duracion=timedelta(minutes=MINUTOS_TOKEN_RECUPERACION),
+        vigencia=f"{MINUTOS_TOKEN_RECUPERACION} minutos",
+        ruta="/reset-password",
+        asunto="Recupera tu contraseña de FloraBot CR",
+        motivo="Recibimos una solicitud para cambiar la contraseña de tu cuenta. Para elegir una nueva",
+        boton="Cambiar mi contraseña",
+        si_no_fuiste=(
+            "Si no lo pediste, ignora este correo: tu contraseña actual sigue funcionando."
+        ),
     )
 
 
@@ -146,8 +259,115 @@ def iniciar_sesion(datos: LoginRequest, db: Session = Depends(get_db)):
             detail="Tu cuenta está desactivada. Contacta al administrador del sistema.",
         )
 
+    # RR_00_07 criterios 2 y 3: sin verificar el correo la cuenta no se
+    # habilita. Se comprueba después de la contraseña para no revelar nada a
+    # quien no la conoce. Mientras tanto la persona puede usar el agente como
+    # visitante. El frontend reconoce este caso por la frase "verificar tu correo".
+    if not usuario.correo_verificado:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "Debes verificar tu correo antes de iniciar sesión. "
+                "Revisa tu bandeja de entrada (y la carpeta de spam)."
+            ),
+        )
+
     token, _sesion_id = crear_token_usuario(usuario)
     return TokenOut(access_token=token, tipo=TIPO_USUARIO)
+
+
+# Tiempo mínimo entre dos reenvíos, para no usar la cuenta de correo como spam.
+SEGUNDOS_ENTRE_REENVIOS = 60
+
+
+@router.post("/verificar", response_model=MensajeOut)
+def verificar_correo(datos: VerificarCorreoRequest, db: Session = Depends(get_db)):
+    """RR_00_07 criterio 3 — valida el enlace y habilita la cuenta."""
+    fila = consumir_token(db, datos.token, TIPO_VERIFICACION)
+    if fila is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El enlace de verificación no es válido, ya se usó o venció. Pide uno nuevo.",
+        )
+
+    usuario = db.get(Usuario, fila.usuario_id)
+    usuario.correo_verificado = True
+    db.commit()
+    return MensajeOut(mensaje="¡Listo! Tu correo quedó verificado. Ya puedes iniciar sesión.")
+
+
+@router.post("/reenviar-verificacion", response_model=MensajeOut)
+def reenviar_verificacion(datos: ReenviarVerificacionRequest, db: Session = Depends(get_db)):
+    """RR_00_07 — envía un enlace nuevo; el anterior deja de servir.
+
+    Responde siempre lo mismo, exista o no la cuenta, para no revelar qué
+    correos están registrados.
+    """
+    correo = datos.correo.lower().strip()
+    usuario = db.query(Usuario).filter(Usuario.correo == correo).first()
+
+    if usuario and usuario.activo and not usuario.correo_verificado:
+        transcurridos = segundos_desde_ultimo(db, usuario.id, TIPO_VERIFICACION)
+        if transcurridos is None or transcurridos >= SEGUNDOS_ENTRE_REENVIOS:
+            _enviar_verificacion(db, usuario)
+
+    return MensajeOut(
+        mensaje=(
+            "Si hay una cuenta pendiente de verificar con ese correo, te enviamos un enlace "
+            "nuevo. Revisa tu bandeja de entrada (y la carpeta de spam)."
+        )
+    )
+
+
+@router.post("/recuperar", response_model=MensajeOut)
+def recuperar_password(datos: RecuperarPasswordRequest, db: Session = Depends(get_db)):
+    """RR_00_06 criterios 1 y 2 — envía al correo registrado un enlace de
+    recuperación que vence en MINUTOS_TOKEN_RECUPERACION minutos.
+
+    Responde siempre lo mismo, exista o no la cuenta, para no revelar qué
+    correos están registrados. Una cuenta desactivada no recibe enlace.
+    """
+    correo = datos.correo.lower().strip()
+    usuario = db.query(Usuario).filter(Usuario.correo == correo).first()
+
+    if usuario and usuario.activo:
+        transcurridos = segundos_desde_ultimo(db, usuario.id, TIPO_RECUPERACION)
+        if transcurridos is None or transcurridos >= SEGUNDOS_ENTRE_REENVIOS:
+            _enviar_recuperacion(db, usuario)
+
+    return MensajeOut(
+        mensaje=(
+            "Si hay una cuenta con ese correo, te enviamos un enlace para cambiar tu contraseña. "
+            f"Vence en {MINUTOS_TOKEN_RECUPERACION} minutos. Revisa tu bandeja de entrada "
+            "(y la carpeta de spam)."
+        )
+    )
+
+
+@router.post("/restablecer", response_model=MensajeOut)
+def restablecer_password(datos: RestablecerPasswordRequest, db: Session = Depends(get_db)):
+    """RR_00_06 criterio 3 — valida el enlace y guarda la contraseña nueva.
+
+    Además:
+    - Se quita el bloqueo por intentos fallidos (RR_00_05): quien olvidó su
+      contraseña suele haber fallado varias veces.
+    - El correo queda verificado (RR_00_07): abrir el enlace demuestra que la
+      persona controla ese correo.
+    """
+    fila = consumir_token(db, datos.token, TIPO_RECUPERACION)
+    if fila is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="El enlace para cambiar la contraseña no es válido, ya se usó o venció. Pide uno nuevo.",
+        )
+
+    usuario = db.get(Usuario, fila.usuario_id)
+    usuario.password_hash = hash_password(datos.password)
+    usuario.intentos_fallidos = 0
+    usuario.bloqueado_hasta = None
+    usuario.correo_verificado = True
+    db.commit()
+    return MensajeOut(mensaje="Tu contraseña se cambió. Ya puedes iniciar sesión con la nueva.")
 
 
 @router.post("/anonimo", response_model=TokenOut)

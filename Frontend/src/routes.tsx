@@ -15,6 +15,7 @@ import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage";
 import { Root } from "./pages/Root";
 import { SpeciesPage } from "./pages/SpeciesPage";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage";
@@ -61,7 +62,8 @@ export const router = createBrowserRouter([
   { path: "/login", Component: LoginPage },
   { path: "/register", Component: RegisterPage },
 
-  // RR_00_06 y RR_00_07. 
+  // RR_00_06 y RR_00_07. /verify-email también recibe el enlace del correo (?token=).
   { path: "/forgot-password", Component: ForgotPasswordPage },
+  { path: "/reset-password", Component: ResetPasswordPage },
   { path: "/verify-email", Component: VerifyEmailPage },
 ]);

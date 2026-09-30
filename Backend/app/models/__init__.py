@@ -8,6 +8,7 @@ from .consulta import Consulta
 from .consumo_anonimo import ConsumoAnonimo
 from .conversacion import Conversacion
 from .rol import Rol
+from .token import Token
 from .usuario import Usuario
 
-__all__ = ["Consulta", "ConsumoAnonimo", "Conversacion", "Rol", "Usuario"]
+__all__ = ["Consulta", "ConsumoAnonimo", "Conversacion", "Rol", "Token", "Usuario"]

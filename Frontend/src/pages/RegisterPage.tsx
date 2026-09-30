@@ -12,15 +12,15 @@ import { Link, useNavigate } from "react-router";
 
 import { useAuth } from "../context/AuthContext";
 
-/** Mismas reglas que valida el backend. */
-const REGLAS = [
+/** Mismas reglas que valida el backend. También las usa ResetPasswordPage (RR_00_06). */
+export const REGLAS = [
   { etiqueta: "Al menos 8 caracteres", cumple: (p: string) => p.length >= 8 },
   { etiqueta: "Una letra mayúscula", cumple: (p: string) => /[A-Z]/.test(p) },
   { etiqueta: "Un número", cumple: (p: string) => /\d/.test(p) },
   { etiqueta: "Un carácter especial o símbolo", cumple: (p: string) => /[^A-Za-z0-9]/.test(p) },
 ];
 
-function FuerzaContrasena({ password }: { password: string }) {
+export function FuerzaContrasena({ password }: { password: string }) {
   const puntaje = REGLAS.filter((r) => r.cumple(password)).length;
   const colores = ["#c5dccb", "#f59e0b", "#f59e0b", "#22c55e", "#2d5a3d"];
   const etiquetas = ["", "Débil", "Regular", "Buena", "Fuerte"];
@@ -91,8 +91,9 @@ export function RegisterPage() {
     setErrorGeneral("");
     setCargando(true);
     try {
-      await registrarse(form.nombre, form.correo, form.password);
-      navigate("/login", { state: { registrado: true } });
+      const mensaje = await registrarse(form.nombre, form.correo, form.password);
+      // RR_00_07: la cuenta nace sin verificar; se pide revisar el correo.
+      navigate("/verify-email", { state: { correo: form.correo, mensaje } });
     } catch (err) {
       setErrorGeneral(err instanceof Error ? err.message : "No se pudo crear la cuenta.");
     } finally {

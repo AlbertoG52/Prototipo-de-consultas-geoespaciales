@@ -43,7 +43,8 @@ interface EstadoAuth {
   conectando: boolean;
 
   entrar: (correo: string, password: string) => Promise<void>;
-  registrarse: (nombre: string, correo: string, password: string) => Promise<void>;
+  /** Devuelve el mensaje del servidor (RR_00_07: si se envió el correo de verificación). */
+  registrarse: (nombre: string, correo: string, password: string) => Promise<string>;
   salir: () => Promise<void>;
 
   /** Refresca el contador de consultas tras enviar una. */
@@ -287,7 +288,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setError(null);
       setCargando(true);
       try {
-        await api.registrar({ nombre, correo, password });
+        const { mensaje } = await api.registrar({ nombre, correo, password });
+        return mensaje;
       } catch (err) {
         setError(err instanceof Error ? err.message : "No se pudo crear la cuenta.");
         throw err;
