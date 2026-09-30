@@ -34,6 +34,12 @@ MINUTOS_EXPIRACION_TOKEN_ANONIMO = int(
     os.environ.get("MINUTOS_EXPIRACION_TOKEN_ANONIMO", str(60 * 24 * 30))
 )
 
+# RR_00_05 — bloqueo temporal por intentos fallidos de inicio de sesión.
+# Tras INTENTOS_LOGIN_MAXIMOS contraseñas incorrectas seguidas, la cuenta queda
+# bloqueada MINUTOS_BLOQUEO_LOGIN minutos. Ambos se configuran en el .env.
+INTENTOS_LOGIN_MAXIMOS = max(int(os.environ.get("INTENTOS_LOGIN_MAXIMOS", "5")), 1)
+MINUTOS_BLOQUEO_LOGIN = max(int(os.environ.get("MINUTOS_BLOQUEO_LOGIN", "15")), 1)
+
 # --- límites de consultas ---------------------------------------------------
 # RR_00_11: el visitante sin cuenta dispone de menos consultas
 # diarias que un usuario registrado. El límite del usuario registrado sale de
