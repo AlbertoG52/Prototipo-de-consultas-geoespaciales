@@ -18,8 +18,9 @@ from sqlalchemy.orm import Session
 
 from .config import (
     ALGORITMO_JWT,
-    MINUTOS_EXPIRACION_TOKEN,
     MINUTOS_EXPIRACION_TOKEN_ANONIMO,
+    MINUTOS_INACTIVIDAD_SESION,
+    MINUTOS_TOKEN_SIN_INACTIVIDAD,
     SECRET_KEY,
 )
 from .db import get_db
@@ -52,14 +53,30 @@ def _crear_token(datos: dict, minutos: int) -> str:
     return jwt.encode(contenido, SECRET_KEY, algorithm=ALGORITMO_JWT)
 
 
-def crear_token_usuario(usuario: Usuario) -> tuple[str, str]:
+def minutos_inactividad_de(usuario: Usuario) -> int:
+    """Minutos de inactividad que cierran la sesión de este usuario — RR_00_04.
+
+    Devuelve la preferencia del perfil si la eligió; si no, el valor por
+    defecto del sistema. 0 significa que la sesión no expira por inactividad.
+    """
+    propio = getattr(usuario, "minutos_inactividad", None)
+    return MINUTOS_INACTIVIDAD_SESION if propio is None else propio
+
+
+def crear_token_usuario(usuario: Usuario, sesion_id: Optional[str] = None) -> tuple[str, str]:
     """Token de un usuario registrado. Devuelve (token, sesion_id).
 
     El sesion_id se genera en cada inicio de sesión y viaja dentro del token.
     Es lo que hace posible que RR_09 muestre el historial de la sesión activa y
-    no todo el histórico de la cuenta.
+    no todo el histórico de la cuenta. Al renovar el token (RR_00_04) se pasa
+    el sesion_id existente para que la sesión siga siendo la misma.
+
+    RR_00_04: el token vence cuando se cumple el periodo de inactividad del
+    usuario. El frontend lo renueva mientras haya actividad; si no la hay, el
+    token vence en el servidor y hay que volver a autenticarse.
     """
-    sesion_id = uuid.uuid4().hex
+    sesion_id = sesion_id or uuid.uuid4().hex
+    minutos = minutos_inactividad_de(usuario) or MINUTOS_TOKEN_SIN_INACTIVIDAD
     token = _crear_token(
         {
             "sub": str(usuario.id),
@@ -70,7 +87,7 @@ def crear_token_usuario(usuario: Usuario) -> tuple[str, str]:
             "rol": usuario.rol.nombre if usuario.rol else None,
             "sid": sesion_id,
         },
-        MINUTOS_EXPIRACION_TOKEN,
+        minutos,
     )
     return token, sesion_id
 
@@ -94,21 +111,26 @@ class Identidad:
     sesion_id: str
     usuario: Optional[Usuario] = None
     anon_id: Optional[str] = None
+    # RR_00_04: llegó un token pero ya venció o no es válido. Permite avisar
+    # "tu sesión expiró" en vez de tratar a la persona como visitante sin más.
+    token_invalido: bool = False
 
     @property
     def es_anonimo(self) -> bool:
         return self.tipo == TIPO_ANONIMO
 
 
-def _leer_token(request: Request) -> Optional[dict]:
+def _leer_token(request: Request) -> tuple[Optional[dict], bool]:
+    """Devuelve (datos del token, venía un token). Sin token: (None, False)."""
     cabecera = request.headers.get("Authorization", "")
     if not cabecera.startswith("Bearer "):
-        return None
+        return None, False
     token = cabecera.split(" ", 1)[1]
     try:
-        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITMO_JWT])
+        return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITMO_JWT]), True
     except JWTError:
-        return None
+        # Incluye el token vencido por inactividad (RR_00_04).
+        return None, True
 
 
 def obtener_identidad(
@@ -121,9 +143,11 @@ def obtener_identidad(
     anon_id: puede leer, no puede consumir consultas. El frontend pide un token
     anónimo en la primera visita, así que esto es solo la red de seguridad.
     """
-    datos = _leer_token(request)
+    datos, venia_token = _leer_token(request)
     if not datos:
-        return Identidad(tipo=TIPO_ANONIMO, sesion_id="", anon_id=None)
+        return Identidad(
+            tipo=TIPO_ANONIMO, sesion_id="", anon_id=None, token_invalido=venia_token
+        )
 
     if datos.get("tipo") == TIPO_ANONIMO:
         anon_id = datos.get("sub")
@@ -132,7 +156,7 @@ def obtener_identidad(
     usuario = db.query(Usuario).filter(Usuario.id == int(datos["sub"])).first()
     if not usuario:
         # El token es válido pero la cuenta ya no existe.
-        return Identidad(tipo=TIPO_ANONIMO, sesion_id="", anon_id=None)
+        return Identidad(tipo=TIPO_ANONIMO, sesion_id="", anon_id=None, token_invalido=True)
 
     if not usuario.activo:
         raise HTTPException(

@@ -5,10 +5,12 @@
  *  - RR_02 campo de texto para la consulta
  *  - RR_10 copiar la respuesta
  *  - RR_15 descarga de la respuesta y del mapa
+ *  - RR_12 detalle de un punto del mapa al seleccionarlo
  *  - RR_17 selección de especie ante múltiples coincidencias
  *  - RR_18 alternancia entre mapa y lista de registros
+ *  - RR_20 acceso a la ficha completa desde la respuesta
  */
-import { useEffect, useRef, useState, type Ref } from "react";
+import { useCallback, useEffect, useRef, useState, type Ref } from "react";
 import { useNavigate } from "react-router";
 
 import { useAuth } from "../context/AuthContext";
@@ -30,13 +32,18 @@ const CONSULTAS_DE_EJEMPLO = [
  * silueta del país, proyectando latitud y longitud a coordenadas del SVG, para
  * que la alternancia de RR_18 tenga las dos vistas que compara.
  *
- * `ref` expone el elemento SVG para poder descargarlo (RR_15).
+ * - `seleccionado` es el índice del punto cuyo detalle está abierto (RR_12).
+ * - `ref` expone el elemento SVG para poder descargarlo (RR_15).
  */
 function MapaDistribucion({
   registros,
+  seleccionado,
+  onSeleccionar,
   ref,
 }: {
   registros: RegistroPresencia[];
+  seleccionado: number | null;
+  onSeleccionar: (indice: number | null) => void;
   ref?: Ref<SVGSVGElement>;
 }) {
   // Recuadro aproximado de Costa Rica.
@@ -48,26 +55,62 @@ function MapaDistribucion({
   const aX = (lon: number) => 60 + ((lon - LON_MIN) / (LON_MAX - LON_MIN)) * 220;
   const aY = (lat: number) => 150 - ((lat - LAT_MIN) / (LAT_MAX - LAT_MIN)) * 100;
 
+  // El punto seleccionado se dibuja al final para que quede encima de los demás.
+  const orden = registros.map((_, i) => i).filter((i) => i !== seleccionado);
+  if (seleccionado !== null && registros[seleccionado]) orden.push(seleccionado);
+
   return (
-    <svg ref={ref} viewBox="0 0 340 180" className="w-full h-full" style={{ background: "#e8f0e8" }} role="img" aria-label="Mapa de distribución en Costa Rica">
+    <svg
+      ref={ref}
+      viewBox="0 0 340 180"
+      className="w-full h-full"
+      style={{ background: "#e8f0e8" }}
+      role="group"
+      aria-label="Mapa de distribución en Costa Rica"
+      // RR_12 criterio 3: un clic fuera de los puntos cierra el detalle.
+      onClick={() => onSeleccionar(null)}
+    >
       <path
         d="M60,90 Q80,60 120,55 Q160,50 200,60 Q230,65 250,80 Q270,90 260,110 Q250,130 220,140 Q180,150 140,148 Q100,145 75,130 Q50,115 60,90 Z"
         fill="#c8dfc0"
         stroke="#9ab89a"
         strokeWidth="1.5"
       />
-      {registros.map((r, i) => (
-        <circle
-          key={i}
-          cx={aX(r.longitud)}
-          cy={aY(r.latitud)}
-          r={4.5}
-          fill="#5b4fcf"
-          opacity={0.85}
-        >
-          <title>{`${r.localidad} — ${r.fecha}`}</title>
-        </circle>
-      ))}
+      {orden.map((i) => {
+        const r = registros[i];
+        const activo = i === seleccionado;
+        const alternar = () => onSeleccionar(activo ? null : i);
+        return (
+          <circle
+            key={i}
+            cx={aX(r.longitud)}
+            cy={aY(r.latitud)}
+            r={activo ? 7 : 4.5}
+            fill={activo ? "#e0552b" : "#5b4fcf"}
+            stroke={activo ? "#ffffff" : "none"}
+            strokeWidth={activo ? 2 : 0}
+            opacity={activo ? 1 : 0.85}
+            role="button"
+            tabIndex={0}
+            aria-pressed={activo}
+            aria-label={`Registro en ${r.localidad}, ${r.fecha}. Ver detalle.`}
+            style={{ cursor: "pointer" }}
+            // RR_12 criterio 1: al seleccionar un punto se abre su detalle.
+            onClick={(e) => {
+              e.stopPropagation();
+              alternar();
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                alternar();
+              }
+            }}
+          >
+            <title>{`${r.localidad} — ${r.fecha}`}</title>
+          </circle>
+        );
+      })}
       <circle cx="100" cy="160" r="5" fill="#5b4fcf" opacity="0.85" />
       <text x="110" y="164" fontSize="9" fill="#555" fontFamily="Inter, sans-serif">
         Registros de presencia ({registros.length})
@@ -79,6 +122,69 @@ function MapaDistribucion({
         50 km
       </text>
     </svg>
+  );
+}
+
+/**
+ * RR_12 — detalle del punto seleccionado.
+ *
+ * Va debajo del mapa (HTML, no dentro del SVG) para que no lo tape ni salga en
+ * la descarga del mapa (RR_15). Se cierra con la X, con Escape, con un clic en
+ * el fondo del mapa o volviendo a hacer clic en el mismo punto.
+ */
+function DetallePunto({ registro, onCerrar }: { registro: RegistroPresencia; onCerrar: () => void }) {
+  useEffect(() => {
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCerrar();
+    };
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+  }, [onCerrar]);
+
+  const filas: [string, string][] = [
+    ["Localidad", registro.localidad],
+    ["Fecha del registro", registro.fecha],
+    ["Coordenadas", `${registro.latitud.toFixed(4)}, ${registro.longitud.toFixed(4)}`],
+    ["Elevación", registro.elevacion_m !== null ? `${registro.elevacion_m} msnm` : "Sin dato"],
+    ["Fuente", registro.fuente],
+  ];
+
+  return (
+    <div
+      role="region"
+      aria-live="polite"
+      aria-label={`Detalle del registro en ${registro.localidad}`}
+      className="mt-2 rounded-xl px-4 py-3 text-xs"
+      style={{ background: "#f7faf7", border: "1px solid #c5dccb" }}
+    >
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <span className="flex items-center gap-1.5 font-semibold" style={{ color: "#1e3d2a" }}>
+          <span className="inline-block rounded-full" style={{ width: 8, height: 8, background: "#e0552b" }} />
+          Detalle del registro
+        </span>
+        <button
+          onClick={onCerrar}
+          aria-label="Cerrar detalle"
+          className="flex items-center gap-1 px-2 py-1 rounded-md"
+          style={{ border: "none", background: "transparent", color: "#6b8f74", cursor: "pointer" }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+          Cerrar
+        </button>
+      </div>
+      <dl className="grid gap-x-4 gap-y-1" style={{ gridTemplateColumns: "auto 1fr" }}>
+        {filas.map(([k, v]) => (
+          <div key={k} className="contents">
+            <dt style={{ color: "#8aab92" }}>{k}</dt>
+            <dd className="font-medium" style={{ color: "#374a3c" }}>
+              {v}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
   );
 }
 
@@ -103,12 +209,16 @@ function TarjetaRespuesta({
 }: {
   consulta: string;
   respuesta: RespuestaConsulta;
-  onVerFicha: (nombre: string) => void;
+  /** RR_20 criterio 3 — abre la ficha de la especie de esta respuesta (por su id). */
+  onVerFicha: (especieId: string) => void;
 }) {
   const [copiado, setCopiado] = useState(false);
   // RR_18 — el usuario alterna entre las dos vistas de los mismos registros.
   const [vista, setVista] = useState<"mapa" | "lista">("mapa");
   const mapaRef = useRef<SVGSVGElement>(null);
+  // RR_12 — punto del mapa cuyo detalle está abierto (índice en respuesta.registros).
+  const [seleccionado, setSeleccionado] = useState<number | null>(null);
+  const cerrarDetalle = useCallback(() => setSeleccionado(null), []);
 
   /** RR_15 — la respuesta completa, con la consulta que la originó. */
   const descargarRespuesta = () => {
@@ -192,7 +302,10 @@ function TarjetaRespuesta({
                 {(["mapa", "lista"] as const).map((v) => (
                   <button
                     key={v}
-                    onClick={() => setVista(v)}
+                    onClick={() => {
+                      setVista(v);
+                      setSeleccionado(null);
+                    }}
                     aria-pressed={vista === v}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                     style={{
@@ -232,8 +345,20 @@ function TarjetaRespuesta({
                     </button>
                   </div>
                   <div className="rounded-xl overflow-hidden" style={{ height: 170, border: "1px solid #dde8df" }}>
-                    <MapaDistribucion ref={mapaRef} registros={respuesta.registros} />
+                    <MapaDistribucion
+                      ref={mapaRef}
+                      registros={respuesta.registros}
+                      seleccionado={seleccionado}
+                      onSeleccionar={setSeleccionado}
+                    />
                   </div>
+                  {seleccionado !== null && respuesta.registros[seleccionado] ? (
+                    <DetallePunto registro={respuesta.registros[seleccionado]} onCerrar={cerrarDetalle} />
+                  ) : (
+                    <p className="mt-1.5 text-xs" style={{ color: "#8aab92" }}>
+                      Haz clic en un punto para ver el detalle del registro.
+                    </p>
+                  )}
                 </>
               ) : (
                 <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #dde8df" }}>
@@ -308,7 +433,7 @@ function TarjetaRespuesta({
                 Descargar
               </button>
               <button
-                onClick={() => onVerFicha(respuesta.especie.nombre_cientifico)}
+                onClick={() => onVerFicha(respuesta.especie.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
                 style={{ background: "transparent", color: "#8aab92", border: "none", cursor: "pointer" }}
               >
@@ -477,7 +602,7 @@ export function ChatPage() {
             key={m.id}
             consulta={m.consulta}
             respuesta={m.respuesta}
-            onVerFicha={(nombre) => navigate(`/species/${encodeURIComponent(nombre)}`)}
+            onVerFicha={(especieId) => navigate(`/species/${encodeURIComponent(especieId)}`)}
           />
         );
 

@@ -5,6 +5,7 @@
  * (RR_00_11). La barra lateral cambia según el tipo de sesión: el visitante no
  * tiene historial ni perfil, y su contador de consultas es más bajo.
  */
+import { useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 
 import { useAuth } from "../context/AuthContext";
@@ -27,8 +28,16 @@ function tiempoRelativo(iso: string): string {
 export function Root() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { sesion, autenticado, salir } = useAuth();
+  const { sesion, autenticado, salir, sesionExpirada } = useAuth();
   const { historial, verDelHistorial, nuevaConsulta } = useConsultas();
+
+  // RR_00_04 criterio 3: al expirar por inactividad se limpia la conversación
+  // (puede tener datos de la cuenta) y se pide iniciar sesión de nuevo.
+  useEffect(() => {
+    if (!sesionExpirada) return;
+    nuevaConsulta();
+    navigate("/login", { replace: true });
+  }, [sesionExpirada, nuevaConsulta, navigate]);
 
   const esAdmin = location.pathname === "/admin";
   const esPerfil = location.pathname === "/profile";

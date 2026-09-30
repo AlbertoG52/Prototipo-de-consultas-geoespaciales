@@ -9,7 +9,7 @@
  * SVG; si pasa a ser canvas o teselas (Leaflet, MapLibre), habrá que exportarlo
  * con la API propia de esa librería.
  */
-import type { RespuestaConsulta } from "../types";
+import type { FichaEspecie, RespuestaConsulta } from "../types";
 
 /** Fecha local en formato AAAA-MM-DD, para los nombres de archivo. */
 function fechaCorta(fecha: Date): string {
@@ -97,4 +97,30 @@ export function descargarSvg(svg: SVGSVGElement, nombre: string, ancho = 680, al
   const contenido =
     '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(copia);
   descargarArchivo(nombre, contenido, "image/svg+xml;charset=utf-8");
+}
+
+/** RR_20 — la ficha completa de la especie como texto plano ("Exportar ficha"). */
+export function fichaATexto(ficha: FichaEspecie, fecha = new Date()): string {
+  const dato = (v: string | null) => v ?? "Sin dato";
+  const lineas: string[] = [
+    "FloraBot CR — Ficha de especie",
+    `Descargado: ${fecha.toLocaleString("es-CR")}`,
+    "",
+    `Nombre común: ${dato(ficha.nombre_comun)}`,
+    `Nombre científico: ${ficha.nombre_cientifico}`,
+    `Familia: ${ficha.familia}`,
+    `Hábitat: ${dato(ficha.habitat)}`,
+    `Elevación: ${dato(ficha.elevacion)}`,
+    "",
+  ];
+  if (ficha.descripcion) lineas.push("Descripción:", ficha.descripcion, "");
+  lineas.push(`Registros de presencia (${ficha.total_registros}):`);
+  for (const r of ficha.registros) {
+    const elev = r.elevacion_m !== null ? `${r.elevacion_m} msnm` : "sin elevación";
+    lineas.push(
+      `- ${r.localidad} | ${r.fecha} | ${r.latitud.toFixed(4)}, ${r.longitud.toFixed(4)} | ${elev} | ${r.fuente}`,
+    );
+  }
+  lineas.push("", `Fuentes: ${ficha.fuentes.join(", ")}`);
+  return lineas.join("\n");
 }

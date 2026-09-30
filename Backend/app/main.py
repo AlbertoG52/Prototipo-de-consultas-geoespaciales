@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from .config import ORIGENES_PERMITIDOS
 from .db import engine
-from .routers import admin, auth, consultas, perfil
+from .routers import admin, auth, consultas, especies, perfil
 
 app = FastAPI(title="Prototipo de consultas geoespaciales - API")
 
@@ -21,6 +21,7 @@ app.include_router(auth.router)
 app.include_router(consultas.router)
 app.include_router(admin.router)
 app.include_router(perfil.router)
+app.include_router(especies.router)
 
 
 @app.get("/health", tags=["estado"])

@@ -1,4 +1,4 @@
-"""Registro, inicio y cierre de sesión — RR_00_01, RR_00_02, RR_00_11."""
+"""Registro, inicio y cierre de sesión — RR_00_01, RR_00_02, RR_00_04, RR_00_11."""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,9 @@ from ..security import (
     crear_token_anonimo,
     crear_token_usuario,
     hash_password,
+    minutos_inactividad_de,
     obtener_identidad,
+    obtener_usuario_actual,
     verificar_password,
 )
 from ..services.uso import consultas_hoy, limite_de
@@ -118,7 +120,17 @@ def estado_sesion(
 
     El frontend lo consulta al cargar para saber qué mostrar: un visitante no
     tiene historial ni perfil, y su límite de consultas es menor.
+
+    RR_00_04: si llega un token vencido (por inactividad) responde 401. El
+    frontend lo usa para avisar que la sesión expiró y pedir un nuevo inicio
+    de sesión, en lugar de convertir a la persona en visitante sin decirle nada.
     """
+    if identidad.token_invalido:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tu sesión expiró. Inicia sesión de nuevo.",
+        )
+
     limite = limite_de(identidad)
     usadas = consultas_hoy(db, identidad)
 
@@ -130,7 +142,27 @@ def estado_sesion(
         consultas_restantes=max(limite - usadas, 0),
         # RR_00_11 criterio 1: al visitante no se le guardan las consultas.
         guarda_historial=not identidad.es_anonimo,
+        minutos_inactividad=(
+            minutos_inactividad_de(identidad.usuario) if identidad.usuario else None
+        ),
     )
+
+
+@router.post("/renovar", response_model=TokenOut)
+def renovar_sesion(
+    identidad: Identidad = Depends(obtener_identidad),
+    usuario: Usuario = Depends(obtener_usuario_actual),
+):
+    """RR_00_04 — extiende la sesión porque hubo actividad.
+
+    El frontend lo llama mientras la persona usa la aplicación. Devuelve un
+    token nuevo con el mismo sesion_id y otro periodo de inactividad completo.
+    Un token ya vencido no llega hasta aquí (obtener_usuario_actual responde
+    401): después de la inactividad no hay renovación posible, solo un nuevo
+    inicio de sesión.
+    """
+    token, _ = crear_token_usuario(usuario, sesion_id=identidad.sesion_id or None)
+    return TokenOut(access_token=token, tipo=TIPO_USUARIO)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

@@ -39,6 +39,25 @@ class RespuestaConsulta(BaseModel):
     fuentes: list[str] = Field(default_factory=list)
 
 
+class FichaEspecie(BaseModel):
+    """RR_20 — ficha completa de una especie.
+
+    Los campos que el catálogo no tenga llegan como None y la ficha los
+    muestra como "Sin dato" en lugar de inventarlos.
+    """
+
+    id: str
+    nombre_comun: str | None = None
+    nombre_cientifico: str
+    familia: str
+    habitat: str | None = None
+    elevacion: str | None = None
+    descripcion: str | None = None
+    registros: list[RegistroPresencia] = Field(default_factory=list)
+    total_registros: int = 0
+    fuentes: list[str] = Field(default_factory=list)
+
+
 class ConsultaRequest(BaseModel):
     texto: str = Field(min_length=1, max_length=LONGITUD_MAXIMA_CONSULTA)
 
