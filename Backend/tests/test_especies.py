@@ -53,6 +53,14 @@ def test_cada_especie_tiene_su_propia_ficha(especie_id):
     assert ficha.registros == respuesta.registros
 
 
+def test_especie_sin_datos_geoespaciales_no_trae_registros():
+    # RR_06 criterio 5: sin registros el frontend omite el mapa.
+    respuesta = catalogo.construir_respuesta("hylocereus-costaricensis", "")
+    assert respuesta.registros == []
+    assert respuesta.total_registros == 0
+    assert respuesta.texto
+
+
 def test_ya_no_es_siempre_la_guaria_morada():
     assert _ficha("bactris-gasipaes").nombre_comun == "Pejibaye"
 

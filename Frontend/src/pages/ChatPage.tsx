@@ -6,6 +6,7 @@
  *  - RR_10 copiar la respuesta
  *  - RR_15 descarga de la respuesta y del mapa
  *  - RR_12 detalle de un punto del mapa al seleccionarlo
+ *  - RR_13 reformulación de la última consulta
  *  - RR_17 selección de especie ante múltiples coincidencias
  *  - RR_18 alternancia entre mapa y lista de registros
  *  - RR_19 filtrado de los puntos del mapa por rango de elevación
@@ -690,7 +691,37 @@ export function ChatPage() {
     await enviar(valor);
   };
 
+  // RR_13 — la última consulta que envió el usuario (también en una
+  // conversación reabierta del historial).
+  let ultimaConsulta: Extract<Mensaje, { clase: "consulta" }> | undefined;
+  for (const m of mensajes) if (m.clase === "consulta") ultimaConsulta = m;
+
+  /**
+   * RR_13 criterios 1 y 2 — recupera el texto de la última consulta en el
+   * campo de entrada para modificarlo. Al enviarlo pasa por `mandar` como
+   * cualquier consulta, así que se procesa como una nueva (criterio 3).
+   */
+  const editarUltima = () => {
+    if (!ultimaConsulta || bloqueado) return;
+    const texto = ultimaConsulta.texto;
+    setEntrada(texto);
+    requestAnimationFrame(() => {
+      const area = areaRef.current;
+      if (!area) return;
+      area.focus();
+      area.setSelectionRange(texto.length, texto.length);
+      area.style.height = "auto";
+      area.style.height = `${Math.min(area.scrollHeight, 120)}px`;
+    });
+  };
+
   const alTeclear = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // RR_13 — flecha arriba con el campo vacío recupera la última consulta.
+    if (e.key === "ArrowUp" && !entrada && ultimaConsulta) {
+      e.preventDefault();
+      editarUltima();
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       void mandar();
@@ -707,13 +738,34 @@ export function ChatPage() {
     switch (m.clase) {
       case "consulta":
         return (
-          <div key={m.id} className="flex justify-end">
+          <div key={m.id} className="flex flex-col items-end">
             <div
               className="rounded-2xl px-5 py-3 text-sm font-medium max-w-sm"
               style={{ background: "#2d5a3d", color: "#ffffff", borderBottomRightRadius: 6 }}
             >
               {m.texto}
             </div>
+            {/* RR_13 — solo la última consulta se puede recuperar para editarla. */}
+            {m.id === ultimaConsulta?.id && !enviando && !bloqueado && (
+              <button
+                onClick={editarUltima}
+                aria-label="Editar la última consulta"
+                title="Editar y volver a enviar (↑)"
+                className="flex items-center gap-1 mt-1 px-2 py-1 rounded-md text-xs"
+                style={{ border: "none", background: "transparent", color: "#8aab92", cursor: "pointer" }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Editar
+              </button>
+            )}
           </div>
         );
 
@@ -923,7 +975,7 @@ export function ChatPage() {
           </button>
         </div>
         <p className="text-center text-xs mt-2" style={{ color: "#a0b8a8" }}>
-          Enter para enviar · Shift+Enter para nueva línea
+          Enter para enviar · Shift+Enter para nueva línea · ↑ para editar la última consulta
         </p>
       </div>
 
