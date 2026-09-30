@@ -40,6 +40,26 @@ MINUTOS_EXPIRACION_TOKEN_ANONIMO = int(
 INTENTOS_LOGIN_MAXIMOS = max(int(os.environ.get("INTENTOS_LOGIN_MAXIMOS", "5")), 1)
 MINUTOS_BLOQUEO_LOGIN = max(int(os.environ.get("MINUTOS_BLOQUEO_LOGIN", "15")), 1)
 
+# --- correo (RR_00_07) ------------------------------------------------------
+# Cuenta de Gmail que envía los correos, con una contraseña de aplicación.
+# Los valores reales van solo en el .env. Si SMTP_USUARIO o SMTP_PASSWORD están
+# vacíos no se envía nada: el contenido del correo (con su enlace) se escribe
+# en el log del backend, para poder desarrollar sin credenciales.
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USUARIO = os.environ.get("SMTP_USUARIO", "").strip()
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "").strip()
+
+# Dirección del frontend; es la base de los enlaces que van en los correos.
+URL_FRONTEND = os.environ.get("URL_FRONTEND", "http://localhost:5173").rstrip("/")
+
+# RR_00_07 criterio 1 — vigencia del enlace de verificación de correo.
+HORAS_TOKEN_VERIFICACION = 24
+
+# RR_00_06 criterio 2 — vigencia del enlace de recuperación de contraseña.
+# Es más corta: el enlace permite cambiar la contraseña de la cuenta.
+MINUTOS_TOKEN_RECUPERACION = 30
+
 # --- límites de consultas ---------------------------------------------------
 # RR_00_11: el visitante sin cuenta dispone de menos consultas
 # diarias que un usuario registrado. El límite del usuario registrado sale de

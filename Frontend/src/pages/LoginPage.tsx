@@ -97,7 +97,20 @@ export function LoginPage() {
                 <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
                 <path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
               </svg>
-              {error}
+              <span>
+                {error}
+                {/* RR_00_07 — cuenta sin verificar: se ofrece reenviar el enlace. */}
+                {/verificar tu correo/i.test(error) && (
+                  <Link
+                    to="/verify-email"
+                    state={{ correo }}
+                    className="block font-medium underline mt-1"
+                    style={{ color: "#991b1b" }}
+                  >
+                    Reenviar correo de verificación
+                  </Link>
+                )}
+              </span>
             </div>
           )}
 

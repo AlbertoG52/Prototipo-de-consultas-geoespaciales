@@ -1,11 +1,39 @@
 /**
+ * Recuperación de contraseña, paso 1 — RR_00_06 criterios 1 y 2.
  *
- * Corresponde a RR_00_06 (Recuperación de contraseña)
+ * La persona escribe su correo registrado y recibe un enlace que vence en 30
+ * minutos. La respuesta es la misma exista o no la cuenta, para no revelar qué
+ * correos están registrados. El paso 2 es ResetPasswordPage.
  */
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+
+import * as api from "../services/api";
 
 export function ForgotPasswordPage() {
   const navigate = useNavigate();
+  const [correo, setCorreo] = useState("");
+  const [error, setError] = useState("");
+  const [enviado, setEnviado] = useState("");
+  const [cargando, setCargando] = useState(false);
+
+  const enviar = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!correo.includes("@")) {
+      setError("Ingresa el correo con el que te registraste.");
+      return;
+    }
+    setError("");
+    setCargando(true);
+    try {
+      const r = await api.solicitarRecuperacion(correo.trim());
+      setEnviado(r.mensaje);
+    } catch (err) {
+      setError(err instanceof api.ErrorApi ? err.message : "No se pudo conectar con el servidor. Intenta de nuevo.");
+    } finally {
+      setCargando(false);
+    }
+  };
 
   return (
     <div
@@ -41,20 +69,77 @@ export function ForgotPasswordPage() {
           <h2 className="text-lg font-semibold text-center mb-2" style={{ color: "#1e3d2a" }}>
             Recuperar contraseña
           </h2>
-          <p className="text-sm text-center mb-6" style={{ color: "#6b8f74" }}>
-            Esta función todavía no está disponible. Mientras tanto, pide al
-            administrador del sistema que restablezca tu contraseña.
-          </p>
 
-          <button
-            onClick={() => navigate("/login")}
-            className="w-full rounded-xl py-3 text-sm font-semibold"
-            style={{ background: "#2d5a3d", color: "#ffffff", border: "none", cursor: "pointer" }}
-          >
-            Volver al inicio de sesión
-          </button>
+          {enviado ? (
+            <>
+              <p role="status" className="text-sm text-center mb-6" style={{ color: "#6b8f74" }}>
+                {enviado} Ábrelo en esta misma computadora.
+              </p>
+              <button
+                onClick={() => navigate("/login")}
+                className="w-full rounded-xl py-3 text-sm font-semibold"
+                style={{ background: "#2d5a3d", color: "#ffffff", border: "none", cursor: "pointer" }}
+              >
+                Volver al inicio de sesión
+              </button>
+              <button
+                onClick={() => setEnviado("")}
+                className="w-full text-xs mt-3"
+                style={{ background: "transparent", color: "#2d5a3d", border: "none", cursor: "pointer" }}
+              >
+                ¿No te llegó? Pedir otro enlace
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-center mb-6" style={{ color: "#6b8f74" }}>
+                Escribe el correo de tu cuenta y te enviaremos un enlace para elegir una contraseña nueva.
+              </p>
+
+              {error && (
+                <p role="alert" className="text-sm rounded-xl p-3 mb-4" style={{ background: "#fef3f2", border: "1px solid #fca5a5", color: "#991b1b" }}>
+                  {error}
+                </p>
+              )}
+
+              <form onSubmit={enviar} className="flex flex-col gap-4">
+                <div>
+                  <label htmlFor="correo" className="block text-sm font-medium mb-1.5" style={{ color: "#374a3c" }}>
+                    Correo electrónico
+                  </label>
+                  <input
+                    id="correo"
+                    type="email"
+                    autoComplete="email"
+                    value={correo}
+                    onChange={(e) => setCorreo(e.target.value)}
+                    placeholder="tu@correo.com"
+                    className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                    style={{ border: "1.5px solid #c5dccb", background: "#f7f8f5", color: "#1e3d2a" }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={cargando}
+                  className="w-full rounded-xl py-3 text-sm font-semibold"
+                  style={{
+                    background: cargando ? "#a8d4b0" : "#2d5a3d",
+                    color: "#ffffff",
+                    border: "none",
+                    cursor: cargando ? "default" : "pointer",
+                  }}
+                >
+                  {cargando ? "Enviando..." : "Enviar enlace"}
+                </button>
+              </form>
+            </>
+          )}
 
           <p className="text-center text-sm mt-5" style={{ color: "#6b8f74" }}>
+            <Link to="/login" className="font-medium" style={{ color: "#2d5a3d" }}>
+              Iniciar sesión
+            </Link>
+            {" · "}
             <Link to="/" className="font-medium" style={{ color: "#2d5a3d" }}>
               Continuar sin cuenta
             </Link>
