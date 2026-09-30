@@ -49,6 +49,14 @@ class ConsultaRequest(BaseModel):
     # de que llegue.
     especie_id: str | None = Field(default=None, max_length=100, pattern=r"^[a-z0-9-]+$")
 
+    # RR_09: la conversación a la que pertenece la consulta. Sin ella se crea
+    # una conversación nueva. Solo aplica a cuentas registradas.
+    conversacion_id: int | None = Field(default=None, ge=1)
+
+    # RR_17: la consulta ambigua pendiente que se está resolviendo, junto con
+    # 'especie_id'. Se resuelve esa misma fila, así que no se cobra dos veces.
+    consulta_id: int | None = Field(default=None, ge=1)
+
     @field_validator("texto")
     @classmethod
     def _texto(cls, v: str) -> str:
@@ -71,6 +79,8 @@ class ConsultaOut(BaseModel):
     """
 
     id: int | None = None
+    # RR_09: la conversación donde quedó guardada; None para un visitante.
+    conversacion_id: int | None = None
     estado: Literal["resuelta", "ambigua", "sin_coincidencias"]
     texto: str
     respuesta: RespuestaConsulta | None = None
@@ -81,9 +91,47 @@ class ConsultaOut(BaseModel):
 
 
 class ItemHistorial(BaseModel):
-    """Una entrada del historial de la sesión activa (RR_09)."""
+    """Una consulta resuelta del historial de la cuenta (RR_09)."""
 
     id: int
     texto: str
     respuesta: RespuestaConsulta | None = None
     realizada_en: datetime
+
+
+# --- RR_09: historial por conversaciones ----------------------------------------
+
+
+class ConsultaGuardada(BaseModel):
+    """Una consulta dentro de una conversación, en cualquiera de sus estados.
+
+    - "resuelta"          -> viene 'respuesta'
+    - "ambigua"           -> vienen 'candidatos' y 'mensaje'; sigue pendiente y
+                             se puede resolver eligiendo una especie (RR_17)
+    - "sin_coincidencias" -> viene 'mensaje'
+    """
+
+    id: int
+    texto: str
+    estado: Literal["resuelta", "ambigua", "sin_coincidencias"]
+    respuesta: RespuestaConsulta | None = None
+    candidatos: list[EspecieCandidata] = Field(default_factory=list)
+    mensaje: str | None = None
+    realizada_en: datetime
+
+
+class ConversacionResumen(BaseModel):
+    """Una entrada de la barra lateral."""
+
+    model_config = {"from_attributes": True}
+
+    id: int
+    titulo: str
+    creada_en: datetime
+    actualizada_en: datetime
+
+
+class ConversacionDetalle(ConversacionResumen):
+    """Una conversación completa, con sus consultas en orden cronológico."""
+
+    consultas: list[ConsultaGuardada] = Field(default_factory=list)

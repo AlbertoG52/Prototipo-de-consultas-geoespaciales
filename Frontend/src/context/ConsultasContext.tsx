@@ -1,16 +1,17 @@
 /**
- * Conversación con el agente e historial de consultas.
+ * Conversación con el agente e historial de conversaciones.
  *
  * Acá se maneja:
  *
- *  - RR_09  historial de la cuenta (se conserva al cerrar e iniciar sesión)
- *  - RR_17  selección de especie cuando la consulta coincide con varias
+ *  - RR_09  historial por conversaciones, como en un chat: cada conversación
+ *           guarda sus consultas en los tres estados y se puede reabrir.
+ *  - RR_17  selección de especie cuando la consulta coincide con varias. Con
+ *           cuenta, la consulta ambigua queda guardada y pendiente: se puede
+ *           elegir la especie incluso al reabrir la conversación otro día.
  *  - RR_00_11 al visitante sin cuenta no se le guarda nada
  *
- * El historial del usuario registrado se carga del servidor, porque sus
- * consultas sí se guardan. El del visitante vive solo aquí, en memoria, y
- * desaparece al recargar la página: eso es para el caso de los usuarios
- * sin cuenta (RR_00_11).
+ * Las conversaciones del usuario registrado se cargan del servidor. La del
+ * visitante vive solo aquí, en memoria, y desaparece al recargar la página.
  */
 import {
   createContext,
@@ -23,7 +24,12 @@ import {
 } from "react";
 
 import * as api from "../services/api";
-import type { EspecieCandidata, ItemHistorial, RespuestaConsulta } from "../types";
+import type {
+  ConsultaGuardada,
+  ConversacionResumen,
+  EspecieCandidata,
+  RespuestaConsulta,
+} from "../types";
 import { useAuth } from "./AuthContext";
 
 /** Un elemento de la conversación. */
@@ -32,22 +38,41 @@ export type Mensaje =
   | { clase: "cargando"; id: string }
   /** `consulta` es el texto que produjo la respuesta; lo usa la descarga (RR_15). */
   | { clase: "respuesta"; id: string; consulta: string; respuesta: RespuestaConsulta }
-  | { clase: "opciones"; id: string; texto: string; candidatos: EspecieCandidata[]; mensaje: string }
+  | {
+      clase: "opciones";
+      id: string;
+      texto: string;
+      candidatos: EspecieCandidata[];
+      mensaje: string;
+      /** La consulta ambigua guardada; null para un visitante, que no guarda nada. */
+      consultaId: number | null;
+      /** true cuando ya se eligió una especie: las opciones dejan de poder elegirse. */
+      resuelta: boolean;
+    }
   | { clase: "aviso"; id: string; mensaje: string }
   | { clase: "error"; id: string; mensaje: string; textoOriginal: string };
 
 interface EstadoConsultas {
   mensajes: Mensaje[];
-  historial: ItemHistorial[];
   enviando: boolean;
 
-  /** Envía una consulta. `especieId` resuelve una ambigüedad previa (RR_17). */
-  enviar: (texto: string, especieId?: string) => Promise<void>;
+  /** RR_09: conversaciones de la cuenta, la de actividad más reciente primero. */
+  conversaciones: ConversacionResumen[];
+  /** La conversación abierta; null si es una nueva que todavía no se guardó. */
+  conversacionActual: number | null;
 
-  /** Vuelve a mostrar una respuesta guardada sin reprocesarla (RR_09). */
-  verDelHistorial: (id: number) => void;
+  /**
+   * Envía una consulta.
+   * - `especieId` resuelve una ambigüedad previa (RR_17).
+   * - `consultaId` es la consulta ambigua guardada que se resuelve, para que
+   *   el servidor no la cobre dos veces.
+   */
+  enviar: (texto: string, especieId?: string, consultaId?: number | null) => Promise<void>;
 
-  /** Limpia la conversación. El historial no se borra. */
+  /** Reabre una conversación guardada sin reprocesar sus consultas (RR_09). */
+  abrirConversacion: (id: number) => Promise<void>;
+
+  /** Empieza una conversación nueva. Las anteriores siguen en el historial. */
   nuevaConsulta: () => void;
 
   /** Texto de la última consulta, para reintentar tras un error. */
@@ -65,28 +90,92 @@ export function useConsultas(): EstadoConsultas {
 let contador = 0;
 const nuevoId = () => `m${++contador}`;
 
+const MENSAJE_AMBIGUA = "Selecciona la especie que te interesa.";
+const MENSAJE_SIN_COINCIDENCIAS = "No se encontró información para esa consulta.";
+
+/** Reconstruye en pantalla una consulta guardada, según su estado. */
+function aMensajes(c: ConsultaGuardada): Mensaje[] {
+  const pregunta: Mensaje = { clase: "consulta", id: nuevoId(), texto: c.texto };
+
+  if (c.estado === "resuelta" && c.respuesta) {
+    return [
+      pregunta,
+      // Mismo campo `consulta` que una respuesta nueva, para que la descarga
+      // (RR_15) funcione igual en una conversación reabierta.
+      { clase: "respuesta", id: nuevoId(), consulta: c.texto, respuesta: c.respuesta },
+    ];
+  }
+  if (c.estado === "ambigua") {
+    return [
+      pregunta,
+      {
+        clase: "opciones",
+        id: nuevoId(),
+        texto: c.texto,
+        candidatos: c.candidatos,
+        mensaje: c.mensaje ?? MENSAJE_AMBIGUA,
+        consultaId: c.id,
+        resuelta: false,
+      },
+    ];
+  }
+  return [pregunta, { clase: "aviso", id: nuevoId(), mensaje: c.mensaje ?? MENSAJE_SIN_COINCIDENCIAS }];
+}
+
 export function ConsultasProvider({ children }: { children: ReactNode }) {
-  const { sesion, autenticado, refrescarSesion } = useAuth();
+  const { sesion, refrescarSesion } = useAuth();
   const [mensajes, setMensajes] = useState<Mensaje[]>([]);
-  const [historial, setHistorial] = useState<ItemHistorial[]>([]);
+  const [conversaciones, setConversaciones] = useState<ConversacionResumen[]>([]);
+  const [conversacionActual, setConversacionActual] = useState<number | null>(null);
   const [enviando, setEnviando] = useState(false);
   const ultimoTexto = useRef("");
 
-  // El historial del servidor solo existe para cuentas registradas.
+  // `enviar` necesita la conversación actual sin volver a crearse cada vez
+  // que cambia: por eso también vive en una referencia.
+  const conversacionRef = useRef<number | null>(null);
+  const cambiarConversacion = useCallback((id: number | null) => {
+    conversacionRef.current = id;
+    setConversacionActual(id);
+  }, []);
+
+  // Al cambiar de cuenta (iniciar o cerrar sesión) se empieza de cero y se
+  // cargan las conversaciones de la nueva cuenta. El visitante no tiene.
+  const guardaHistorial = sesion?.guarda_historial ?? false;
   useEffect(() => {
-    if (!sesion) return;
-    if (!sesion.guarda_historial) {
-      setHistorial([]);
+    setMensajes([]);
+    cambiarConversacion(null);
+    if (!guardaHistorial) {
+      setConversaciones([]);
       return;
     }
+    let vigente = true;
     api
-      .obtenerHistorial()
-      .then(setHistorial)
-      .catch(() => setHistorial([]));
-  }, [sesion?.tipo, sesion?.usuario?.id, autenticado]);
+      .listarConversaciones()
+      .then((lista) => {
+        if (vigente) setConversaciones(lista);
+      })
+      .catch(() => {
+        if (vigente) setConversaciones([]);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [sesion?.tipo, sesion?.usuario?.id, guardaHistorial, cambiarConversacion]);
+
+  /** Sube la conversación al inicio de la lista, o la agrega si es nueva. */
+  const tocarConversacion = useCallback((id: number, titulo: string) => {
+    const ahora = new Date().toISOString();
+    setConversaciones((prev) => {
+      const existente = prev.find((c) => c.id === id);
+      const actualizada = existente
+        ? { ...existente, actualizada_en: ahora }
+        : { id, titulo: titulo.slice(0, 120), creada_en: ahora, actualizada_en: ahora };
+      return [actualizada, ...prev.filter((c) => c.id !== id)];
+    });
+  }, []);
 
   const enviar = useCallback(
-    async (texto: string, especieId?: string) => {
+    async (texto: string, especieId?: string, consultaId?: number | null) => {
       const limpio = texto.trim();
       if (!limpio || enviando) return;
 
@@ -102,10 +191,44 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
       setEnviando(true);
 
       try {
-        const salida = await api.enviarConsulta(limpio, especieId);
+        const salida = await api.enviarConsulta(limpio, especieId, {
+          conversacionId: conversacionRef.current,
+          consultaId,
+        });
+
+        // RR_09: la consulta quedó guardada en una conversación (solo con cuenta).
+        if (salida.conversacion_id !== null) {
+          if (conversacionRef.current === null) cambiarConversacion(salida.conversacion_id);
+          tocarConversacion(salida.conversacion_id, limpio);
+        }
 
         setMensajes((prev) => {
-          const sinCarga = prev.filter((m) => m.id !== idCarga);
+          let sinCarga = prev.filter((m) => m.id !== idCarga);
+          // Dónde va la respuesta: al final, salvo que resuelva unas opciones.
+          let posicion = sinCarga.length;
+
+          // Se eligió una especie: esas opciones ya no se pueden volver a elegir.
+          if (especieId && salida.estado === "resuelta") {
+            // La última que corresponda (el proyecto usa ES2020, sin findLastIndex).
+            let indice = -1;
+            sinCarga.forEach((m, i) => {
+              if (
+                m.clase === "opciones" &&
+                !m.resuelta &&
+                (consultaId != null ? m.consultaId === consultaId : m.texto === limpio)
+              ) {
+                indice = i;
+              }
+            });
+            if (indice >= 0) {
+              sinCarga = sinCarga.map((m, i) =>
+                i === indice && m.clase === "opciones" ? { ...m, resuelta: true } : m,
+              );
+              // La respuesta va justo debajo de sus opciones, igual que al
+              // reabrir la conversación, aunque después haya más consultas.
+              posicion = indice + 1;
+            }
+          }
 
           if (salida.estado === "ambigua") {
             return [
@@ -115,7 +238,9 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
                 id: nuevoId(),
                 texto: limpio,
                 candidatos: salida.candidatos,
-                mensaje: salida.mensaje ?? "Selecciona la especie que te interesa.",
+                mensaje: salida.mensaje ?? MENSAJE_AMBIGUA,
+                consultaId: salida.id,
+                resuelta: false,
               },
             ];
           }
@@ -126,35 +251,21 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
               {
                 clase: "aviso",
                 id: nuevoId(),
-                mensaje: salida.mensaje ?? "No se encontró información para esa consulta.",
+                mensaje: salida.mensaje ?? MENSAJE_SIN_COINCIDENCIAS,
               },
             ];
           }
 
           return [
-            ...sinCarga,
+            ...sinCarga.slice(0, posicion),
             // salida.texto es la consulta ya sanitizada por el servidor (RR_00_08).
             { clase: "respuesta", id: nuevoId(), consulta: salida.texto, respuesta: salida.respuesta! },
+            ...sinCarga.slice(posicion),
           ];
         });
 
-        // Solo una consulta resuelta entra al historial y consume del límite.
-        // Va al inicio: el historial se muestra con la más reciente primero,
-        // igual que lo devuelve el servidor.
-        if (salida.estado === "resuelta") {
-          if (salida.id !== null && salida.respuesta) {
-            setHistorial((prev) => [
-              {
-                id: salida.id!,
-                texto: salida.texto,
-                respuesta: salida.respuesta,
-                realizada_en: salida.realizada_en ?? new Date().toISOString(),
-              },
-              ...prev,
-            ]);
-          }
-          await refrescarSesion();
-        }
+        // Solo una consulta resuelta consume del límite.
+        if (salida.estado === "resuelta") await refrescarSesion();
       } catch (err) {
         const mensaje =
           err instanceof Error ? err.message : "No se pudo procesar la consulta.";
@@ -167,37 +278,47 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
         setEnviando(false);
       }
     },
-    [enviando, refrescarSesion],
+    [enviando, refrescarSesion, cambiarConversacion, tocarConversacion],
   );
 
   /**
-   * RR_09 — volver a ver una respuesta anterior sin repetir la
-   * consulta. La respuesta viene guardada del servidor, así que esto no hace
-   * ninguna petición ni consume una consulta del límite.
+   * RR_09 — reabrir una conversación guardada. Las respuestas vienen del
+   * servidor ya armadas, así que no se reprocesa nada ni se consume ninguna
+   * consulta. Las ambiguas que quedaron pendientes vuelven a mostrar sus
+   * opciones y se pueden elegir.
    */
-  const verDelHistorial = useCallback(
-    (id: number) => {
-      const entrada = historial.find((h) => h.id === id);
-      if (!entrada || !entrada.respuesta) return;
-      setMensajes((prev) => [
-        ...prev,
-        { clase: "consulta", id: nuevoId(), texto: entrada.texto },
-        { clase: "respuesta", id: nuevoId(), consulta: entrada.texto, respuesta: entrada.respuesta! },
-      ]);
+  const abrirConversacion = useCallback(
+    async (id: number) => {
+      cambiarConversacion(id);
+      setMensajes([{ clase: "cargando", id: nuevoId() }]);
+      try {
+        const detalle = await api.obtenerConversacion(id);
+        if (conversacionRef.current !== id) return; // se abrió otra mientras cargaba
+        setMensajes(detalle.consultas.flatMap(aMensajes));
+      } catch {
+        if (conversacionRef.current !== id) return;
+        setMensajes([
+          { clase: "aviso", id: nuevoId(), mensaje: "No se pudo abrir la conversación. Intenta de nuevo." },
+        ]);
+      }
     },
-    [historial],
+    [cambiarConversacion],
   );
 
-  const nuevaConsulta = useCallback(() => setMensajes([]), []);
+  const nuevaConsulta = useCallback(() => {
+    setMensajes([]);
+    cambiarConversacion(null);
+  }, [cambiarConversacion]);
 
   return (
     <ConsultasContext.Provider
       value={{
         mensajes,
-        historial,
         enviando,
+        conversaciones,
+        conversacionActual,
         enviar,
-        verDelHistorial,
+        abrirConversacion,
         nuevaConsulta,
         ultimoTexto: ultimoTexto.current,
       }}

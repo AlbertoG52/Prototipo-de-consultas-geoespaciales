@@ -421,17 +421,35 @@ function Cargando() {
 
 export function ChatPage() {
   const navigate = useNavigate();
-  const { sesion } = useAuth();
+  const { sesion, conectando } = useAuth();
   const { mensajes, enviando, enviar } = useConsultas();
   const [entrada, setEntrada] = useState("");
   const finRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Se lleva a la vista el mensaje nuevo. Casi siempre es el último, pero al
+  // elegir la especie de una consulta pendiente en una conversación reabierta
+  // (RR_17) la respuesta aparece en medio, justo debajo de sus opciones.
+  const idsVistos = useRef<Set<string>>(new Set());
   useEffect(() => {
-    finRef.current?.scrollIntoView({ behavior: "smooth" });
+    const nuevo = mensajes.find((m) => !idsVistos.current.has(m.id));
+    idsVistos.current = new Set(mensajes.map((m) => m.id));
+    const enMedio =
+      nuevo?.clase === "respuesta" && nuevo.id !== mensajes[mensajes.length - 1]?.id;
+    if (enMedio) {
+      document
+        .getElementById(`mensaje-${nuevo.id}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      finRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [mensajes]);
 
-  const sinConsultas = (sesion?.consultas_restantes ?? 0) <= 0;
+  // Sin sesión todavía (el servidor está arrancando) no es lo mismo que sin
+  // consultas: antes se mostraba "Agotaste tus consultas" y la caja quedaba
+  // bloqueada aunque el servidor terminara de levantar.
+  const sinConsultas = sesion !== null && sesion.consultas_restantes <= 0;
+  const bloqueado = sesion === null || sinConsultas;
 
   const mandar = async (texto?: string) => {
     const valor = (texto ?? entrada).trim();
@@ -487,9 +505,10 @@ export function ChatPage() {
             key={m.id}
             mensaje={m.mensaje}
             candidatos={m.candidatos}
-            deshabilitado={enviando}
-            // RR_17la consulta continúa con la especie elegida.
-            onElegir={(id) => void enviar(m.texto, id)}
+            deshabilitado={enviando || m.resuelta}
+            // RR_17la consulta continúa con la especie elegida. Con cuenta se
+            // envía también la consulta guardada, para no cobrarla dos veces.
+            onElegir={(id) => void enviar(m.texto, id, m.consultaId)}
           />
         );
 
@@ -561,7 +580,11 @@ export function ChatPage() {
               </p>
             </div>
           )}
-          {mensajes.map(pintar)}
+          {mensajes.map((m) => (
+            <div key={m.id} id={`mensaje-${m.id}`}>
+              {pintar(m)}
+            </div>
+          ))}
           <div ref={finRef} />
         </div>
       </div>
@@ -590,6 +613,18 @@ export function ChatPage() {
             </button>
           ))}
         </div>
+
+        {!sesion && (
+          <div
+            role="status"
+            className="rounded-xl px-4 py-3 mb-3 text-sm"
+            style={{ background: "#f0f5f1", border: "1px solid #dde8df", color: "#6b8f74" }}
+          >
+            {conectando
+              ? "Conectando con el servidor… la consulta se habilita apenas responda."
+              : "Cargando…"}
+          </div>
+        )}
 
         {sinConsultas && (
           <div
@@ -625,7 +660,7 @@ export function ChatPage() {
             value={entrada}
             onChange={alCambiar}
             onKeyDown={alTeclear}
-            disabled={sinConsultas}
+            disabled={bloqueado}
             maxLength={500}
             aria-label="Consulta sobre flora costarricense"
             placeholder="Escribe tu consulta sobre flora costarricense..."
@@ -635,13 +670,13 @@ export function ChatPage() {
           />
           <button
             onClick={() => void mandar()}
-            disabled={!entrada.trim() || enviando || sinConsultas}
+            disabled={!entrada.trim() || enviando || bloqueado}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all shrink-0"
             style={{
-              background: entrada.trim() && !enviando && !sinConsultas ? "#2d5a3d" : "#c5dccb",
-              color: entrada.trim() && !enviando && !sinConsultas ? "#ffffff" : "#8aab92",
+              background: entrada.trim() && !enviando && !bloqueado ? "#2d5a3d" : "#c5dccb",
+              color: entrada.trim() && !enviando && !bloqueado ? "#ffffff" : "#8aab92",
               border: "none",
-              cursor: entrada.trim() && !enviando && !sinConsultas ? "pointer" : "default",
+              cursor: entrada.trim() && !enviando && !bloqueado ? "pointer" : "default",
             }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">

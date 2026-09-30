@@ -28,7 +28,7 @@ export function Root() {
   const navigate = useNavigate();
   const location = useLocation();
   const { sesion, autenticado, salir } = useAuth();
-  const { historial, verDelHistorial, nuevaConsulta } = useConsultas();
+  const { conversaciones, conversacionActual, abrirConversacion, nuevaConsulta } = useConsultas();
 
   const esAdmin = location.pathname === "/admin";
   const esPerfil = location.pathname === "/profile";
@@ -115,8 +115,8 @@ export function Root() {
         </div>
 
         {/*
-          RR_09 — historial de la cuenta, la consulta más reciente primero.
-          Se conserva aunque la persona cierre sesión y vuelva a entrar.
+          RR_09 — historial por conversaciones, la de actividad más reciente
+          primero. Se conserva aunque la persona cierre sesión y vuelva a entrar.
           Para un visitante sin cuenta la lista no existe: sus consultas no se
           guardan (RR_00_11.
         */}
@@ -139,40 +139,45 @@ export function Root() {
                 Inicia sesión para conservarlas
               </button>
             </div>
-          ) : historial.length === 0 ? (
+          ) : conversaciones.length === 0 ? (
             <div className="text-xs px-3 py-2" style={{ color: "#a8d4b0" }}>
               Todavía no has consultado nada.
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
-              {historial.map((h) => (
+              {conversaciones.map((c) => {
+                const abierta = c.id === conversacionActual;
+                const fondo = abierta ? "#e8f0eb" : "transparent";
+                return (
                 <button
-                  key={h.id}
+                  key={c.id}
+                  aria-current={abierta ? "true" : undefined}
                   onClick={() => {
-                    // No repite la consulta: recupera la respuesta guardada.
-                    verDelHistorial(h.id);
+                    // No repite las consultas: recupera la conversación guardada.
+                    void abrirConversacion(c.id);
                     navigate("/");
                   }}
                   className="w-full text-left rounded-lg px-3 py-2.5 transition-all"
-                  style={{ background: "transparent", border: "none", cursor: "pointer" }}
+                  style={{ background: fondo, border: "none", cursor: "pointer" }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "#f2f6f3";
+                    e.currentTarget.style.background = abierta ? fondo : "#f2f6f3";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.background = fondo;
                   }}
                 >
                   <div
                     className="text-sm leading-snug line-clamp-2"
                     style={{ color: "#374a3c" }}
                   >
-                    {h.texto}
+                    {c.titulo}
                   </div>
                   <div className="text-xs mt-0.5" style={{ color: "#8aab92" }}>
-                    {tiempoRelativo(h.realizada_en)}
+                    {tiempoRelativo(c.actualizada_en)}
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -276,7 +281,7 @@ export function Root() {
               Consultas restantes
             </span>
             <span className="text-xs font-semibold" style={{ color: "#1e3d2a" }}>
-              {restantes}/{limite}
+              {sesion ? `${restantes}/${limite}` : "…"}
             </span>
           </div>
           <div className="rounded-full overflow-hidden" style={{ height: 5, background: "#c5dccb" }}>

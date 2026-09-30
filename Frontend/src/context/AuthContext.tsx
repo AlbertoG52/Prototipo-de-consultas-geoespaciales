@@ -24,6 +24,12 @@ interface EstadoAuth {
   /** true si hay una cuenta detrás de la sesión. */
   autenticado: boolean;
 
+  /**
+   * true mientras el servidor no responde, por ejemplo mientras Docker todavía
+   * levanta el backend. La sesión se sigue pidiendo sola hasta que conteste.
+   */
+  conectando: boolean;
+
   entrar: (correo: string, password: string) => Promise<void>;
   registrarse: (nombre: string, correo: string, password: string) => Promise<void>;
   salir: () => Promise<void>;
@@ -35,6 +41,17 @@ interface EstadoAuth {
 
 const AuthContext = createContext<EstadoAuth | null>(null);
 
+const esperar = (ms: number) => new Promise((listo) => setTimeout(listo, ms));
+
+/**
+ * true si el servidor rechazó el token: venció, se firmó con otra SECRET_KEY o
+ * es de una cuenta que no existe en esta base de datos (por ejemplo, después
+ * de reiniciarla o de pasar de la base local a la de AWS).
+ */
+function tokenRechazado(err: unknown): boolean {
+  return err instanceof api.ErrorApi && err.status === 401;
+}
+
 export function useAuth(): EstadoAuth {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error("useAuth debe usarse dentro de AuthProvider");
@@ -45,16 +62,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [sesion, setSesion] = useState<Sesion | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [conectando, setConectando] = useState(false);
 
   /**
    * Devuelve la sesión actual. Si el token no sirve o no existe, pide una
    * sesión anónima para que la aplicación siga siendo usable (RR_00_11).
+   *
+   * Si el servidor no responde, el error se propaga y el token se conserva:
+   * un servidor que está arrancando no es motivo para cerrar la sesión.
    */
   const resolverSesion = useCallback(async (): Promise<Sesion> => {
     if (api.obtenerToken()) {
       try {
         return await api.obtenerSesion();
-      } catch {
+      } catch (err) {
+        if (!tokenRechazado(err)) throw err;
         api.borrarToken();
       }
     }
@@ -62,18 +84,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return api.obtenerSesion();
   }, []);
 
+  // Con "docker compose up" el frontend queda listo antes que el backend, que
+  // espera a la base de datos y aplica las migraciones. Por eso, si el primer
+  // intento falla, se reintenta solo en vez de dejar la aplicación sin sesión.
   useEffect(() => {
     let vigente = true;
-    resolverSesion()
-      .then((s) => {
-        if (vigente) setSesion(s);
-      })
-      .catch(() => {
-        if (vigente) setError("No se pudo conectar con el servidor.");
-      })
-      .finally(() => {
-        if (vigente) setCargando(false);
-      });
+    (async () => {
+      for (let intento = 1; vigente; intento++) {
+        try {
+          const s = await resolverSesion();
+          if (!vigente) return;
+          setSesion(s);
+          setConectando(false);
+          setCargando(false);
+          return;
+        } catch {
+          if (!vigente) return;
+          setConectando(true);
+          await esperar(Math.min(1000 * intento, 5000));
+        }
+      }
+    })();
     return () => {
       vigente = false;
     };
@@ -82,8 +113,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refrescarSesion = useCallback(async () => {
     try {
       setSesion(await api.obtenerSesion());
-    } catch {
-      /* el contador se actualizará en el siguiente intento */
+    } catch (err) {
+      // Si solo falló la red, el contador se actualizará en el siguiente intento.
+      if (!tokenRechazado(err)) return;
+      // El token dejó de servir con la aplicación abierta (venció o se
+      // reinició la base de datos): se continúa como visitante en vez de
+      // dejar la aplicación sin poder consultar.
+      try {
+        api.borrarToken();
+        await api.iniciarSesionAnonima();
+        setSesion(await api.obtenerSesion());
+      } catch {
+        /* sin servidor: se reintentará en la siguiente acción */
+      }
     }
   }, []);
 
@@ -145,6 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         cargando,
         error,
         autenticado: sesion?.tipo === "usuario",
+        conectando,
         entrar,
         registrarse,
         salir,
