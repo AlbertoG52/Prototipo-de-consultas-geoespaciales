@@ -139,6 +139,46 @@ export async function registrar(
   return manejar(res);
 }
 
+/** RR_00_07 — valida el token del enlace de verificación. */
+export async function verificarCorreo(token: string): Promise<{ mensaje: string }> {
+  const res = await fetch(`${API_URL}/auth/verificar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  return manejar(res);
+}
+
+/** RR_00_07 — pide un enlace de verificación nuevo. */
+export async function reenviarVerificacion(correo: string): Promise<{ mensaje: string }> {
+  const res = await fetch(`${API_URL}/auth/reenviar-verificacion`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ correo }),
+  });
+  return manejar(res);
+}
+
+/** RR_00_06 — pide el enlace para cambiar la contraseña. */
+export async function solicitarRecuperacion(correo: string): Promise<{ mensaje: string }> {
+  const res = await fetch(`${API_URL}/auth/recuperar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ correo }),
+  });
+  return manejar(res);
+}
+
+/** RR_00_06 — guarda la contraseña nueva con el token del enlace. */
+export async function restablecerPassword(token: string, password: string): Promise<{ mensaje: string }> {
+  const res = await fetch(`${API_URL}/auth/restablecer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, password }),
+  });
+  return manejar(res);
+}
+
 /** RR_00_01 — cerrar la sesión activa. */
 export async function cerrarSesion(): Promise<void> {
   await fetch(`${API_URL}/auth/logout`, { method: "POST", headers: cabeceras() }).catch(

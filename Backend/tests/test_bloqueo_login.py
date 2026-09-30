@@ -51,6 +51,7 @@ def _usuario(**extra):
         minutos_inactividad=None,
         intentos_fallidos=0,
         bloqueado_hasta=None,
+        correo_verificado=True,
     )
     datos.update(extra)
     return SimpleNamespace(**datos)
