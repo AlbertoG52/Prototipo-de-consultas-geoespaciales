@@ -1,7 +1,7 @@
-"""Pruebas de RR_20 — ficha completa de la especie.
+"""Pruebas de RR_20 (ficha completa) y RR_16 (sugerencias de nombres).
 
-No necesitan base de datos: el catálogo es provisional y vive en memoria. Se
-ejecutan con:
+No necesitan base de datos: el catálogo es provisional y vive en memoria, y la
+coincidencia de RR_16 se prueba sobre listas de especies. Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
 import pytest
@@ -81,4 +81,45 @@ def test_sin_sesion_valida_responde_401():
     sin_sesion = Identidad(tipo=TIPO_ANONIMO, sesion_id="", anon_id=None, token_invalido=True)
     with pytest.raises(HTTPException) as error:
         especies.ficha_de_especie("cedrela-odorata", sin_sesion)
+    assert error.value.status_code == 401
+
+
+# --- RR_16: sugerencias de nombres -----------------------------------------
+
+def _guardadas():
+    """Especies como quedan en consultas.respuesta, con una repetida."""
+    ids = ["guarianthe-skinneri", "guarianthe-aurantiaca", "cedrela-odorata", "guarianthe-skinneri"]
+    return [catalogo.construir_respuesta(i, "").especie.model_dump() for i in ids]
+
+
+def _ids(fragmento: str) -> list[str]:
+    return [c.id for c in especies.coincidencias(_guardadas(), fragmento)]
+
+
+def test_sugiere_por_nombre_comun_sin_tildes_y_sin_repetir():
+    assert _ids("guaría") == ["guarianthe-skinneri", "guarianthe-aurantiaca"]
+
+
+def test_sugiere_por_nombre_cientifico_y_por_cualquier_palabra():
+    assert _ids("Cedrela") == ["cedrela-odorata"]
+    assert _ids("odor") == ["cedrela-odorata"]
+    assert _ids("mora") == ["guarianthe-skinneri"]
+
+
+def test_sin_coincidencias_no_sugiere_nada():
+    assert _ids("roble") == []
+
+
+def test_respeta_el_limite_de_sugerencias():
+    muchas = [
+        {"id": f"sp-{i}", "nombre_comun": f"Planta {i}", "nombre_cientifico": f"Genus sp{i}", "familia": "X"}
+        for i in range(10)
+    ]
+    assert len(especies.coincidencias(muchas, "planta")) == especies.LIMITE_SUGERENCIAS
+
+
+def test_sugerencias_sin_sesion_valida_responde_401():
+    sin_sesion = Identidad(tipo=TIPO_ANONIMO, sesion_id="", anon_id=None, token_invalido=True)
+    with pytest.raises(HTTPException) as error:
+        especies.sugerir_especies("guaria", sin_sesion, db=None)
     assert error.value.status_code == 401

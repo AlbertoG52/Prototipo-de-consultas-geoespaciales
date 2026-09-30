@@ -127,6 +127,8 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | GET | `/consultas/historial` | consultas resueltas de la cuenta en lista plana (últimas 50) | cualquier sesión (el visitante recibe una lista vacía) |
 | GET | `/conversaciones` | conversaciones de la cuenta para la barra lateral (últimas 50) | solo cuentas registradas |
 | GET | `/conversaciones/{id}` | una conversación completa, para reabrirla | solo el dueño (otra persona recibe 404) |
+| GET | `/especies?q=` | sugerencias de nombres entre las especies ya consultadas por cuentas registradas (RR_16) | cualquier sesión |
+| GET | `/especies/{id}` | ficha completa de la especie (RR_20) | cualquier sesión |
 | PATCH | `/perfil` | cambiar el nombre de la cuenta | solo cuentas registradas |
 | POST | `/perfil/password` | cambiar la contraseña (pide la actual) | solo cuentas registradas |
 | GET | `/admin/usuarios` | usuarios registrados | supermoderador |
