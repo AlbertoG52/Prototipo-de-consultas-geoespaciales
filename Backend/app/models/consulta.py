@@ -1,4 +1,4 @@
-"""Consulta de un usuario registrado — tablas 004 y 009.
+"""Consulta de un usuario registrado — tablas 004, 009 y 012.
 
 Un visitante anónimo NO deja filas aquí: el criterio 1 de RR_00_11 dice que el
 sistema no almacena sus consultas anteriores. Su conteo diario va en
@@ -27,6 +27,17 @@ class Consulta(Base):
     # reprocesar la consulta.
     respuesta = Column(JSONB)
 
+    # Tabla 012 — RR_09 por conversaciones. Se guardan los tres estados; solo
+    # 'resuelta' descuenta del límite diario (services/uso.py).
+    conversacion_id = Column(
+        Integer, ForeignKey("conversaciones.id", ondelete="CASCADE"), nullable=False
+    )
+    estado = Column(String(20), nullable=False, default="resuelta")
+    candidatos = Column(JSONB)  # solo en 'ambigua'
+    mensaje = Column(Text)  # 'ambigua' y 'sin_coincidencias'
+    resuelta_en = Column(DateTime(timezone=True))  # fecha con la que se cuenta el límite
+
     realizada_en = Column(DateTime(timezone=True), server_default=func.now())
 
     usuario = relationship("Usuario", back_populates="consultas")
+    conversacion = relationship("Conversacion", back_populates="consultas")

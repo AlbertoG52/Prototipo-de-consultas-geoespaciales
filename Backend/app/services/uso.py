@@ -20,6 +20,8 @@ from ..config import LIMITE_CONSULTAS_ANONIMO
 from ..models import Consulta, ConsumoAnonimo
 from ..security import Identidad
 
+ESTADO_RESUELTA = "resuelta"
+
 
 def limite_de(identidad: Identidad) -> int:
     """Cuántas consultas diarias le corresponden a esta identidad."""
@@ -29,13 +31,20 @@ def limite_de(identidad: Identidad) -> int:
 
 
 def consultas_hoy(db: Session, identidad: Identidad) -> int:
-    """Cuántas consultas lleva hoy esta identidad."""
+    """Cuántas consultas lleva hoy esta identidad.
+
+    Del usuario registrado se cuentan solo las consultas resueltas, por la
+    fecha en que se resolvieron: las ambiguas y las sin coincidencias también
+    se guardan (tabla 012) pero no cuestan, y una ambigua de ayer que se
+    resuelve hoy cuenta hoy.
+    """
     if identidad.usuario is not None:
         return (
             db.query(func.count(Consulta.id))
             .filter(
                 Consulta.usuario_id == identidad.usuario.id,
-                func.date(Consulta.realizada_en) == date.today(),
+                Consulta.estado == ESTADO_RESUELTA,
+                func.date(Consulta.resuelta_en) == date.today(),
             )
             .scalar()
             or 0

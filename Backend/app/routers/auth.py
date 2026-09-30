@@ -118,7 +118,18 @@ def estado_sesion(
 
     El frontend lo consulta al cargar para saber qué mostrar: un visitante no
     tiene historial ni perfil, y su límite de consultas es menor.
+
+    Si el token no sirve (vencido, firmado con otra SECRET_KEY o de una cuenta
+    que ya no existe en esta base de datos) responde 401. Así el frontend lo
+    descarta y pide uno anónimo nuevo; si respondiera 200, el navegador se
+    quedaría con un token con el que no puede enviar consultas.
     """
+    if identidad.es_anonimo and not identidad.anon_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="La sesión no es válida o venció.",
+        )
+
     limite = limite_de(identidad)
     usadas = consultas_hoy(db, identidad)
 
