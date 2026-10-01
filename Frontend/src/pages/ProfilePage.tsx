@@ -18,6 +18,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Navigate } from "react-router";
 
+import { Aviso, BotonPrincipal, CampoTexto } from "../components/Formulario";
+import { FuerzaContrasena, cumpleReglasPassword } from "../components/FuerzaContrasena";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
 import {
@@ -38,16 +40,6 @@ const PESTANAS: { id: Pestana; label: string }[] = [
   { id: "seguridad", label: "Seguridad" },
 ];
 
-// Mismas reglas que valida el servidor (schemas/usuario.py, RR_00_03). Aquí
-// solo sirven para guiar mientras se escribe; la validación real es la del
-// servidor.
-const REGLAS_PASSWORD: { texto: string; cumple: (p: string) => boolean }[] = [
-  { texto: "Al menos 8 caracteres", cumple: (p) => p.length >= 8 },
-  { texto: "Una letra mayúscula", cumple: (p) => /[A-Z]/.test(p) },
-  { texto: "Un número", cumple: (p) => /\d/.test(p) },
-  { texto: "Un carácter especial o símbolo", cumple: (p) => /[^A-Za-z0-9]/.test(p) },
-];
-
 // RR_00_04 — mismas opciones que acepta el servidor (config.OPCIONES_INACTIVIDAD).
 // 0 = la sesión no se cierra por inactividad.
 const OPCIONES_INACTIVIDAD: { label: string; minutos: number }[] = [
@@ -59,12 +51,6 @@ const OPCIONES_INACTIVIDAD: { label: string; minutos: number }[] = [
   { label: "1 semana", minutos: 10080 },
   { label: "Nunca", minutos: 0 },
 ];
-
-const ESTILO_INPUT = {
-  border: "1.5px solid #c5dccb",
-  background: "#f7f8f5",
-  color: "#1e3d2a",
-};
 
 function iniciales(nombre: string | null, correo: string): string {
   const base = (nombre ?? "").trim() || correo;
@@ -156,102 +142,6 @@ function Interruptor({
   );
 }
 
-function Aviso({ tipo, children }: { tipo: "exito" | "error"; children: ReactNode }) {
-  const estilo =
-    tipo === "exito"
-      ? { background: "#e8f0eb", border: "1px solid #c5dccb", color: "#2d5a3d" }
-      : { background: "#fdf2f2", border: "1px solid #f5c6c6", color: "#9b2c2c" };
-  return (
-    <div role={tipo === "error" ? "alert" : "status"} className="rounded-xl p-3 mb-4 text-sm" style={estilo}>
-      {children}
-    </div>
-  );
-}
-
-function BotonPrincipal({
-  children,
-  deshabilitado,
-  onClick,
-  tipo = "button",
-}: {
-  children: ReactNode;
-  deshabilitado?: boolean;
-  onClick?: () => void;
-  tipo?: "button" | "submit";
-}) {
-  return (
-    <button
-      type={tipo}
-      onClick={onClick}
-      disabled={deshabilitado}
-      className="self-start px-5 py-2.5 rounded-xl text-sm font-medium"
-      style={{
-        background: "#2d5a3d",
-        color: "#fff",
-        border: "none",
-        cursor: deshabilitado ? "not-allowed" : "pointer",
-        opacity: deshabilitado ? 0.5 : 1,
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function CampoTexto({
-  etiqueta,
-  valor,
-  onCambiar,
-  tipo = "text",
-  autoComplete,
-  deshabilitado = false,
-  ayuda,
-}: {
-  etiqueta: string;
-  valor: string;
-  onCambiar?: (v: string) => void;
-  tipo?: "text" | "email" | "password";
-  autoComplete?: string;
-  deshabilitado?: boolean;
-  ayuda?: string;
-}) {
-  return (
-    <label className="block">
-      <span className="block text-sm font-medium mb-1.5" style={{ color: "#374a3c" }}>
-        {etiqueta}
-      </span>
-      <input
-        type={tipo}
-        value={valor}
-        autoComplete={autoComplete}
-        disabled={deshabilitado}
-        onChange={(e) => onCambiar?.(e.target.value)}
-        className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-        style={
-          deshabilitado
-            ? { border: "1.5px solid #e8f0eb", background: "#f0f5f1", color: "#8aab92", cursor: "not-allowed" }
-            : ESTILO_INPUT
-        }
-        onFocus={(e) => {
-          if (deshabilitado) return;
-          e.currentTarget.style.borderColor = "#2d5a3d";
-          e.currentTarget.style.background = "#fff";
-        }}
-        onBlur={(e) => {
-          if (deshabilitado) return;
-          e.currentTarget.style.borderColor = "#c5dccb";
-          e.currentTarget.style.background = "#f7f8f5";
-        }}
-      />
-      {ayuda && (
-        <span className="block text-xs mt-1" style={{ color: "#a8d4b0" }}>
-          {ayuda}
-        </span>
-      )}
-    </label>
-  );
-}
-
 // ─── Pestañas ───
 
 function PestanaPerfil() {
@@ -314,7 +204,7 @@ function PestanaPerfil() {
           deshabilitado
           ayuda="El correo electrónico no se puede cambiar."
         />
-        <BotonPrincipal tipo="submit" deshabilitado={sinCambios || invalido || guardando}>
+        <BotonPrincipal bloque={false} tipo="submit" deshabilitado={sinCambios || invalido || guardando}>
           {guardando ? "Guardando…" : "Guardar cambios"}
         </BotonPrincipal>
       </form>
@@ -473,7 +363,7 @@ function PestanaSeguridad() {
     }
   }
 
-  const cumpleReglas = REGLAS_PASSWORD.every((r) => r.cumple(nueva));
+  const cumpleReglas = cumpleReglasPassword(nueva);
   const coinciden = nueva.length > 0 && nueva === confirmacion;
   const listo = actual.length > 0 && cumpleReglas && coinciden && !guardando;
 
@@ -526,16 +416,9 @@ function PestanaSeguridad() {
               setExito(false);
             }}
           />
-          <ul className="text-xs flex flex-col gap-1 -mt-1" aria-label="Requisitos de la contraseña">
-            {REGLAS_PASSWORD.map((r) => {
-              const ok = r.cumple(nueva);
-              return (
-                <li key={r.texto} style={{ color: ok ? "#2d5a3d" : "#8aab92" }}>
-                  {ok ? "✓" : "○"} {r.texto}
-                </li>
-              );
-            })}
-          </ul>
+          <div className="-mt-3">
+            <FuerzaContrasena password={nueva} />
+          </div>
           <CampoTexto
             etiqueta="Confirmar nueva contraseña"
             tipo="password"
@@ -548,7 +431,7 @@ function PestanaSeguridad() {
             ayuda={confirmacion && !coinciden ? "Las contraseñas no coinciden." : undefined}
           />
           <div className="mt-1">
-            <BotonPrincipal tipo="submit" deshabilitado={!listo}>
+            <BotonPrincipal bloque={false} tipo="submit" deshabilitado={!listo}>
               {guardando ? "Actualizando…" : "Actualizar contraseña"}
             </BotonPrincipal>
           </div>

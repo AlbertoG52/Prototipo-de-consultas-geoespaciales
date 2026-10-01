@@ -5,16 +5,12 @@ usuarios y los borra al terminar (el borrado arrastra sus conversaciones y
 consultas), así que no dejan datos. Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
-import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import text
 
-from app.db import SessionLocal
-from app.main import app
-from app.security import hash_password
+from apoyo import api, crear_cuenta_verificada
+from apoyo import sql as _sql
 
 PASSWORD = "Clave#2024"
 AMBIGUA = "guaria"                 # Guaria morada y Guaria naranja
@@ -22,36 +18,18 @@ RESUELTA = "pejibaye"
 SIN_COINCIDENCIAS = "planta inventada xyz"
 MORADA, NARANJA, PEJIBAYE = "guarianthe-skinneri", "guarianthe-aurantiaca", "bactris-gasipaes"
 
-api = TestClient(app)
-
-
-def _sql(consulta: str, **parametros):
-    with SessionLocal() as db:
-        resultado = db.execute(text(consulta), parametros)
-        db.commit()
-        return resultado
-
 
 @pytest.fixture
-def crear_cuenta():
+def crear_cuenta(correos_de_prueba):
     """Devuelve una función que crea una cuenta y entrega sus cabeceras."""
-    correos = []
 
     def crear() -> dict:
-        correo = f"prueba-{uuid.uuid4().hex[:10]}@test.com"
-        correos.append(correo)
-        _sql(
-            "INSERT INTO usuarios (correo, password_hash, rol_id, correo_verificado) "
-            "VALUES (:c, :h, (SELECT id FROM roles WHERE nombre = 'usuario'), true)",
-            c=correo,
-            h=hash_password(PASSWORD),
-        )
+        correo = correos_de_prueba()
+        crear_cuenta_verificada(correo, PASSWORD)
         token = api.post("/auth/login", json={"correo": correo, "password": PASSWORD}).json()
         return {"Authorization": f"Bearer {token['access_token']}"}
 
-    yield crear
-    for correo in correos:
-        _sql("DELETE FROM usuarios WHERE correo = :c", c=correo)
+    return crear
 
 
 def _consultar(cabeceras, texto, **extra):

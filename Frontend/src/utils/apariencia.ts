@@ -28,7 +28,7 @@ export const FUENTES: { id: Fuente; nombre: string; descripcion: string; css: st
   },
   {
     id: "sistema",
-    nombre: "La del sistema",
+    nombre: "Fuente del sistema",
     descripcion: "La que usa tu computadora o celular.",
     css: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
   },

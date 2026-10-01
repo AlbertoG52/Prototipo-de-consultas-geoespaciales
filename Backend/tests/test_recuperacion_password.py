@@ -7,54 +7,24 @@ ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
 import re
-import uuid
-from types import SimpleNamespace
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import text
 
-from app.db import SessionLocal
-from app.main import app
+from apoyo import SesionFalsa, api, crear_cuenta_verificada, usuario_falso
+from apoyo import sql as _sql
 from app.routers import auth
-from app.schemas.auth import RecuperarPasswordRequest
-from app.security import hash_password
+from app.schemas.auth import CorreoRequest
 
 VIEJA = "Vieja#2024"
 NUEVA = "Nueva#2025x"
 
-api = TestClient(app)
-
-
-def _sql(consulta: str, **parametros):
-    with SessionLocal() as db:
-        resultado = db.execute(text(consulta), parametros)
-        db.commit()
-        return resultado
-
 
 @pytest.fixture
-def buzon(monkeypatch):
-    """Reemplaza el envío: cada correo queda en esta lista como (destino, texto)."""
-    enviados = []
-    monkeypatch.setattr(
-        auth, "enviar_correo", lambda destino, _asunto, texto, _html=None: enviados.append((destino, texto))
-    )
-    return enviados
-
-
-@pytest.fixture
-def correo():
+def correo(correos_de_prueba):
     """Una cuenta activa y verificada con la contraseña VIEJA."""
-    direccion = f"recup-{uuid.uuid4().hex[:10]}@test.com"
-    _sql(
-        "INSERT INTO usuarios (correo, password_hash, rol_id, correo_verificado) "
-        "VALUES (:c, :h, (SELECT id FROM roles WHERE nombre = 'usuario'), true)",
-        c=direccion,
-        h=hash_password(VIEJA),
-    )
-    yield direccion
-    _sql("DELETE FROM usuarios WHERE correo = :c", c=direccion)
+    direccion = correos_de_prueba("recup")
+    crear_cuenta_verificada(direccion, VIEJA)
+    return direccion
 
 
 def _pedir(correo):
@@ -133,17 +103,8 @@ def test_no_revela_si_el_correo_existe(buzon, correo):
 def test_cuenta_desactivada_no_recibe_enlace(buzon):
     # Sin BD: desactivar una cuenta real deja un registro de auditoría que no
     # se puede borrar (RR_00_09), así que se simula el usuario.
-    class _SesionFalsa:
-        def query(self, _modelo):
-            return self
-
-        def filter(self, *_args):
-            return self
-
-        def first(self):
-            return SimpleNamespace(id=1, correo="ana@test.com", activo=False)
-
-    salida = auth.recuperar_password(RecuperarPasswordRequest(correo="ana@test.com"), _SesionFalsa())
+    desactivada = SesionFalsa(usuario_falso(activo=False, estado="inactivo"))
+    salida = auth.recuperar_password(CorreoRequest(correo="ana@test.com"), desactivada)
     assert salida.mensaje == _pedir("nadie-xyz@test.com").json()["mensaje"]
     assert buzon == []
 

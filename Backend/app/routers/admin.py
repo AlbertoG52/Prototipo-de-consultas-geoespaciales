@@ -27,17 +27,6 @@ router = APIRouter(
 )
 
 
-def _a_salida(usuario: Usuario) -> UsuarioOut:
-    return UsuarioOut(
-        id=usuario.id,
-        nombre=usuario.nombre,
-        correo=usuario.correo,
-        rol=usuario.rol.nombre,
-        estado=usuario.estado,
-        correo_verificado=usuario.correo_verificado,
-    )
-
-
 def _usuario_a_modificar(usuario_id: int, actual: Usuario, db: Session) -> Usuario:
     """Busca el usuario y deja registrado en la transacción quién actúa.
 
@@ -69,7 +58,7 @@ def listar_usuarios(db: Session = Depends(get_db)):
         .order_by(Usuario.id.asc())
         .all()
     )
-    return [_a_salida(u) for u in usuarios]
+    return [UsuarioOut.de_modelo(u) for u in usuarios]
 
 
 @router.patch("/usuarios/{usuario_id}/estado", response_model=UsuarioOut)
@@ -84,7 +73,7 @@ def cambiar_estado(
     usuario.estado = datos.estado
     db.commit()
     db.refresh(usuario)
-    return _a_salida(usuario)
+    return UsuarioOut.de_modelo(usuario)
 
 
 @router.patch("/usuarios/{usuario_id}/rol", response_model=UsuarioOut)
@@ -99,7 +88,7 @@ def cambiar_rol(
     usuario.rol_id = db.query(Rol.id).filter(Rol.nombre == datos.rol).scalar()
     db.commit()
     db.refresh(usuario)
-    return _a_salida(usuario)
+    return UsuarioOut.de_modelo(usuario)
 
 
 @router.get("/auditoria", response_model=list[RegistroAuditoria])

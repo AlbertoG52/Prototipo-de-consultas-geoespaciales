@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 from ..config import (
     HORAS_TOKEN_VERIFICACION,
     INTENTOS_LOGIN_MAXIMOS,
-    LIMITE_CONSULTAS_ANONIMO,
     MINUTOS_BLOQUEO_LOGIN,
     MINUTOS_TOKEN_RECUPERACION,
     URL_FRONTEND,
@@ -18,9 +17,8 @@ from ..config import (
 from ..db import get_db
 from ..models import Rol, Usuario
 from ..schemas.auth import (
+    CorreoRequest,
     MensajeOut,
-    RecuperarPasswordRequest,
-    ReenviarVerificacionRequest,
     RegistroOut,
     RestablecerPasswordRequest,
     SesionOut,
@@ -29,11 +27,13 @@ from ..schemas.auth import (
 )
 from ..schemas.usuario import LoginRequest, RegistroRequest, UsuarioOut
 from ..security import (
+    ROL_USUARIO,
     TIPO_ANONIMO,
     TIPO_USUARIO,
     Identidad,
     crear_token_anonimo,
     crear_token_usuario,
+    exigir_sesion,
     hash_password,
     minutos_inactividad_de,
     obtener_identidad,
@@ -52,18 +52,14 @@ from ..services.uso import consultas_hoy, limite_de
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-ROL_POR_DEFECTO = "usuario"
+
+def _normalizar_correo(correo: str) -> str:
+    """Los correos se guardan y se buscan en minúsculas y sin espacios."""
+    return correo.lower().strip()
 
 
-def _a_salida(usuario: Usuario) -> UsuarioOut:
-    return UsuarioOut(
-        id=usuario.id,
-        nombre=usuario.nombre,
-        correo=usuario.correo,
-        rol=usuario.rol.nombre if usuario.rol else ROL_POR_DEFECTO,
-        estado=usuario.estado,
-        correo_verificado=usuario.correo_verificado,
-    )
+def _usuario_por_correo(db: Session, correo: str) -> Optional[Usuario]:
+    return db.query(Usuario).filter(Usuario.correo == _normalizar_correo(correo)).first()
 
 
 @router.post("/registro", response_model=RegistroOut, status_code=status.HTTP_201_CREATED)
@@ -73,15 +69,15 @@ def registrar(datos: RegistroRequest, db: Session = Depends(get_db)):
     La contraseña entra en claro y sale hasheada en la misma línea: en ningún
     momento se guarda el texto original (RR_00_02).
     """
-    correo = datos.correo.lower().strip()
+    correo = _normalizar_correo(datos.correo)
 
-    if db.query(Usuario).filter(Usuario.correo == correo).first():
+    if _usuario_por_correo(db, correo):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Ya existe una cuenta con ese correo.",
         )
 
-    rol = db.query(Rol).filter(Rol.nombre == ROL_POR_DEFECTO).first()
+    rol = db.query(Rol).filter(Rol.nombre == ROL_USUARIO).first()
     if rol is None:
         # Las migraciones siembran los tres roles; si falta, algo no se aplicó.
         raise HTTPException(
@@ -112,7 +108,7 @@ def registrar(datos: RegistroRequest, db: Session = Depends(get_db)):
             "Pide que te lo reenviemos."
         )
 
-    return RegistroOut(mensaje=mensaje, usuario=_a_salida(usuario))
+    return RegistroOut(mensaje=mensaje, usuario=UsuarioOut.de_modelo(usuario))
 
 
 def _enviar_enlace(
@@ -222,8 +218,7 @@ def iniciar_sesion(datos: LoginRequest, db: Session = Depends(get_db)):
     se rechaza incluso la contraseña correcta. Un inicio de sesión correcto
     reinicia el contador.
     """
-    correo = datos.correo.lower().strip()
-    usuario = db.query(Usuario).filter(Usuario.correo == correo).first()
+    usuario = _usuario_por_correo(db, datos.correo)
     ahora = datetime.now(timezone.utc)
 
     if usuario:
@@ -297,14 +292,13 @@ def verificar_correo(datos: VerificarCorreoRequest, db: Session = Depends(get_db
 
 
 @router.post("/reenviar-verificacion", response_model=MensajeOut)
-def reenviar_verificacion(datos: ReenviarVerificacionRequest, db: Session = Depends(get_db)):
+def reenviar_verificacion(datos: CorreoRequest, db: Session = Depends(get_db)):
     """RR_00_07 — envía un enlace nuevo; el anterior deja de servir.
 
     Responde siempre lo mismo, exista o no la cuenta, para no revelar qué
     correos están registrados.
     """
-    correo = datos.correo.lower().strip()
-    usuario = db.query(Usuario).filter(Usuario.correo == correo).first()
+    usuario = _usuario_por_correo(db, datos.correo)
 
     if usuario and usuario.activo and not usuario.correo_verificado:
         transcurridos = segundos_desde_ultimo(db, usuario.id, TIPO_VERIFICACION)
@@ -320,15 +314,14 @@ def reenviar_verificacion(datos: ReenviarVerificacionRequest, db: Session = Depe
 
 
 @router.post("/recuperar", response_model=MensajeOut)
-def recuperar_password(datos: RecuperarPasswordRequest, db: Session = Depends(get_db)):
+def recuperar_password(datos: CorreoRequest, db: Session = Depends(get_db)):
     """RR_00_06 criterios 1 y 2 — envía al correo registrado un enlace de
     recuperación que vence en MINUTOS_TOKEN_RECUPERACION minutos.
 
     Responde siempre lo mismo, exista o no la cuenta, para no revelar qué
     correos están registrados. Una cuenta desactivada no recibe enlace.
     """
-    correo = datos.correo.lower().strip()
-    usuario = db.query(Usuario).filter(Usuario.correo == correo).first()
+    usuario = _usuario_por_correo(db, datos.correo)
 
     if usuario and usuario.activo:
         transcurridos = segundos_desde_ultimo(db, usuario.id, TIPO_RECUPERACION)
@@ -390,7 +383,7 @@ def estado_sesion(
     El frontend lo consulta al cargar para saber qué mostrar: un visitante no
     tiene historial ni perfil, y su límite de consultas es menor.
 
-    Si el token no sirve responde 401, en dos casos:
+    Si el token no sirve responde 401 (exigir_sesion), en dos casos:
 
     - RR_00_04: el token de un usuario venció por inactividad. El frontend
       avisa que la sesión expiró y pide un nuevo inicio de sesión, en lugar de
@@ -400,18 +393,14 @@ def estado_sesion(
       pide uno anónimo nuevo; si respondiera 200, el navegador se quedaría con
       un token con el que no puede enviar consultas.
     """
-    if identidad.token_invalido or (identidad.es_anonimo and not identidad.anon_id):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Tu sesión expiró. Inicia sesión de nuevo.",
-        )
+    exigir_sesion(identidad)
 
     limite = limite_de(identidad)
     usadas = consultas_hoy(db, identidad)
 
     return SesionOut(
         tipo=identidad.tipo,
-        usuario=_a_salida(identidad.usuario) if identidad.usuario else None,
+        usuario=UsuarioOut.de_modelo(identidad.usuario) if identidad.usuario else None,
         limite_consultas=limite,
         consultas_realizadas=usadas,
         consultas_restantes=max(limite - usadas, 0),

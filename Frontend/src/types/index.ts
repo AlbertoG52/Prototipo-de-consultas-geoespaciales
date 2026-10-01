@@ -136,10 +136,3 @@ export interface RegistroAuditoria {
   /** null = el cambio se hizo desde el servidor, no desde la aplicación. */
   actor: string | null;
 }
-
-export interface ItemHistorial {
-  id: number;
-  texto: string;
-  respuesta: RespuestaConsulta | null;
-  realizada_en: string;
-}

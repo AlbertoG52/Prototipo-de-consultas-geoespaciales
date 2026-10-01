@@ -1,4 +1,7 @@
-"""Consultas al agente e historial — RR_02, RR_09, RR_17, RR_18."""
+"""Consultas al agente — RR_02, RR_09, RR_17, RR_18.
+
+El historial se lee por conversaciones (routers/conversaciones.py).
+"""
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,26 +10,21 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Consulta, Conversacion
 from ..schemas.consulta import (
+    ESTADO_AMBIGUA,
+    ESTADO_RESUELTA,
+    ESTADO_SIN_COINCIDENCIAS,
     ConsultaOut,
     ConsultaRequest,
-    EspecieCandidata,
-    ItemHistorial,
     RespuestaConsulta,
 )
-from ..security import Identidad, obtener_identidad
+from ..security import Identidad, exigir_sesion, obtener_identidad
 from ..services import catalogo
-from ..services.uso import ESTADO_RESUELTA, consultas_hoy, limite_de, registrar_consumo_anonimo
+from ..services.uso import consultas_hoy, limite_de, registrar_consumo_anonimo
 
 router = APIRouter(prefix="/consultas", tags=["consultas"])
 
-# RR_09: cuántas consultas anteriores devuelve /consultas/historial.
-LIMITE_HISTORIAL = 50
-
 # Largo máximo del título de una conversación (columna de la tabla 012).
 LARGO_TITULO = 120
-
-ESTADO_AMBIGUA = "ambigua"
-ESTADO_SIN_COINCIDENCIAS = "sin_coincidencias"
 
 MENSAJE_SIN_COINCIDENCIAS = (
     "No se reconoció ninguna especie en la consulta. "
@@ -114,11 +112,7 @@ def enviar_consulta(
     conversación (RR_09), para poder reabrirla completa. Del visitante no se
     guarda nada (RR_00_11).
     """
-    if identidad.es_anonimo and not identidad.anon_id:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Tu sesión no es válida o venció. Intenta de nuevo.",
-        )
+    exigir_sesion(identidad)
 
     limite = limite_de(identidad)
     usadas = consultas_hoy(db, identidad)
@@ -272,41 +266,3 @@ def _resolver_pendiente(
         realizada_en=consulta.realizada_en,
         consultas_restantes=max(limite - usadas - 1, 0),
     )
-
-
-@router.get("/historial", response_model=list[ItemHistorial])
-def historial_de_sesion(
-    identidad: Identidad = Depends(obtener_identidad),
-    db: Session = Depends(get_db),
-):
-    """Consultas resueltas de la cuenta, la más reciente primero.
-
-    La barra lateral ya no usa este endpoint: muestra conversaciones
-    (GET /conversaciones). Se conserva porque devuelve las respuestas en una
-    lista plana, útil para vistas de uso por usuario (RR_76).
-
-    Un visitante anónimo recibe una lista vacía: sus consultas no se guardan
-    (RR_00_11 criterio 1).
-    """
-    if identidad.es_anonimo or identidad.usuario is None:
-        return []
-
-    filas = (
-        db.query(Consulta)
-        .filter(Consulta.usuario_id == identidad.usuario.id, Consulta.estado == ESTADO_RESUELTA)
-        .order_by(Consulta.resuelta_en.desc(), Consulta.id.desc())
-        .limit(LIMITE_HISTORIAL)
-        .all()
-    )
-
-    return [
-        ItemHistorial(
-            id=f.id,
-            texto=f.texto,
-            # Guardada en la BD, así que volver a verla no reprocesa nada
-            # (RR_09 criterio 2).
-            respuesta=RespuestaConsulta(**f.respuesta) if f.respuesta else None,
-            realizada_en=f.resuelta_en or f.realizada_en,
-        )
-        for f in filas
-    ]

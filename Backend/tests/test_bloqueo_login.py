@@ -5,56 +5,22 @@ simulados. Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
 
+from apoyo import SesionFalsa as _SesionFalsa
+from apoyo import usuario_falso
 from app.config import INTENTOS_LOGIN_MAXIMOS, MINUTOS_BLOQUEO_LOGIN
 from app.routers import auth
 from app.schemas.usuario import LoginRequest
-from app.security import hash_password
 
 CORRECTA = "Correcta#2024"
 INCORRECTA = "Incorrecta#2024"
 
 
-class _SesionFalsa:
-    """Imita lo que usa el login: query(...).filter(...).first() y commit()."""
-
-    def __init__(self, usuario):
-        self.usuario = usuario
-        self.commits = 0
-
-    def query(self, _modelo):
-        return self
-
-    def filter(self, *_args):
-        return self
-
-    def first(self):
-        return self.usuario
-
-    def commit(self):
-        self.commits += 1
-
-
 def _usuario(**extra):
-    datos = dict(
-        id=7,
-        correo="ana@test.com",
-        nombre="Ana",
-        password_hash=hash_password(CORRECTA),
-        rol=SimpleNamespace(nombre="usuario"),
-        estado="activo",
-        activo=True,
-        minutos_inactividad=None,
-        intentos_fallidos=0,
-        bloqueado_hasta=None,
-        correo_verificado=True,
-    )
-    datos.update(extra)
-    return SimpleNamespace(**datos)
+    return usuario_falso(password=CORRECTA, **extra)
 
 
 def _login(db, password):

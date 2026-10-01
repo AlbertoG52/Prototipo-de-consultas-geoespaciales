@@ -7,16 +7,14 @@ coincidencia de RR_16 se prueba sobre listas de especies. Se ejecutan con:
 import pytest
 from fastapi import HTTPException
 
+from apoyo import SESION_INVALIDA, VISITANTE
 from app.routers import especies
-from app.security import TIPO_ANONIMO, Identidad
 from app.services import catalogo
-
-# Un visitante con sesión anónima válida puede ver la ficha (RR_00_11).
-_VISITANTE = Identidad(tipo=TIPO_ANONIMO, sesion_id="anon-1", anon_id="anon-1")
 
 
 def _ficha(especie: str):
-    return especies.ficha_de_especie(especie, _VISITANTE)
+    # Un visitante con sesión anónima válida puede ver la ficha (RR_00_11).
+    return especies.ficha_de_especie(especie, VISITANTE)
 
 
 # --- criterio 1: la ficha trae nombre, familia, hábitat y elevación --------
@@ -78,9 +76,8 @@ def test_especie_inexistente_responde_404():
 
 def test_sin_sesion_valida_responde_401():
     # RR_00_10: la validación se hace en el servidor.
-    sin_sesion = Identidad(tipo=TIPO_ANONIMO, sesion_id="", anon_id=None, token_invalido=True)
     with pytest.raises(HTTPException) as error:
-        especies.ficha_de_especie("cedrela-odorata", sin_sesion)
+        especies.ficha_de_especie("cedrela-odorata", SESION_INVALIDA)
     assert error.value.status_code == 401
 
 
@@ -119,7 +116,6 @@ def test_respeta_el_limite_de_sugerencias():
 
 
 def test_sugerencias_sin_sesion_valida_responde_401():
-    sin_sesion = Identidad(tipo=TIPO_ANONIMO, sesion_id="", anon_id=None, token_invalido=True)
     with pytest.raises(HTTPException) as error:
-        especies.sugerir_especies("guaria", sin_sesion, db=None)
+        especies.sugerir_especies("guaria", SESION_INVALIDA, db=None)
     assert error.value.status_code == 401

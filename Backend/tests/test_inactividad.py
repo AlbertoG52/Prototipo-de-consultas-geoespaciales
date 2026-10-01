@@ -5,7 +5,6 @@ ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
 from datetime import datetime, timedelta, timezone
-from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -13,6 +12,8 @@ from jose import jwt
 from pydantic import ValidationError
 from starlette.requests import Request
 
+from apoyo import SESION_INVALIDA, usuario_falso
+from apoyo import SesionFalsa as _SesionFalsa
 from app.config import (
     ALGORITMO_JWT,
     MINUTOS_INACTIVIDAD_SESION,
@@ -30,26 +31,8 @@ from app.security import (
 )
 
 
-class _SesionFalsa:
-    def __init__(self):
-        self.commits = 0
-
-    def commit(self):
-        self.commits += 1
-
-    def refresh(self, _obj):
-        pass
-
-
 def _usuario(minutos=None):
-    return SimpleNamespace(
-        id=7,
-        correo="ana@test.com",
-        nombre="Ana",
-        rol=SimpleNamespace(nombre="usuario"),
-        minutos_inactividad=minutos,
-        activo=True,
-    )
+    return usuario_falso(minutos_inactividad=minutos)
 
 
 def _duracion_minutos(token: str) -> float:
@@ -136,9 +119,8 @@ def test_sin_token_no_es_una_sesion_expirada():
 # --- criterio 3: después de expirar hay que volver a autenticarse ---------
 
 def test_estado_de_sesion_con_token_vencido_responde_401():
-    identidad = Identidad(tipo="anonimo", sesion_id="", token_invalido=True)
     with pytest.raises(HTTPException) as error:
-        auth.estado_sesion(identidad, db=None)
+        auth.estado_sesion(SESION_INVALIDA, db=None)
     assert error.value.status_code == 401
 
 

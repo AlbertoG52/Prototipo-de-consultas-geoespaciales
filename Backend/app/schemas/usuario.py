@@ -4,12 +4,28 @@ import re
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from ..config import LONGITUD_MAXIMA_PASSWORD, LONGITUD_MINIMA_PASSWORD
+from ..models import Usuario
 from ..sanitizacion import sanitizar_texto
+from ..security import ROL_USUARIO
+
+LONGITUD_MINIMA_NOMBRE = 2
+LONGITUD_MAXIMA_NOMBRE = 120
+
+
+def validar_nombre(valor: str) -> str:
+    """Regla única del nombre visible, para el registro y para el perfil.
+
+    Se sanitiza (RR_00_08) y se colapsan espacios, tabuladores y saltos de
+    línea; el largo se revisa después de limpiar, así "  a  " no es válido.
+    """
+    limpio = " ".join(sanitizar_texto(valor).split())
+    if len(limpio) < LONGITUD_MINIMA_NOMBRE:
+        raise ValueError(f"El nombre debe tener al menos {LONGITUD_MINIMA_NOMBRE} caracteres.")
+    return limpio
 
 
 def validar_password(valor: str) -> str:
-    #Reglas mínimas de contraseña.
-    
+    """Reglas mínimas de contraseña (RR_00_03), en el registro y en cada cambio."""
     if len(valor) < LONGITUD_MINIMA_PASSWORD:
         raise ValueError(f"La contraseña debe tener al menos {LONGITUD_MINIMA_PASSWORD} caracteres.")
     if len(valor.encode("utf-8")) > LONGITUD_MAXIMA_PASSWORD:
@@ -24,24 +40,20 @@ def validar_password(valor: str) -> str:
 
 
 class RegistroRequest(BaseModel):
-    nombre: str = Field(min_length=2, max_length=120)
+    nombre: str = Field(max_length=LONGITUD_MAXIMA_NOMBRE)
     correo: EmailStr
     password: str
 
     @field_validator("password")
     @classmethod
     def _password(cls, v: str) -> str:
+        # No se sanitiza: cambiaría la credencial que el usuario escribió.
         return validar_password(v)
 
     @field_validator("nombre")
     @classmethod
     def _nombre(cls, v: str) -> str:
-        # RR_00_08. La contraseña no pasa por aquí: sanitizarla cambiaría la
-        # credencial que el usuario escribió.
-        limpio = sanitizar_texto(v)
-        if not limpio:
-            raise ValueError("El nombre es requerido.")
-        return limpio
+        return validar_nombre(v)
 
 
 class LoginRequest(BaseModel):
@@ -58,3 +70,15 @@ class UsuarioOut(BaseModel):
     correo_verificado: bool
 
     model_config = {"from_attributes": True}
+
+    @classmethod
+    def de_modelo(cls, usuario: Usuario) -> "UsuarioOut":
+        """Salida pública de un usuario: el rol va por nombre, no por id."""
+        return cls(
+            id=usuario.id,
+            nombre=usuario.nombre,
+            correo=usuario.correo,
+            rol=usuario.rol.nombre if usuario.rol else ROL_USUARIO,
+            estado=usuario.estado,
+            correo_verificado=usuario.correo_verificado,
+        )
