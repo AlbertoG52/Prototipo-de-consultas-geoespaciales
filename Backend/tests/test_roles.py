@@ -4,11 +4,10 @@ No necesitan base de datos: se prueba la dependencia con usuarios simulados y
 se verifica que el router de administración la tenga. Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
-from types import SimpleNamespace
-
 import pytest
 from fastapi import HTTPException
 
+from apoyo import usuario_falso
 from app.routers import admin
 from app.security import (
     ROL_MODERADOR,
@@ -22,7 +21,7 @@ from app.security import (
 
 
 def _usuario(rol: str | None):
-    return SimpleNamespace(id=1, rol=SimpleNamespace(nombre=rol) if rol else None)
+    return usuario_falso(rol=rol)
 
 
 # --- criterio 1 y 2: se valida el rol y se rechaza lo no permitido ---------

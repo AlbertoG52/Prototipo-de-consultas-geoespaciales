@@ -25,8 +25,7 @@ No deben citarse como información científica.
 """
 from __future__ import annotations
 
-import unicodedata
-
+from ..sanitizacion import normalizar
 from ..schemas.consulta import EspecieCandidata, FichaEspecie, RegistroPresencia, RespuestaConsulta
 
 # --- datos provisionales ----------------------------------------------------
@@ -171,12 +170,6 @@ _CATALOGO: list[dict] = [
 _FUENTES = ["GBIF", "Manual de Plantas de CR"]
 
 
-def _normalizar(texto: str) -> str:
-    """Pasa a minúsculas y quita acentos, para que 'Guaría' encuentre 'guaria'."""
-    sin_acentos = unicodedata.normalize("NFD", texto.lower())
-    return "".join(c for c in sin_acentos if unicodedata.category(c) != "Mn")
-
-
 def _a_candidata(entrada: dict) -> EspecieCandidata:
     return EspecieCandidata(
         id=entrada["id"],
@@ -207,11 +200,11 @@ def buscar_especies(texto: str) -> list[EspecieCandidata]:
     significa que la consulta es ambigua y hay que preguntarle al usuario
     (RR_17).
     """
-    consulta = _normalizar(texto)
+    consulta = normalizar(texto)
     encontradas: list[EspecieCandidata] = []
 
     for entrada in _CATALOGO:
-        if any(_normalizar(alias) in consulta for alias in entrada["alias"]):
+        if any(normalizar(alias) in consulta for alias in entrada["alias"]):
             encontradas.append(_a_candidata(entrada))
 
     return encontradas
@@ -253,12 +246,12 @@ def obtener_ficha(especie: str) -> FichaEspecie | None:
     ('Guarianthe skinneri'), para que los enlaces viejos a la ficha, que usaban
     el nombre científico, sigan funcionando. None si no está en el catálogo.
     """
-    buscado = _normalizar(especie.strip())
+    buscado = normalizar(especie.strip())
     entrada = next(
         (
             e
             for e in _CATALOGO
-            if e["id"] == buscado or _normalizar(e["nombre_cientifico"]) == buscado
+            if e["id"] == buscado or normalizar(e["nombre_cientifico"]) == buscado
         ),
         None,
     )

@@ -11,7 +11,6 @@ import type {
   ConversacionResumen,
   EspecieCandidata,
   FichaEspecie,
-  ItemHistorial,
   RegistroAuditoria,
   RegistroRequest,
   Sesion,
@@ -106,93 +105,64 @@ async function manejar<T>(res: Response): Promise<T> {
   return res.json();
 }
 
+/**
+ * Hace una petición a la API con el token guardado y devuelve el cuerpo ya
+ * interpretado (o lanza ErrorApi). Los endpoints públicos ignoran el token.
+ */
+async function pedir<T>(ruta: string, metodo = "GET", cuerpo?: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}${ruta}`, {
+    method: metodo,
+    headers: cabeceras(),
+    body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+  });
+  return manejar<T>(res);
+}
+
+/** Pide un token nuevo al servidor y lo guarda. */
+async function pedirToken(ruta: string, metodo = "POST", cuerpo?: unknown): Promise<TokenOut> {
+  const datos = await pedir<TokenOut>(ruta, metodo, cuerpo);
+  guardarToken(datos.access_token);
+  return datos;
+}
+
+type Mensaje = { mensaje: string };
+
 // Sesión
 
 /** RR_00_11 — entrar sin cuenta. Se pide en la primera visita. */
-export async function iniciarSesionAnonima(): Promise<TokenOut> {
-  const res = await fetch(`${API_URL}/auth/anonimo`, { method: "POST" });
-  const datos = await manejar<TokenOut>(res);
-  guardarToken(datos.access_token);
-  return datos;
-}
+export const iniciarSesionAnonima = () => pedirToken("/auth/anonimo");
 
 /** RR_00_01 — iniciar sesión con credenciales. */
-export async function iniciarSesion(correo: string, password: string): Promise<TokenOut> {
-  const res = await fetch(`${API_URL}/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ correo, password }),
-  });
-  const datos = await manejar<TokenOut>(res);
-  guardarToken(datos.access_token);
-  return datos;
-}
+export const iniciarSesion = (correo: string, password: string) =>
+  pedirToken("/auth/login", "POST", { correo, password });
 
 /** RR_00_01 — crear una cuenta. */
-export async function registrar(
-  datos: RegistroRequest,
-): Promise<{ mensaje: string; usuario: Usuario }> {
-  const res = await fetch(`${API_URL}/auth/registro`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(datos),
-  });
-  return manejar(res);
-}
+export const registrar = (datos: RegistroRequest) =>
+  pedir<Mensaje & { usuario: Usuario }>("/auth/registro", "POST", datos);
 
 /** RR_00_07 — valida el token del enlace de verificación. */
-export async function verificarCorreo(token: string): Promise<{ mensaje: string }> {
-  const res = await fetch(`${API_URL}/auth/verificar`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token }),
-  });
-  return manejar(res);
-}
+export const verificarCorreo = (token: string) => pedir<Mensaje>("/auth/verificar", "POST", { token });
 
 /** RR_00_07 — pide un enlace de verificación nuevo. */
-export async function reenviarVerificacion(correo: string): Promise<{ mensaje: string }> {
-  const res = await fetch(`${API_URL}/auth/reenviar-verificacion`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ correo }),
-  });
-  return manejar(res);
-}
+export const reenviarVerificacion = (correo: string) =>
+  pedir<Mensaje>("/auth/reenviar-verificacion", "POST", { correo });
 
 /** RR_00_06 — pide el enlace para cambiar la contraseña. */
-export async function solicitarRecuperacion(correo: string): Promise<{ mensaje: string }> {
-  const res = await fetch(`${API_URL}/auth/recuperar`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ correo }),
-  });
-  return manejar(res);
-}
+export const solicitarRecuperacion = (correo: string) =>
+  pedir<Mensaje>("/auth/recuperar", "POST", { correo });
 
 /** RR_00_06 — guarda la contraseña nueva con el token del enlace. */
-export async function restablecerPassword(token: string, password: string): Promise<{ mensaje: string }> {
-  const res = await fetch(`${API_URL}/auth/restablecer`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, password }),
-  });
-  return manejar(res);
-}
+export const restablecerPassword = (token: string, password: string) =>
+  pedir<Mensaje>("/auth/restablecer", "POST", { token, password });
 
-/** RR_00_01 — cerrar la sesión activa. */
+/** RR_00_01 — cerrar la sesión activa. El token se descarta aunque el servidor no responda. */
 export async function cerrarSesion(): Promise<void> {
-  await fetch(`${API_URL}/auth/logout`, { method: "POST", headers: cabeceras() }).catch(
-    () => undefined,
-  );
+  await pedir<void>("/auth/logout", "POST").catch(() => undefined);
   borrarToken();
 }
 
 /** Estado de la sesión actual: quién es, cuántas consultas le quedan. */
-export async function obtenerSesion(): Promise<Sesion> {
-  const res = await fetch(`${API_URL}/auth/sesion`, { headers: cabeceras() });
-  return manejar<Sesion>(res);
-}
+export const obtenerSesion = () => pedir<Sesion>("/auth/sesion");
 
 /**
  * RR_00_04 — renueva la sesión porque hubo actividad. El servidor devuelve un
@@ -200,12 +170,10 @@ export async function obtenerSesion(): Promise<Sesion> {
  * responde 401 y se dispara el aviso de sesión expirada.
  */
 export async function renovarSesion(): Promise<void> {
-  const res = await fetch(`${API_URL}/auth/renovar`, { method: "POST", headers: cabeceras() });
-  const datos = await manejar<TokenOut>(res);
-  guardarToken(datos.access_token);
+  await pedirToken("/auth/renovar");
 }
 
-// Consultas 
+// Consultas
 
 /**
  * Envía una consulta en lenguaje natural.
@@ -216,119 +184,60 @@ export async function renovarSesion(): Promise<void> {
  * - `consultaId`: la consulta ambigua guardada que se está resolviendo. El
  *   servidor resuelve esa misma consulta, así que no se cobra dos veces.
  */
-export async function enviarConsulta(
+export const enviarConsulta = (
   texto: string,
   especieId?: string,
   opciones: { conversacionId?: number | null; consultaId?: number | null } = {},
-): Promise<ConsultaOut> {
-  const res = await fetch(`${API_URL}/consultas`, {
-    method: "POST",
-    headers: cabeceras(),
-    body: JSON.stringify({
-      texto,
-      especie_id: especieId ?? null,
-      conversacion_id: opciones.conversacionId ?? null,
-      consulta_id: opciones.consultaId ?? null,
-    }),
+) =>
+  pedir<ConsultaOut>("/consultas", "POST", {
+    texto,
+    especie_id: especieId ?? null,
+    conversacion_id: opciones.conversacionId ?? null,
+    consulta_id: opciones.consultaId ?? null,
   });
-  return manejar<ConsultaOut>(res);
-}
 
 /** RR_09 — conversaciones de la cuenta, la de actividad más reciente primero. */
-export async function listarConversaciones(): Promise<ConversacionResumen[]> {
-  const res = await fetch(`${API_URL}/conversaciones`, { headers: cabeceras() });
-  return manejar<ConversacionResumen[]>(res);
-}
+export const listarConversaciones = () => pedir<ConversacionResumen[]>("/conversaciones");
 
 /** RR_09 — una conversación completa, para reabrirla sin repetir las consultas. */
-export async function obtenerConversacion(id: number): Promise<ConversacionDetalle> {
-  const res = await fetch(`${API_URL}/conversaciones/${id}`, { headers: cabeceras() });
-  return manejar<ConversacionDetalle>(res);
-}
-
-/** Consultas resueltas de la cuenta en una lista plana. La barra lateral usa las conversaciones. */
-export async function obtenerHistorial(): Promise<ItemHistorial[]> {
-  const res = await fetch(`${API_URL}/consultas/historial`, { headers: cabeceras() });
-  return manejar<ItemHistorial[]>(res);
-}
+export const obtenerConversacion = (id: number) => pedir<ConversacionDetalle>(`/conversaciones/${id}`);
 
 // Perfil — solo cuentas registradas; un visitante recibe 401.
 
 /** Cambia el nombre visible de la cuenta. Devuelve el usuario actualizado. */
-export async function cambiarNombre(nombre: string): Promise<Usuario> {
-  const res = await fetch(`${API_URL}/perfil`, {
-    method: "PATCH",
-    headers: cabeceras(),
-    body: JSON.stringify({ nombre }),
-  });
-  return manejar<Usuario>(res);
-}
+export const cambiarNombre = (nombre: string) => pedir<Usuario>("/perfil", "PATCH", { nombre });
 
 /** Cambia la contraseña. El servidor verifica la actual y valida la nueva (RR_00_03). */
-export async function cambiarPassword(passwordActual: string, passwordNueva: string): Promise<void> {
-  const res = await fetch(`${API_URL}/perfil/password`, {
-    method: "POST",
-    headers: cabeceras(),
-    body: JSON.stringify({ password_actual: passwordActual, password_nueva: passwordNueva }),
+export const cambiarPassword = (passwordActual: string, passwordNueva: string) =>
+  pedir<void>("/perfil/password", "POST", {
+    password_actual: passwordActual,
+    password_nueva: passwordNueva,
   });
-  return manejar<void>(res);
-}
 
 /**
  * RR_00_04 — minutos sin actividad que cierran la sesión (0 = nunca). Guarda
  * el token nuevo que devuelve el servidor para que aplique de inmediato.
  */
 export async function cambiarInactividad(minutos: number): Promise<void> {
-  const res = await fetch(`${API_URL}/perfil/inactividad`, {
-    method: "PATCH",
-    headers: cabeceras(),
-    body: JSON.stringify({ minutos }),
-  });
-  const datos = await manejar<TokenOut>(res);
-  guardarToken(datos.access_token);
+  await pedirToken("/perfil/inactividad", "PATCH", { minutos });
 }
 
-/**
- * RR_20 — ficha completa de una especie, por su id del catálogo. No consume
- * consultas del límite diario. Si la especie no existe el servidor responde 404.
- */
-export async function obtenerFicha(especieId: string): Promise<FichaEspecie> {
-  const res = await fetch(`${API_URL}/especies/${encodeURIComponent(especieId)}`, {
-    headers: cabeceras(),
-  });
-  return manejar<FichaEspecie>(res);
-}
+// Especies — no consumen consultas del límite diario.
+
+/** RR_20 — ficha completa de una especie, por su id del catálogo. 404 si no existe. */
+export const obtenerFicha = (especieId: string) =>
+  pedir<FichaEspecie>(`/especies/${encodeURIComponent(especieId)}`);
 
 /** RR_16 — especies ya consultadas cuyo nombre coincide con `fragmento` (2+ letras). */
-export async function sugerirEspecies(fragmento: string): Promise<EspecieCandidata[]> {
-  const res = await fetch(`${API_URL}/especies?q=${encodeURIComponent(fragmento)}`, {
-    headers: cabeceras(),
-  });
-  return manejar<EspecieCandidata[]>(res);
-}
+export const sugerirEspecies = (fragmento: string) =>
+  pedir<EspecieCandidata[]>(`/especies?q=${encodeURIComponent(fragmento)}`);
 
 // Administración — solo supermoderador (RR_00_10); el servidor responde 403 al resto.
 
-export async function listarUsuarios(): Promise<Usuario[]> {
-  const res = await fetch(`${API_URL}/admin/usuarios`, { headers: cabeceras() });
-  return manejar<Usuario[]>(res);
-}
+export const listarUsuarios = () => pedir<Usuario[]>("/admin/usuarios");
 
 /** RR_00_09 — el cambio queda en la auditoría con quien lo hizo. */
-export async function cambiarUsuario(
-  id: number,
-  campo: "estado" | "rol",
-  valor: string,
-): Promise<Usuario> {
-  const res = await fetch(`${API_URL}/admin/usuarios/${id}/${campo}`, {
-    method: "PATCH",
-    headers: cabeceras(),
-    body: JSON.stringify({ [campo]: valor }),
-  });
-  return manejar<Usuario>(res);
-}
+export const cambiarUsuario = (id: number, campo: "estado" | "rol", valor: string) =>
+  pedir<Usuario>(`/admin/usuarios/${id}/${campo}`, "PATCH", { [campo]: valor });
 
-export async function obtenerAuditoria(): Promise<RegistroAuditoria[]> {
-  const res = await fetch(`${API_URL}/admin/auditoria`, { headers: cabeceras() });
-  return manejar<RegistroAuditoria[]>(res);
-}
+export const obtenerAuditoria = () => pedir<RegistroAuditoria[]>("/admin/auditoria");

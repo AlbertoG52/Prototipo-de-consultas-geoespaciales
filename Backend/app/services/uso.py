@@ -18,9 +18,8 @@ from sqlalchemy.orm import Session
 
 from ..config import LIMITE_CONSULTAS_ANONIMO
 from ..models import Consulta, ConsumoAnonimo
+from ..schemas.consulta import ESTADO_RESUELTA
 from ..security import Identidad
-
-ESTADO_RESUELTA = "resuelta"
 
 
 def limite_de(identidad: Identidad) -> int:

@@ -7,6 +7,15 @@ from pydantic import BaseModel, Field, field_validator
 from ..config import LONGITUD_MAXIMA_CONSULTA
 from ..sanitizacion import sanitizar_texto
 
+# Estados de una consulta (columna consultas.estado):
+#   - "resuelta"          -> trae 'respuesta'; es la única que cuesta del límite diario
+#   - "ambigua"           -> trae 'candidatos' (RR_17); sigue pendiente hasta que se elige
+#   - "sin_coincidencias" -> no se reconoció ninguna especie
+ESTADO_RESUELTA = "resuelta"
+ESTADO_AMBIGUA = "ambigua"
+ESTADO_SIN_COINCIDENCIAS = "sin_coincidencias"
+EstadoConsulta = Literal["resuelta", "ambigua", "sin_coincidencias"]
+
 
 class RegistroPresencia(BaseModel):
     """Un punto de presencia de la especie (RR_18, vista de lista)."""
@@ -39,17 +48,13 @@ class RespuestaConsulta(BaseModel):
     fuentes: list[str] = Field(default_factory=list)
 
 
-class FichaEspecie(BaseModel):
+class FichaEspecie(EspecieCandidata):
     """RR_20 — ficha completa de una especie.
 
     Los campos que el catálogo no tenga llegan como None y la ficha los
     muestra como "Sin dato" en lugar de inventarlos.
     """
 
-    id: str
-    nombre_comun: str | None = None
-    nombre_cientifico: str
-    familia: str
     habitat: str | None = None
     elevacion: str | None = None
     descripcion: str | None = None
@@ -89,18 +94,12 @@ class ConsultaRequest(BaseModel):
 
 
 class ConsultaOut(BaseModel):
-    """Resultado de enviar una consulta.
-
-    estado:
-      - "resuelta"         -> viene 'respuesta'
-      - "ambigua"          -> viene 'candidatos' (RR_17); no consume consulta
-      - "sin_coincidencias"-> no se encontró la especie; no consume consulta
-    """
+    """Resultado de enviar una consulta (ver los estados al inicio del archivo)."""
 
     id: int | None = None
     # RR_09: la conversación donde quedó guardada; None para un visitante.
     conversacion_id: int | None = None
-    estado: Literal["resuelta", "ambigua", "sin_coincidencias"]
+    estado: EstadoConsulta
     texto: str
     respuesta: RespuestaConsulta | None = None
     candidatos: list[EspecieCandidata] = Field(default_factory=list)
@@ -109,30 +108,19 @@ class ConsultaOut(BaseModel):
     consultas_restantes: int = 0
 
 
-class ItemHistorial(BaseModel):
-    """Una consulta resuelta del historial de la cuenta (RR_09)."""
-
-    id: int
-    texto: str
-    respuesta: RespuestaConsulta | None = None
-    realizada_en: datetime
-
-
 # --- RR_09: historial por conversaciones ----------------------------------------
 
 
 class ConsultaGuardada(BaseModel):
     """Una consulta dentro de una conversación, en cualquiera de sus estados.
 
-    - "resuelta"          -> viene 'respuesta'
-    - "ambigua"           -> vienen 'candidatos' y 'mensaje'; sigue pendiente y
-                             se puede resolver eligiendo una especie (RR_17)
-    - "sin_coincidencias" -> viene 'mensaje'
+    Una "ambigua" trae además 'candidatos' y 'mensaje', y se puede resolver
+    eligiendo una especie (RR_17); una "sin_coincidencias" trae 'mensaje'.
     """
 
     id: int
     texto: str
-    estado: Literal["resuelta", "ambigua", "sin_coincidencias"]
+    estado: EstadoConsulta
     respuesta: RespuestaConsulta | None = None
     candidatos: list[EspecieCandidata] = Field(default_factory=list)
     mensaje: str | None = None
