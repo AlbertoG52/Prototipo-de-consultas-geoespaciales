@@ -86,6 +86,13 @@ def test_nombre_de_registro_se_sanitiza():
     assert datos.nombre == "Ana Rodríguez"
 
 
+def test_nombre_de_registro_sigue_la_misma_regla_que_el_perfil():
+    datos = RegistroRequest(nombre="  Ana    María  ", correo="ana@example.com", password=PASSWORD_VALIDA)
+    assert datos.nombre == "Ana María"
+    with pytest.raises(ValidationError):
+        RegistroRequest(nombre="  a  ", correo="ana@example.com", password=PASSWORD_VALIDA)
+
+
 def test_password_no_se_sanitiza():
     password = "<Abc>123!xyz"
     datos = RegistroRequest(nombre="Ana", correo="ana@example.com", password=password)

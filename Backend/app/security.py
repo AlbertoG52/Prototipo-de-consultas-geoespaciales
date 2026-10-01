@@ -171,6 +171,20 @@ def obtener_identidad(
     )
 
 
+def exigir_sesion(identidad: Identidad) -> None:
+    """Responde 401 si la petición no trae una sesión válida, de usuario o de visitante.
+
+    Cubre el token vencido por inactividad (RR_00_04), el firmado con otra
+    clave, el de una cuenta que ya no existe y la petición sin token. Ante el
+    401 el frontend avisa que la sesión expiró o pide un token anónimo nuevo.
+    """
+    if identidad.token_invalido or (identidad.usuario is None and not identidad.anon_id):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Tu sesión no es válida o expiró. Inicia sesión de nuevo o recarga la página.",
+        )
+
+
 def obtener_usuario_actual(
     identidad: Identidad = Depends(obtener_identidad),
 ) -> Usuario:

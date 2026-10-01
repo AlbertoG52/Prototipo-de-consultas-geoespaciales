@@ -4,41 +4,22 @@ No necesitan base de datos: se llaman los endpoints con un usuario y una
 sesión simulados. Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
-from types import SimpleNamespace
-
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
+from apoyo import SesionFalsa as _SesionFalsa
+from apoyo import usuario_falso
 from app.routers import perfil
 from app.schemas.perfil import CambioNombreRequest, CambioPasswordRequest
-from app.security import hash_password, obtener_usuario_actual, verificar_password
+from app.security import obtener_usuario_actual, verificar_password
 
 ACTUAL = "Actual#2024"
 NUEVA = "Nueva#2025x"
 
 
-class _SesionFalsa:
-    def __init__(self):
-        self.commits = 0
-
-    def commit(self):
-        self.commits += 1
-
-    def refresh(self, _obj):
-        pass
-
-
 def _usuario():
-    return SimpleNamespace(
-        id=7,
-        nombre="Ana",
-        correo="ana@test.com",
-        password_hash=hash_password(ACTUAL),
-        rol=SimpleNamespace(nombre="usuario"),
-        estado="activo",
-        correo_verificado=True,
-    )
+    return usuario_falso(password=ACTUAL)
 
 
 # --- nombre --------------------------------------------------------------

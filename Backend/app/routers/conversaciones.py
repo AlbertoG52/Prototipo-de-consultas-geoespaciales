@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import Consulta, Conversacion, Usuario
 from ..schemas.consulta import (
+    ESTADO_AMBIGUA,
     ConsultaGuardada,
     ConversacionDetalle,
     ConversacionResumen,
@@ -50,7 +51,7 @@ def _a_guardada(consulta: Consulta) -> ConsultaGuardada:
         respuesta=RespuestaConsulta(**consulta.respuesta) if consulta.respuesta else None,
         # Las opciones solo importan mientras la consulta sigue pendiente.
         candidatos=[EspecieCandidata(**c) for c in (consulta.candidatos or [])]
-        if consulta.estado == "ambigua"
+        if consulta.estado == ESTADO_AMBIGUA
         else [],
         mensaje=consulta.mensaje,
         realizada_en=consulta.realizada_en,

@@ -14,12 +14,9 @@ class VerificarCorreoRequest(BaseModel):
     token: str = Field(min_length=1, max_length=255)
 
 
-class ReenviarVerificacionRequest(BaseModel):
-    correo: EmailStr
-
-
-class RecuperarPasswordRequest(BaseModel):
-    """RR_00_06 criterio 1 — se pide con el correo registrado."""
+class CorreoRequest(BaseModel):
+    """Solo el correo: para reenviar la verificación (RR_00_07) y para pedir la
+    recuperación de contraseña con el correo registrado (RR_00_06 criterio 1)."""
 
     correo: EmailStr
 

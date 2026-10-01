@@ -28,17 +28,6 @@ from ..security import (
 router = APIRouter(prefix="/perfil", tags=["perfil"])
 
 
-def _a_salida(usuario: Usuario) -> UsuarioOut:
-    return UsuarioOut(
-        id=usuario.id,
-        nombre=usuario.nombre,
-        correo=usuario.correo,
-        rol=usuario.rol.nombre if usuario.rol else "usuario",
-        estado=usuario.estado,
-        correo_verificado=usuario.correo_verificado,
-    )
-
-
 @router.patch("", response_model=UsuarioOut)
 def cambiar_nombre(
     datos: CambioNombreRequest,
@@ -49,7 +38,7 @@ def cambiar_nombre(
     usuario.nombre = datos.nombre
     db.commit()
     db.refresh(usuario)
-    return _a_salida(usuario)
+    return UsuarioOut.de_modelo(usuario)
 
 
 @router.post("/password", status_code=status.HTTP_204_NO_CONTENT)

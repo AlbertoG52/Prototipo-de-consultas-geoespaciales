@@ -68,3 +68,13 @@ def sanitizar_texto(valor: str) -> str:
         texto = _ETIQUETA.sub("", texto)
 
     return texto.strip()
+
+
+def normalizar(texto: str) -> str:
+    """Minúsculas y sin tildes, para comparar nombres: 'Guaría' encuentra 'guaria'.
+
+    Solo sirve para comparar; el texto que se guarda o se muestra conserva sus
+    tildes.
+    """
+    sin_acentos = unicodedata.normalize("NFD", texto.lower())
+    return "".join(c for c in sin_acentos if unicodedata.category(c) != "Mn")

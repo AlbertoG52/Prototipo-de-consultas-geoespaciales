@@ -7,43 +7,20 @@ ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
 import re
-import uuid
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import text
 
-from app.db import SessionLocal
-from app.main import app
+from apoyo import api
+from apoyo import sql as _sql
 from app.routers import auth
 
 PASSWORD = "Clave#2024"
 
-api = TestClient(app)
-
-
-def _sql(consulta: str, **parametros):
-    with SessionLocal() as db:
-        resultado = db.execute(text(consulta), parametros)
-        db.commit()
-        return resultado
-
 
 @pytest.fixture
-def buzon(monkeypatch):
-    """Reemplaza el envío: cada correo queda en esta lista como (destino, texto)."""
-    enviados = []
-    monkeypatch.setattr(
-        auth, "enviar_correo", lambda destino, _asunto, texto, _html=None: enviados.append((destino, texto))
-    )
-    return enviados
-
-
-@pytest.fixture
-def correo():
-    direccion = f"verif-{uuid.uuid4().hex[:10]}@test.com"
-    yield direccion
-    _sql("DELETE FROM usuarios WHERE correo = :c", c=direccion)
+def correo(correos_de_prueba):
+    """Un correo sin cuenta todavía; la prueba la registra por la API."""
+    return correos_de_prueba("verif")
 
 
 def _registrar(correo):

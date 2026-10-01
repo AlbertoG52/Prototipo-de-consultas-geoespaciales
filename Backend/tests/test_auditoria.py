@@ -4,33 +4,19 @@ Las de registro e inmutabilidad usan la BD del contenedor y deshacen todo al
 terminar, así que no dejan datos. Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
-from types import SimpleNamespace
-
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.db import SessionLocal
+from apoyo import usuario_falso
 from app.routers.admin import _usuario_a_modificar
 
 
 def test_no_puede_modificarse_a_si_mismo():
-    actual = SimpleNamespace(id=7)
     with pytest.raises(HTTPException) as error:
-        _usuario_a_modificar(7, actual, db=None)
+        _usuario_a_modificar(7, usuario_falso(id=7), db=None)
     assert error.value.status_code == 409
-
-
-@pytest.fixture
-def db():
-    """Sesión cuyos cambios se descartan siempre al final."""
-    sesion = SessionLocal()
-    try:
-        yield sesion
-    finally:
-        sesion.rollback()
-        sesion.close()
 
 
 def _crear_usuario(db, correo: str) -> int:
