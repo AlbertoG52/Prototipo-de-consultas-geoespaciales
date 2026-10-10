@@ -14,6 +14,7 @@ from ..config import (
     MINUTOS_TOKEN_RECUPERACION,
     URL_FRONTEND,
 )
+
 from ..db import get_db
 from ..models import Rol, Usuario
 from ..schemas.auth import (
@@ -25,6 +26,7 @@ from ..schemas.auth import (
     TokenOut,
     VerificarCorreoRequest,
 )
+
 from ..schemas.usuario import LoginRequest, RegistroRequest, UsuarioOut
 from ..security import (
     ROL_USUARIO,
@@ -40,6 +42,7 @@ from ..security import (
     obtener_usuario_actual,
     verificar_password,
 )
+
 from ..services.correo import enviar_correo, logger
 from ..services.tokens import (
     TIPO_RECUPERACION,
@@ -48,6 +51,7 @@ from ..services.tokens import (
     crear_token,
     segundos_desde_ultimo,
 )
+
 from ..services.uso import consultas_hoy, limite_de
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -64,11 +68,8 @@ def _usuario_por_correo(db: Session, correo: str) -> Optional[Usuario]:
 
 @router.post("/registro", response_model=RegistroOut, status_code=status.HTTP_201_CREATED)
 def registrar(datos: RegistroRequest, db: Session = Depends(get_db)):
-    """RR_00_01 criterio 1 — crear una cuenta.
-
-    La contraseña entra en claro y sale hasheada en la misma línea: en ningún
-    momento se guarda el texto original (RR_00_02).
-    """
+    """RR_00_01 — crear una cuenta."""
+    
     correo = _normalizar_correo(datos.correo)
 
     if _usuario_por_correo(db, correo):
@@ -211,7 +212,7 @@ def _error_bloqueo(minutos: int) -> HTTPException:
 
 @router.post("/login", response_model=TokenOut)
 def iniciar_sesion(datos: LoginRequest, db: Session = Depends(get_db)):
-    """RR_00_01 criterios 1 y 3 — iniciar sesión y rechazar credenciales inválidas.
+    """RR_00_01 iniciar sesión y rechazar credenciales inválidas.
 
     RR_00_05: tras INTENTOS_LOGIN_MAXIMOS contraseñas incorrectas seguidas la
     cuenta se bloquea MINUTOS_BLOQUEO_LOGIN minutos. Mientras dure el bloqueo
@@ -431,7 +432,7 @@ def renovar_sesion(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def cerrar_sesion():
-    """RR_00_01 criterio 2 — cerrar la sesión activa.
+    """RR_00_01  cerrar la sesión activa.
 
     El token es sin estado, así que el cierre efectivo lo hace el frontend al
     descartarlo. El endpoint existe para que el cierre sea una acción explícita

@@ -11,25 +11,25 @@ export const FUENTES: { id: Fuente; nombre: string; descripcion: string; css: st
   {
     id: "inter",
     nombre: "Inter",
-    descripcion: "La predeterminada.",
+    descripcion: "Moderna, limpia y fácil de leer.",
     css: "'Inter', sans-serif",
   },
   {
     id: "lora",
     nombre: "Lora",
-    descripcion: "Con serifa, más tradicional.",
+    descripcion: "Con serifa, elegante y tradicional.",
     css: "'Lora', serif",
   },
   {
     id: "atkinson",
     nombre: "Atkinson Hyperlegible",
-    descripcion: "Diseñada para leerse con baja visión.",
+    descripcion: "Diseñada para mejorar la legibilidad.",
     css: "'Atkinson Hyperlegible', sans-serif",
   },
   {
     id: "sistema",
     nombre: "Fuente del sistema",
-    descripcion: "La que usa tu computadora o celular.",
+    descripcion: "Utiliza la fuente predeterminada de tu dispositivo.",
     css: "system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif",
   },
 ];
