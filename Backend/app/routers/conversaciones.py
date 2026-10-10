@@ -27,7 +27,6 @@ router = APIRouter(prefix="/conversaciones", tags=["conversaciones"])
 # Cuántas conversaciones muestra la barra lateral.
 LIMITE_CONVERSACIONES = 50
 
-
 @router.get("", response_model=list[ConversacionResumen])
 def listar_conversaciones(
     usuario: Usuario = Depends(obtener_usuario_actual),
@@ -42,14 +41,12 @@ def listar_conversaciones(
         .all()
     )
 
-
 def _a_guardada(consulta: Consulta) -> ConsultaGuardada:
     return ConsultaGuardada(
         id=consulta.id,
         texto=consulta.texto,
         estado=consulta.estado,
         respuesta=RespuestaConsulta(**consulta.respuesta) if consulta.respuesta else None,
-        # Las opciones solo importan mientras la consulta sigue pendiente.
         candidatos=[EspecieCandidata(**c) for c in (consulta.candidatos or [])]
         if consulta.estado == ESTADO_AMBIGUA
         else [],
@@ -64,11 +61,7 @@ def ver_conversacion(
     usuario: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    """Una conversación completa, con sus consultas en orden cronológico.
-
-    Las respuestas vienen guardadas, así que reabrirla no reprocesa nada ni
-    consume consultas (RR_09 criterio 2).
-    """
+    """Una conversación completa, con sus consultas en orden cronológico. """
     conversacion = (
         db.query(Conversacion)
         .filter(Conversacion.id == conversacion_id, Conversacion.usuario_id == usuario.id)

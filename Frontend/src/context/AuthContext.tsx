@@ -138,9 +138,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return api.obtenerSesion();
   }, []);
 
-  // Con "docker compose up" el frontend queda listo antes que el backend, que
-  // espera a la base de datos y aplica las migraciones. Por eso, si el primer
-  // intento falla, se reintenta solo en vez de dejar la aplicación sin sesión.
   useEffect(() => {
     let vigente = true;
     (async () => {

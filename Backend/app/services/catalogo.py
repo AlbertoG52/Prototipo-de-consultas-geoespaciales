@@ -1,9 +1,6 @@
-"""Catálogo de especies — FUENTE DE DATOS PROVISIONAL.
+"""Catálogo de especies.
 
-Los módulos 2 y 3 (interpretación de consultas y recuperación de información)
-no son parte de este sprint, y el catálogo real llegará desde la API de
-CR-BioLM, cuyo contrato todavía no está congelado. Sin embargo, RR_17
-(selección de especie ante múltiples coincidencias) y RR_18 (alternancia entre
+RR_17 (selección de especie ante múltiples coincidencias) y RR_18 (alternancia entre
 mapa y lista de registros) necesitan datos para que su LÓGICA exista y se
 pueda probar.
 
@@ -28,9 +25,7 @@ from __future__ import annotations
 from ..sanitizacion import normalizar
 from ..schemas.consulta import EspecieCandidata, FichaEspecie, RegistroPresencia, RespuestaConsulta
 
-# --- datos provisionales ----------------------------------------------------
-# 'alias' son los términos que hacen que una consulta apunte a esta especie.
-# Hay dos pares que comparten alias a propósito ("guaria", "cedro") para poder
+# datos provisionales
 # ejercitar el camino de coincidencia múltiple de RR_17.
 _CATALOGO: list[dict] = [
     {

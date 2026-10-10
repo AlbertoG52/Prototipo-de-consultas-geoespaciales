@@ -32,10 +32,8 @@ MENSAJE_SIN_COINCIDENCIAS = (
 )
 MENSAJE_AMBIGUA = "La consulta coincide con más de una especie. Selecciona cuál te interesa."
 
-
 def _ahora() -> datetime:
     return datetime.now(timezone.utc)
-
 
 def _rechazar_por_limite(identidad: Identidad, pendiente: bool = False) -> None:
     if identidad.es_anonimo:
@@ -87,7 +85,6 @@ def _conversacion_de(
             status_code=status.HTTP_404_NOT_FOUND, detail="La conversación no existe."
         )
     return conversacion
-
 
 @router.post("", response_model=ConsultaOut)
 def enviar_consulta(

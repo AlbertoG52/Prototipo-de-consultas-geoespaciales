@@ -30,7 +30,7 @@ services:
     environment:
       # Reemplaza la URL que apunta al contenedor "db". Si falta la variable,
       # Compose se detiene con este mensaje en lugar de arrancar a medias.
-      DATABASE_URL: ${DATABASE_URL_AWS:?Falta DATABASE_URL_AWS en el .env. Ver certs/README.md}
+      DATABASE_URL: ${DATABASE_URL_AWS:?Falta DATABASE_URL_AWS}
     # Docker Desktop ya resuelve host.docker.internal; esta línea lo garantiza
     # también en Linux.
     extra_hosts:
