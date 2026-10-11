@@ -5,7 +5,8 @@ usuarios y los borra al terminar (el borrado arrastra sus conversaciones y
 consultas), así que no dejan datos. Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -13,7 +14,7 @@ from apoyo import api, crear_cuenta_verificada
 from apoyo import sql as _sql
 
 PASSWORD = "Clave#2024"
-AMBIGUA = "guaria"                 # Guaria morada y Guaria naranja
+AMBIGUA = "guaria"  # Guaria morada y Guaria naranja
 RESUELTA = "pejibaye"
 SIN_COINCIDENCIAS = "planta inventada xyz"
 MORADA, NARANJA, PEJIBAYE = "guarianthe-skinneri", "guarianthe-aurantiaca", "bactris-gasipaes"
@@ -42,6 +43,7 @@ def _restantes(cabeceras) -> int:
 
 # --- se guardan los tres estados, pero solo cobra la resuelta ---------------
 
+
 def test_los_tres_estados_se_guardan_en_la_misma_conversacion(crear_cuenta):
     yo = crear_cuenta()
     inicio = _restantes(yo)
@@ -52,13 +54,20 @@ def test_los_tres_estados_se_guardan_en_la_misma_conversacion(crear_cuenta):
     resuelta = _consultar(yo, RESUELTA, conversacion_id=conversacion).json()
 
     assert [sin["estado"], ambigua["estado"], resuelta["estado"]] == [
-        "sin_coincidencias", "ambigua", "resuelta"]
+        "sin_coincidencias",
+        "ambigua",
+        "resuelta",
+    ]
     assert ambigua["conversacion_id"] == resuelta["conversacion_id"] == conversacion
     assert _restantes(yo) == inicio - 1  # solo la resuelta descontó
 
     detalle = api.get(f"/conversaciones/{conversacion}", headers=yo).json()
     assert detalle["titulo"] == SIN_COINCIDENCIAS  # el título es la primera consulta
-    assert [c["estado"] for c in detalle["consultas"]] == ["sin_coincidencias", "ambigua", "resuelta"]
+    assert [c["estado"] for c in detalle["consultas"]] == [
+        "sin_coincidencias",
+        "ambigua",
+        "resuelta",
+    ]
     pendiente = detalle["consultas"][1]
     assert {c["id"] for c in pendiente["candidatos"]} == {MORADA, NARANJA}
     assert detalle["consultas"][2]["respuesta"]["especie"]["id"] == PEJIBAYE
@@ -74,6 +83,7 @@ def test_sin_conversacion_se_crea_una_nueva(crear_cuenta):
 
 
 # --- RR_17: la ambigua queda pendiente y se retoma sin cobrar doble ---------
+
 
 def test_resolver_una_ambigua_pendiente_cobra_una_sola_vez(crear_cuenta):
     yo = crear_cuenta()
@@ -127,18 +137,24 @@ def test_el_limite_cuenta_por_la_fecha_en_que_se_resolvio(crear_cuenta):
     yo = crear_cuenta()
     inicio = _restantes(yo)
     conversacion = _consultar(yo, SIN_COINCIDENCIAS).json()["conversacion_id"]
-    ayer = datetime.now(timezone.utc) - timedelta(days=1)
+    ayer = datetime.now(UTC) - timedelta(days=1)
     # Resuelta ayer: no cuenta hoy. Pendiente de ayer: tampoco.
     _sql(
-        "INSERT INTO consultas (usuario_id, conversacion_id, texto, estado, realizada_en, resuelta_en) "
-        "SELECT usuario_id, id, 'ayer', 'resuelta', :ayer, :ayer FROM conversaciones WHERE id = :conv",
-        ayer=ayer, conv=conversacion,
+        "INSERT INTO consultas "
+        "(usuario_id, conversacion_id, texto, estado, realizada_en, resuelta_en) "
+        "SELECT usuario_id, id, 'ayer', 'resuelta', :ayer, :ayer "
+        "FROM conversaciones WHERE id = :conv",
+        ayer=ayer,
+        conv=conversacion,
     )
     pendiente_de_ayer = _sql(
-        "INSERT INTO consultas (usuario_id, conversacion_id, texto, estado, candidatos, realizada_en) "
+        "INSERT INTO consultas "
+        "(usuario_id, conversacion_id, texto, estado, candidatos, realizada_en) "
         "SELECT usuario_id, id, :t, 'ambigua', CAST(:cand AS jsonb), :ayer "
         "FROM conversaciones WHERE id = :conv RETURNING id",
-        t=AMBIGUA, ayer=ayer, conv=conversacion,
+        t=AMBIGUA,
+        ayer=ayer,
+        conv=conversacion,
         cand=f'[{{"id": "{MORADA}", "nombre_cientifico": "x", "familia": "y"}}]',
     ).scalar()
     assert _restantes(yo) == inicio
@@ -150,6 +166,7 @@ def test_el_limite_cuenta_por_la_fecha_en_que_se_resolvio(crear_cuenta):
 
 
 # --- acceso ------------------------------------------------------------------
+
 
 def test_nadie_ve_ni_escribe_en_conversaciones_ajenas(crear_cuenta):
     yo, otra = crear_cuenta(), crear_cuenta()

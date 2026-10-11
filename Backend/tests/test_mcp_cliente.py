@@ -5,6 +5,7 @@ mismo proceso, con herramientas que imitan las respuestas de CR-BioLM (el sobre
 de procedencia) y sus fallos. Se ejecutan con:
     docker compose exec backend python -m pytest tests/test_mcp_cliente.py -q
 """
+
 import socket
 import threading
 import time

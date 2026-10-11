@@ -4,20 +4,25 @@ No necesitan base de datos: el catálogo es provisional y vive en memoria, y la
 coincidencia de RR_16 se prueba sobre listas de especies. Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
+
 import pytest
 from fastapi import HTTPException
 
-from apoyo import SESION_INVALIDA, VISITANTE
 from app.routers import especies
-from app.services import catalogo
+from app.services.catalogo import obtener_catalogo
+
+from apoyo import SESION_INVALIDA, VISITANTE
+
+catalogo = obtener_catalogo()
 
 
 def _ficha(especie: str):
     # Un visitante con sesión anónima válida puede ver la ficha (RR_00_11).
-    return especies.ficha_de_especie(especie, VISITANTE)
+    return especies.ficha_de_especie(especie, VISITANTE, catalogo)
 
 
 # --- criterio 1: la ficha trae nombre, familia, hábitat y elevación --------
+
 
 def test_la_ficha_trae_los_datos_de_la_especie():
     ficha = _ficha("cedrela-odorata")
@@ -29,6 +34,7 @@ def test_la_ficha_trae_los_datos_de_la_especie():
 
 
 # --- criterio 2: corresponde a la especie consultada ----------------------
+
 
 @pytest.mark.parametrize(
     "especie_id",
@@ -77,11 +83,12 @@ def test_especie_inexistente_responde_404():
 def test_sin_sesion_valida_responde_401():
     # RR_00_10: la validación se hace en el servidor.
     with pytest.raises(HTTPException) as error:
-        especies.ficha_de_especie("cedrela-odorata", SESION_INVALIDA)
+        especies.ficha_de_especie("cedrela-odorata", SESION_INVALIDA, catalogo)
     assert error.value.status_code == 401
 
 
 # --- RR_16: sugerencias de nombres -----------------------------------------
+
 
 def _guardadas():
     """Especies como quedan en consultas.respuesta, con una repetida."""
@@ -109,7 +116,12 @@ def test_sin_coincidencias_no_sugiere_nada():
 
 def test_respeta_el_limite_de_sugerencias():
     muchas = [
-        {"id": f"sp-{i}", "nombre_comun": f"Planta {i}", "nombre_cientifico": f"Genus sp{i}", "familia": "X"}
+        {
+            "id": f"sp-{i}",
+            "nombre_comun": f"Planta {i}",
+            "nombre_cientifico": f"Genus sp{i}",
+            "familia": "X",
+        }
         for i in range(10)
     ]
     assert len(especies.coincidencias(muchas, "planta")) == especies.LIMITE_SUGERENCIAS

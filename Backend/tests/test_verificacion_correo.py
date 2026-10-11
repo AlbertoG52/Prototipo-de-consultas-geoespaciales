@@ -6,13 +6,15 @@ Cada prueba borra las cuentas que crea (el borrado arrastra sus tokens). Se
 ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
+
 import re
 
 import pytest
 
+from app.routers import auth
+
 from apoyo import api
 from apoyo import sql as _sql
-from app.routers import auth
 
 PASSWORD = "Clave#2024"
 
@@ -24,7 +26,9 @@ def correo(correos_de_prueba):
 
 
 def _registrar(correo):
-    return api.post("/auth/registro", json={"nombre": "Ana", "correo": correo, "password": PASSWORD})
+    return api.post(
+        "/auth/registro", json={"nombre": "Ana", "correo": correo, "password": PASSWORD}
+    )
 
 
 def _login(correo):
@@ -87,10 +91,15 @@ def test_enlace_vencido_se_rechaza(buzon, correo):
 def test_en_la_bd_no_se_guarda_el_token_del_enlace(buzon, correo):
     _registrar(correo)
     token = _token_del_enlace(buzon[0][1])
-    guardados = _sql(
-        "SELECT token FROM tokens WHERE usuario_id = (SELECT id FROM usuarios WHERE correo = :c)",
-        c=correo,
-    ).scalars().all()
+    guardados = (
+        _sql(
+            "SELECT token FROM tokens "
+            "WHERE usuario_id = (SELECT id FROM usuarios WHERE correo = :c)",
+            c=correo,
+        )
+        .scalars()
+        .all()
+    )
     assert guardados and token not in guardados
 
 
@@ -121,7 +130,9 @@ def test_reenviar_espera_entre_envios(buzon, correo):
 def test_reenviar_no_revela_si_el_correo_existe(buzon, correo):
     _registrar(correo)
     existe = api.post("/auth/reenviar-verificacion", json={"correo": correo}).json()
-    no_existe = api.post("/auth/reenviar-verificacion", json={"correo": "nadie-xyz@test.com"}).json()
+    no_existe = api.post(
+        "/auth/reenviar-verificacion", json={"correo": "nadie-xyz@test.com"}
+    ).json()
     assert existe == no_existe
 
 

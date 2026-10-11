@@ -4,12 +4,12 @@ Aquí viven RR_00_02 (almacenamiento seguro de contraseñas), la mitad de
 RR_00_11 (el visitante sin cuenta también recibe una identidad, anónima) y
 RR_00_10 (control de acceso por rol).
 """
+
 from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import timedelta
 
 from fastapi import Depends, HTTPException, Request, status
 from jose import JWTError, jwt
@@ -24,19 +24,13 @@ from .config import (
     SECRET_KEY,
 )
 from .db import get_db
+from .dominio import TipoSesion
 from .models import Usuario
+from .tiempo import ahora
 
 # RR_00_02 criterio 3: bcrypt es el estándar reconocido para esto.
 # Nunca se guarda la contraseña en claro; solo el hash que produce este contexto.
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-TIPO_USUARIO = "usuario"
-TIPO_ANONIMO = "anonimo"
-
-# Nombres de la tabla 'roles' (sembrados en 001_crear_tabla_roles.sql).
-ROL_USUARIO = "usuario"
-ROL_MODERADOR = "moderador"
-ROL_SUPERMODERADOR = "supermoderador"
 
 
 def hash_password(password: str) -> str:
@@ -49,7 +43,7 @@ def verificar_password(password: str, hash_guardado: str) -> bool:
 
 def _crear_token(datos: dict, minutos: int) -> str:
     contenido = datos.copy()
-    contenido["exp"] = datetime.now(timezone.utc) + timedelta(minutes=minutos)
+    contenido["exp"] = ahora() + timedelta(minutes=minutos)
     return jwt.encode(contenido, SECRET_KEY, algorithm=ALGORITMO_JWT)
 
 
@@ -63,7 +57,7 @@ def minutos_inactividad_de(usuario: Usuario) -> int:
     return MINUTOS_INACTIVIDAD_SESION if propio is None else propio
 
 
-def crear_token_usuario(usuario: Usuario, sesion_id: Optional[str] = None) -> tuple[str, str]:
+def crear_token_usuario(usuario: Usuario, sesion_id: str | None = None) -> tuple[str, str]:
     """Token de un usuario registrado. Devuelve (token, sesion_id).
 
     El sesion_id se genera en cada inicio de sesión y viaja dentro del token.
@@ -80,7 +74,7 @@ def crear_token_usuario(usuario: Usuario, sesion_id: Optional[str] = None) -> tu
     token = _crear_token(
         {
             "sub": str(usuario.id),
-            "tipo": TIPO_USUARIO,
+            "tipo": TipoSesion.USUARIO,
             # Solo informativo. La autorización (RR_00_10) lee el rol desde la
             # BD en cada petición: un cambio de rol aplica de inmediato y un
             # token con este campo alterado no concede nada.
@@ -99,28 +93,30 @@ def crear_token_anonimo() -> str:
     Solo sirve para llevarle el contador diario de consultas.
     """
     anon_id = uuid.uuid4().hex
-    return _crear_token({"sub": anon_id, "tipo": TIPO_ANONIMO, "sid": anon_id},
-                        MINUTOS_EXPIRACION_TOKEN_ANONIMO)
+    return _crear_token(
+        {"sub": anon_id, "tipo": TipoSesion.ANONIMO, "sid": anon_id},
+        MINUTOS_EXPIRACION_TOKEN_ANONIMO,
+    )
 
 
 @dataclass
 class Identidad:
     """Quién está haciendo la petición: un usuario registrado o un visitante."""
 
-    tipo: str
+    tipo: TipoSesion
     sesion_id: str
-    usuario: Optional[Usuario] = None
-    anon_id: Optional[str] = None
+    usuario: Usuario | None = None
+    anon_id: str | None = None
     # RR_00_04: llegó un token pero ya venció o no es válido. Permite avisar
     # "tu sesión expiró" en vez de tratar a la persona como visitante sin más.
     token_invalido: bool = False
 
     @property
     def es_anonimo(self) -> bool:
-        return self.tipo == TIPO_ANONIMO
+        return self.tipo == TipoSesion.ANONIMO
 
 
-def _leer_token(request: Request) -> tuple[Optional[dict], bool]:
+def _leer_token(request: Request) -> tuple[dict | None, bool]:
     """Devuelve (datos del token, venía un token). Sin token: (None, False)."""
     cabecera = request.headers.get("Authorization", "")
     if not cabecera.startswith("Bearer "):
@@ -146,17 +142,17 @@ def obtener_identidad(
     datos, venia_token = _leer_token(request)
     if not datos:
         return Identidad(
-            tipo=TIPO_ANONIMO, sesion_id="", anon_id=None, token_invalido=venia_token
+            tipo=TipoSesion.ANONIMO, sesion_id="", anon_id=None, token_invalido=venia_token
         )
 
-    if datos.get("tipo") == TIPO_ANONIMO:
+    if datos.get("tipo") == TipoSesion.ANONIMO:
         anon_id = datos.get("sub")
-        return Identidad(tipo=TIPO_ANONIMO, sesion_id=anon_id or "", anon_id=anon_id)
+        return Identidad(tipo=TipoSesion.ANONIMO, sesion_id=anon_id or "", anon_id=anon_id)
 
     usuario = db.query(Usuario).filter(Usuario.id == int(datos["sub"])).first()
     if not usuario:
         # El token es válido pero la cuenta ya no existe.
-        return Identidad(tipo=TIPO_ANONIMO, sesion_id="", anon_id=None, token_invalido=True)
+        return Identidad(tipo=TipoSesion.ANONIMO, sesion_id="", anon_id=None, token_invalido=True)
 
     if not usuario.activo:
         raise HTTPException(
@@ -165,7 +161,7 @@ def obtener_identidad(
         )
 
     return Identidad(
-        tipo=TIPO_USUARIO,
+        tipo=TipoSesion.USUARIO,
         sesion_id=datos.get("sid", ""),
         usuario=usuario,
     )
@@ -203,7 +199,7 @@ def obtener_usuario_actual(
 def requiere_rol(*roles_permitidos: str):
     """Dependencia que deja pasar solo a los roles indicados — RR_00_10.
 
-    Uso: `Depends(requiere_rol(ROL_SUPERMODERADOR))`, en un endpoint o en
+    Uso: `Depends(requiere_rol(NombreRol.SUPERMODERADOR))`, en un endpoint o en
     las `dependencies` de un router completo.
 
     - Sin cuenta: 401 (lo lanza obtener_usuario_actual); iniciar sesión puede

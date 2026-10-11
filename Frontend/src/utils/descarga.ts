@@ -11,6 +11,7 @@
  */
 import { NOMBRE_APP, PREFIJO_ARCHIVOS } from "../config/marca";
 import type { FichaEspecie, RespuestaConsulta } from "../types";
+import { CELDA_VACIA, formatearCoordenadas, IDIOMA_FECHAS, SIN_DATO } from "../config/textos";
 
 /** Fecha local en formato AAAA-MM-DD, para los nombres de archivo. */
 function fechaCorta(fecha: Date): string {
@@ -55,11 +56,11 @@ export function respuestaATexto(
   const { especie } = respuesta;
   const lineas: string[] = [
     `${NOMBRE_APP} — Resultado de consulta`,
-    `Descargado: ${fecha.toLocaleString("es-CR")}`,
+    `Descargado: ${fecha.toLocaleString(IDIOMA_FECHAS)}`,
     "",
     `Consulta: ${consulta}`,
     "",
-    `Especie: ${especie.nombre_comun ?? "—"} (${especie.nombre_cientifico})`,
+    `Especie: ${especie.nombre_comun ?? CELDA_VACIA} (${especie.nombre_cientifico})`,
     `Familia: ${especie.familia}`,
   ];
   if (respuesta.elevacion) lineas.push(`Elevación: ${respuesta.elevacion}`);
@@ -69,9 +70,9 @@ export function respuestaATexto(
   if (respuesta.registros.length > 0) {
     lineas.push(`Registros de presencia (${respuesta.total_registros}):`);
     for (const r of respuesta.registros) {
-      const elevacion = r.elevacion_m !== null ? `${r.elevacion_m} m` : "—";
+      const elevacion = r.elevacion_m !== null ? `${r.elevacion_m} m` : CELDA_VACIA;
       lineas.push(
-        `- ${r.localidad} | ${r.fecha} | ${r.latitud.toFixed(4)}, ${r.longitud.toFixed(4)} | ${elevacion} | ${r.fuente}`,
+        `- ${r.localidad} | ${r.fecha} | ${formatearCoordenadas(r)} | ${elevacion} | ${r.fuente}`,
       );
     }
     lineas.push("");
@@ -124,10 +125,10 @@ export function descargarSvg(svg: SVGSVGElement, nombre: string, ancho = 680, al
 
 /** RR_20 — la ficha completa de la especie como texto plano ("Exportar ficha"). */
 export function fichaATexto(ficha: FichaEspecie, fecha = new Date()): string {
-  const dato = (v: string | null) => v ?? "Sin dato";
+  const dato = (v: string | null) => v ?? SIN_DATO;
   const lineas: string[] = [
     `${NOMBRE_APP} — Ficha de especie`,
-    `Descargado: ${fecha.toLocaleString("es-CR")}`,
+    `Descargado: ${fecha.toLocaleString(IDIOMA_FECHAS)}`,
     "",
     `Nombre común: ${dato(ficha.nombre_comun)}`,
     `Nombre científico: ${ficha.nombre_cientifico}`,
@@ -141,7 +142,7 @@ export function fichaATexto(ficha: FichaEspecie, fecha = new Date()): string {
   for (const r of ficha.registros) {
     const elev = r.elevacion_m !== null ? `${r.elevacion_m} msnm` : "sin elevación";
     lineas.push(
-      `- ${r.localidad} | ${r.fecha} | ${r.latitud.toFixed(4)}, ${r.longitud.toFixed(4)} | ${elev} | ${r.fuente}`,
+      `- ${r.localidad} | ${r.fecha} | ${formatearCoordenadas(r)} | ${elev} | ${r.fuente}`,
     );
   }
   lineas.push("", `Fuentes: ${ficha.fuentes.join(", ")}`);

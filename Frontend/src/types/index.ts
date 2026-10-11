@@ -1,138 +1,67 @@
-/* Tipos compartidos con la API */
+/*
+ * Tipos compartidos con la API.
+ *
+ * NO se escriben a mano: salen del contrato OpenAPI del backend, generado a
+ * partir de los esquemas de Pydantic (Backend/app/schemas/). Si cambia un
+ * esquema, se regeneran con `npm run tipos` (con el backend corriendo) y
+ * TypeScript señala cada pantalla que haya que ajustar. Ver README.
+ *
+ * Este archivo solo les da a los tipos generados (src/types/api.ts) los
+ * nombres que usa el frontend.
+ */
+import type { components } from "./api";
+
+type Esquema<Nombre extends keyof components["schemas"]> = components["schemas"][Nombre];
 
 // ─── Sesión y usuarios ───
 
 /** Una sesión es de un usuario registrado o de un visitante (RR_00_11). */
-export type TipoSesion = "usuario" | "anonimo";
+export type TipoSesion = Esquema<"TipoSesion">;
 
-export interface Usuario {
-  id: number;
-  nombre: string | null;
-  correo: string;
-  rol: "usuario" | "moderador" | "supermoderador";
-  estado: "activo" | "inactivo";
-  correo_verificado: boolean;
-}
+export type Usuario = Esquema<"UsuarioOut">;
 
-export interface Sesion {
-  tipo: TipoSesion;
-  usuario: Usuario | null;
-  limite_consultas: number;
-  consultas_realizadas: number;
-  consultas_restantes: number;
-  /** false para un visitante: sus consultas no se guardan (RR_00_11). */
-  guarda_historial: boolean;
-  /** RR_00_04: minutos sin actividad que cierran la sesión; 0 = nunca; null = visitante. */
-  minutos_inactividad: number | null;
-}
+/**
+ * Estado de la sesión actual. `guarda_historial` es false para un visitante
+ * (RR_00_11); `minutos_inactividad` (RR_00_04) es 0 = nunca y null = visitante.
+ */
+export type Sesion = Esquema<"SesionOut">;
 
-export interface TokenOut {
-  access_token: string;
-  token_type: string;
-  tipo: TipoSesion;
-}
+export type TokenOut = Esquema<"TokenOut">;
 
-export interface RegistroRequest {
-  nombre: string;
-  correo: string;
-  password: string;
-}
+export type RegistroRequest = Esquema<"RegistroRequest">;
 
-// Consultas 
+// ─── Consultas ───
 
-export interface EspecieCandidata {
-  id: string;
-  nombre_comun: string | null;
-  nombre_cientifico: string;
-  familia: string;
-}
+export type EspecieCandidata = Esquema<"EspecieCandidata">;
 
-export interface RegistroPresencia {
-  localidad: string;
-  fecha: string;
-  latitud: number;
-  longitud: number;
-  elevacion_m: number | null;
-  fuente: string;
-}
+export type RegistroPresencia = Esquema<"RegistroPresencia">;
 
-export interface RespuestaConsulta {
-  especie: EspecieCandidata;
-  texto: string;
-  elevacion: string | null;
-  registros: RegistroPresencia[];
-  total_registros: number;
-  fuentes: string[];
-}
+export type RespuestaConsulta = Esquema<"RespuestaConsulta">;
 
 /** RR_20 — ficha completa de una especie. Lo que no se conoce llega como null. */
-export interface FichaEspecie {
-  id: string;
-  nombre_comun: string | null;
-  nombre_cientifico: string;
-  familia: string;
-  habitat: string | null;
-  elevacion: string | null;
-  descripcion: string | null;
-  registros: RegistroPresencia[];
-  total_registros: number;
-  fuentes: string[];
-}
+export type FichaEspecie = Esquema<"FichaEspecie">;
 
 /**
  * - "resuelta"          → viene `respuesta`
  * - "ambigua"           → viene `candidatos`; hay que preguntarle al usuario (RR_17)
  * - "sin_coincidencias" → no se reconoció ninguna especie
  */
-export type EstadoConsulta = "resuelta" | "ambigua" | "sin_coincidencias";
+export type EstadoConsulta = Esquema<"EstadoConsulta">;
 
-export interface ConsultaOut {
-  id: number | null;
-  /** RR_09: conversación donde quedó guardada; null para un visitante. */
-  conversacion_id: number | null;
-  estado: EstadoConsulta;
-  texto: string;
-  respuesta: RespuestaConsulta | null;
-  candidatos: EspecieCandidata[];
-  mensaje: string | null;
-  realizada_en: string | null;
-  consultas_restantes: number;
-}
+/** `conversacion_id` (RR_09) es null para un visitante. */
+export type ConsultaOut = Esquema<"ConsultaOut">;
 
-// Historial por conversaciones (RR_09)
+// ─── Historial por conversaciones (RR_09) ───
 
 /** Una consulta guardada dentro de una conversación, en cualquiera de sus estados. */
-export interface ConsultaGuardada {
-  id: number;
-  texto: string;
-  estado: EstadoConsulta;
-  respuesta: RespuestaConsulta | null;
-  /** Solo en "ambigua": las opciones, que se pueden elegir al reabrirla. */
-  candidatos: EspecieCandidata[];
-  mensaje: string | null;
-  realizada_en: string;
-}
+export type ConsultaGuardada = Esquema<"ConsultaGuardada">;
 
 /** Una entrada de la barra lateral. */
-export interface ConversacionResumen {
-  id: number;
-  titulo: string;
-  creada_en: string;
-  actualizada_en: string;
-}
+export type ConversacionResumen = Esquema<"ConversacionResumen">;
 
-export interface ConversacionDetalle extends ConversacionResumen {
-  consultas: ConsultaGuardada[];
-}
+export type ConversacionDetalle = Esquema<"ConversacionDetalle">;
 
-// Administración (RR_00_09)
+// ─── Administración (RR_00_09) ───
 
-export interface RegistroAuditoria {
-  id: number;
-  accion: string;
-  detalle: string | null;
-  fecha: string;
-  afectado: string | null;
-  /** null = el cambio se hizo desde el servidor, no desde la aplicación. */
-  actor: string | null;
-}
+/** `actor` es null cuando el cambio se hizo desde el servidor, no desde la aplicación. */
+export type RegistroAuditoria = Esquema<"RegistroAuditoria">;

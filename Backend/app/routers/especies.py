@@ -5,15 +5,17 @@ o un visitante con sesión anónima (RR_00_11). Igual que /consultas, exigen una
 sesión válida, y la validación se hace en el servidor (RR_00_10). Ninguna
 consume una consulta del límite diario (no pasan por el agente).
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..dominio import EstadoConsulta
 from ..sanitizacion import normalizar, sanitizar_texto
-from ..schemas.consulta import ESTADO_RESUELTA, EspecieCandidata, FichaEspecie
+from ..schemas.consulta import EspecieCandidata, FichaEspecie
 from ..security import Identidad, exigir_sesion, obtener_identidad
-from ..services import catalogo
+from ..services.catalogo import FuenteCatalogo, obtener_catalogo
 
 router = APIRouter(prefix="/especies", tags=["especies"])
 
@@ -31,7 +33,9 @@ def coincidencias(especies: list[dict], fragmento: str) -> list[EspecieCandidata
             p.startswith(buscado) for p in normalizar(nombres).split()
         ):
             vistas[e["id"]] = EspecieCandidata(**e)
-    ordenadas = sorted(vistas.values(), key=lambda c: (c.nombre_comun or c.nombre_cientifico).lower())
+    ordenadas = sorted(
+        vistas.values(), key=lambda c: (c.nombre_comun or c.nombre_cientifico).lower()
+    )
     return ordenadas[:LIMITE_SUGERENCIAS]
 
 
@@ -58,13 +62,17 @@ def sugerir_especies(
             "SELECT DISTINCT respuesta->'especie' FROM consultas "
             "WHERE estado = :estado AND respuesta->'especie' IS NOT NULL"
         ),
-        {"estado": ESTADO_RESUELTA},
+        {"estado": EstadoConsulta.RESUELTA},
     ).scalars()
     return coincidencias(list(especies), fragmento)
 
 
 @router.get("/{especie}", response_model=FichaEspecie)
-def ficha_de_especie(especie: str, identidad: Identidad = Depends(obtener_identidad)):
+def ficha_de_especie(
+    especie: str,
+    identidad: Identidad = Depends(obtener_identidad),
+    catalogo: FuenteCatalogo = Depends(obtener_catalogo),
+) -> FichaEspecie:
     """RR_20 criterio 2 — la ficha corresponde a la especie pedida.
 
     'especie' es el id del catálogo (o el nombre científico). Si no existe se

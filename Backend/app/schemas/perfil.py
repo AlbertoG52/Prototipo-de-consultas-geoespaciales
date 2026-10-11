@@ -3,6 +3,7 @@
 El nombre y la contraseña usan las mismas reglas que el registro
 (schemas/usuario.py); para la contraseña es lo que pide el criterio 3 de RR_00_03.
 """
+
 from pydantic import BaseModel, Field, field_validator
 
 from ..config import OPCIONES_INACTIVIDAD

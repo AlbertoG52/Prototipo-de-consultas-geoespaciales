@@ -10,6 +10,7 @@ import type { RespuestaConsulta } from "../types";
 import { descargarArchivo, descargarSvg, nombreBase, respuestaATexto } from "../utils/descarga";
 import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/elevacion";
 import { DetallePunto, FiltroElevacion, MapaDistribucion } from "./Mapa";
+import { CELDA_VACIA, COLUMNAS_TABLA_REGISTROS, formatearCoordenadas } from "../config/textos";
 
 export function TarjetaRespuesta({
   consulta,
@@ -79,7 +80,7 @@ export function TarjetaRespuesta({
           >
             {respuesta.especie.familia}
           </div>
-          <div className="text-2xl font-bold" style={{ color: "var(--color-sobre-marca)", fontFamily: "'Lora', serif" }}>
+          <div className="text-2xl font-bold" style={{ color: "var(--color-sobre-marca)", fontFamily: "var(--font-serif)" }}>
             {respuesta.especie.nombre_comun ?? respuesta.especie.nombre_cientifico}
           </div>
           <div className="text-sm italic mt-0.5" style={{ color: "var(--color-sobre-marca-tenue)" }}>
@@ -194,7 +195,7 @@ export function TarjetaRespuesta({
                   <table className="w-full text-xs">
                     <thead style={{ background: "var(--color-superficie-suave)" }}>
                       <tr>
-                        {["Localidad", "Fecha", "Coordenadas", "Elevación"].map((h) => (
+                        {COLUMNAS_TABLA_REGISTROS.map((h) => (
                           <th key={h} className="px-3 py-2 text-left font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>
                             {h}
                           </th>
@@ -206,11 +207,11 @@ export function TarjetaRespuesta({
                         <tr key={i} style={{ borderTop: "1px solid var(--color-borde)" }}>
                           <td className="px-3 py-2" style={{ color: "var(--color-texto-cuerpo)" }}>{r.localidad}</td>
                           <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>{r.fecha}</td>
-                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)", fontFamily: "monospace" }}>
-                            {r.latitud.toFixed(4)}, {r.longitud.toFixed(4)}
+                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)", fontFamily: "var(--font-mono)" }}>
+                            {formatearCoordenadas(r)}
                           </td>
                           <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>
-                            {r.elevacion_m !== null ? `${r.elevacion_m} m` : "—"}
+                            {r.elevacion_m !== null ? `${r.elevacion_m} m` : CELDA_VACIA}
                           </td>
                         </tr>
                       ))}

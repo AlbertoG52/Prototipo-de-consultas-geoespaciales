@@ -1,31 +1,56 @@
-"""Catálogo de especies.
+"""Catálogo de especies: de dónde salen las especies y sus respuestas.
 
-RR_17 (selección de especie ante múltiples coincidencias) y RR_18 (alternancia entre
-mapa y lista de registros) necesitan datos para que su LÓGICA exista y se
-pueda probar.
+RR_17 (selección de especie ante múltiples coincidencias) y RR_18 (alternancia
+entre mapa y lista de registros) necesitan datos para que su LÓGICA exista y
+se pueda probar.
 
-La solución es esta: el resto del sistema —routers, esquemas, frontend— está
-escrito contra las funciones de abajo y es código definitivo. Lo único
-provisional son los datos y la forma de emparejarlos. Cuando llegue la API de
-CR-BioLM se reescribe SOLO este archivo, respetando las dos funciones
-públicas, y nada más del proyecto cambia.
+El resto del sistema —servicios, routers, esquemas, frontend— depende solo de
+la interfaz `FuenteCatalogo` de abajo, nunca de una implementación concreta.
+Los routers la reciben con `Depends(obtener_catalogo)`. Hoy la implementa
+`CatalogoDemo`, con datos en memoria. Cuando se conecte CR-BioLM por MCP
+(services/mcp_cliente.py) se escribe otra clase con los mismos métodos y se
+cambia solo `obtener_catalogo`; nada más del proyecto cambia. En las pruebas
+se puede reemplazar con `app.dependency_overrides[obtener_catalogo]`.
 
-Las funciones que hay que mantener:
-
-    buscar_especies(texto)            -> list[EspecieCandidata]
-    construir_respuesta(especie, texto) -> RespuestaConsulta
-    obtener_ficha(especie)            -> FichaEspecie   (RR_20)
-
-Los datos de abajo son ilustrativos y sirven para probar los tres caminos de
-una consulta: coincidencia única, coincidencia múltiple y sin coincidencias.
-No deben citarse como información científica.
+Los datos de `CatalogoDemo` son ilustrativos y sirven para probar los tres
+caminos de una consulta: coincidencia única, coincidencia múltiple y sin
+coincidencias. No deben citarse como información científica.
 """
+
 from __future__ import annotations
+
+from typing import Protocol
 
 from ..sanitizacion import normalizar
 from ..schemas.consulta import EspecieCandidata, FichaEspecie, RegistroPresencia, RespuestaConsulta
 
-# datos provisionales
+
+class FuenteCatalogo(Protocol):
+    """Lo que el sistema necesita de cualquier catálogo de especies."""
+
+    def buscar_especies(self, texto: str) -> list[EspecieCandidata]:
+        """Especies que la consulta podría estar mencionando.
+
+        Cero resultados: no se reconoció ninguna especie. Más de uno: la
+        consulta es ambigua y hay que preguntarle al usuario (RR_17).
+        """
+        ...
+
+    def obtener_especie(self, especie_id: str) -> EspecieCandidata | None:
+        """La especie con ese id, o None si no está en el catálogo."""
+        ...
+
+    def construir_respuesta(self, especie_id: str, texto_consulta: str) -> RespuestaConsulta | None:
+        """Respuesta completa para una especie ya identificada (RR_18)."""
+        ...
+
+    def obtener_ficha(self, especie: str) -> FichaEspecie | None:
+        """Ficha completa de una especie (RR_20)."""
+        ...
+
+
+# --- implementación de demostración ------------------------------------------
+# Datos provisionales. Hay pares con el mismo nombre común (guaria, cedro) para
 # ejercitar el camino de coincidencia múltiple de RR_17.
 _CATALOGO: list[dict] = [
     {
@@ -188,81 +213,89 @@ def _registros(entrada: dict) -> list[RegistroPresencia]:
     ]
 
 
-def buscar_especies(texto: str) -> list[EspecieCandidata]:
-    """Devuelve las especies que la consulta podría estar mencionando.
+class CatalogoDemo:
+    """Catálogo en memoria con los datos de demostración de arriba."""
 
-    Cero resultados significa que no se reconoció ninguna especie; más de uno
-    significa que la consulta es ambigua y hay que preguntarle al usuario
-    (RR_17).
-    """
-    consulta = normalizar(texto)
-    encontradas: list[EspecieCandidata] = []
+    def buscar_especies(self, texto: str) -> list[EspecieCandidata]:
+        """Devuelve las especies que la consulta podría estar mencionando.
 
-    for entrada in _CATALOGO:
-        if any(normalizar(alias) in consulta for alias in entrada["alias"]):
-            encontradas.append(_a_candidata(entrada))
+        Cero resultados significa que no se reconoció ninguna especie; más de uno
+        significa que la consulta es ambigua y hay que preguntarle al usuario
+        (RR_17).
+        """
+        consulta = normalizar(texto)
+        encontradas: list[EspecieCandidata] = []
 
-    return encontradas
+        for entrada in _CATALOGO:
+            if any(normalizar(alias) in consulta for alias in entrada["alias"]):
+                encontradas.append(_a_candidata(entrada))
 
+        return encontradas
 
-def obtener_especie(especie_id: str) -> EspecieCandidata | None:
-    for entrada in _CATALOGO:
-        if entrada["id"] == especie_id:
-            return _a_candidata(entrada)
-    return None
-
-
-def construir_respuesta(especie_id: str, texto_consulta: str) -> RespuestaConsulta | None:
-    """Arma la respuesta completa para una especie ya identificada.
-
-    Incluye los registros de presencia, que es lo que alimenta las dos vistas
-    de RR_18: el mapa los dibuja y la lista los tabula.
-    """
-    entrada = next((e for e in _CATALOGO if e["id"] == especie_id), None)
-    if entrada is None:
+    def obtener_especie(self, especie_id: str) -> EspecieCandidata | None:
+        for entrada in _CATALOGO:
+            if entrada["id"] == especie_id:
+                return _a_candidata(entrada)
         return None
 
-    registros = _registros(entrada)
+    def construir_respuesta(self, especie_id: str, texto_consulta: str) -> RespuestaConsulta | None:
+        """Arma la respuesta completa para una especie ya identificada.
 
-    return RespuestaConsulta(
-        especie=_a_candidata(entrada),
-        texto=entrada["texto"],
-        elevacion=entrada["elevacion"],
-        registros=registros,
-        total_registros=len(registros),
-        fuentes=list(_FUENTES),
-    )
+        Incluye los registros de presencia, que es lo que alimenta las dos vistas
+        de RR_18: el mapa los dibuja y la lista los tabula.
+        """
+        entrada = next((e for e in _CATALOGO if e["id"] == especie_id), None)
+        if entrada is None:
+            return None
+
+        registros = _registros(entrada)
+
+        return RespuestaConsulta(
+            especie=_a_candidata(entrada),
+            texto=entrada["texto"],
+            elevacion=entrada["elevacion"],
+            registros=registros,
+            total_registros=len(registros),
+            fuentes=list(_FUENTES),
+        )
+
+    def obtener_ficha(self, especie: str) -> FichaEspecie | None:
+        """RR_20 — ficha completa de una especie del catálogo.
+
+        Acepta el id ('guarianthe-skinneri') o el nombre científico
+        ('Guarianthe skinneri'), para que los enlaces viejos a la ficha, que usaban
+        el nombre científico, sigan funcionando. None si no está en el catálogo.
+        """
+        buscado = normalizar(especie.strip())
+        entrada = next(
+            (
+                e
+                for e in _CATALOGO
+                if e["id"] == buscado or normalizar(e["nombre_cientifico"]) == buscado
+            ),
+            None,
+        )
+        if entrada is None:
+            return None
+
+        registros = _registros(entrada)
+        return FichaEspecie(
+            id=entrada["id"],
+            nombre_comun=entrada["nombre_comun"],
+            nombre_cientifico=entrada["nombre_cientifico"],
+            familia=entrada["familia"],
+            habitat=entrada.get("habitat"),
+            elevacion=entrada.get("elevacion"),
+            descripcion=entrada["texto"],
+            registros=registros,
+            total_registros=len(registros),
+            fuentes=list(_FUENTES),
+        )
 
 
-def obtener_ficha(especie: str) -> FichaEspecie | None:
-    """RR_20 — ficha completa de una especie del catálogo.
+_CATALOGO_DEMO = CatalogoDemo()
 
-    Acepta el id ('guarianthe-skinneri') o el nombre científico
-    ('Guarianthe skinneri'), para que los enlaces viejos a la ficha, que usaban
-    el nombre científico, sigan funcionando. None si no está en el catálogo.
-    """
-    buscado = normalizar(especie.strip())
-    entrada = next(
-        (
-            e
-            for e in _CATALOGO
-            if e["id"] == buscado or normalizar(e["nombre_cientifico"]) == buscado
-        ),
-        None,
-    )
-    if entrada is None:
-        return None
 
-    registros = _registros(entrada)
-    return FichaEspecie(
-        id=entrada["id"],
-        nombre_comun=entrada["nombre_comun"],
-        nombre_cientifico=entrada["nombre_cientifico"],
-        familia=entrada["familia"],
-        habitat=entrada.get("habitat"),
-        elevacion=entrada.get("elevacion"),
-        descripcion=entrada["texto"],
-        registros=registros,
-        total_registros=len(registros),
-        fuentes=list(_FUENTES),
-    )
+def obtener_catalogo() -> FuenteCatalogo:
+    """Dependencia de FastAPI: el catálogo que usan los routers."""
+    return _CATALOGO_DEMO

@@ -13,10 +13,13 @@ Roles válidos: los de la tabla 'roles' (usuario, moderador, supermoderador).
 El cambio queda registrado en 'auditoria' por el trigger de 003, sin actor,
 porque no lo hace ningún usuario de la aplicación.
 """
+
 import os
 import sys
 
 import psycopg2
+
+from app.dominio import EstadoCuenta, NombreRol
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 
@@ -51,8 +54,9 @@ def main() -> int:
             cur.execute(
                 """
                 SELECT count(*) FROM usuarios u JOIN roles r ON r.id = u.rol_id
-                WHERE r.nombre = 'supermoderador' AND u.estado = 'activo';
-                """
+                WHERE r.nombre = %s AND u.estado = %s;
+                """,
+                (NombreRol.SUPERMODERADOR, EstadoCuenta.ACTIVO),
             )
             activos = cur.fetchone()[0]
     finally:

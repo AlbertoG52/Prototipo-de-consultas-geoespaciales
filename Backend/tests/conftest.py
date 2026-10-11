@@ -2,13 +2,15 @@
 
 Las que no necesitan limpieza están en apoyo.py.
 """
+
 import uuid
 
 import pytest
 
-from apoyo import sql
 from app.db import SessionLocal
 from app.routers import auth
+
+from apoyo import sql
 
 
 @pytest.fixture
@@ -16,7 +18,9 @@ def buzon(monkeypatch):
     """Reemplaza el envío de correos: cada uno queda en esta lista como (destino, texto)."""
     enviados = []
     monkeypatch.setattr(
-        auth, "enviar_correo", lambda destino, _asunto, texto, _html=None: enviados.append((destino, texto))
+        auth,
+        "enviar_correo",
+        lambda destino, _asunto, texto, _html=None: enviados.append((destino, texto)),
     )
     return enviados
 

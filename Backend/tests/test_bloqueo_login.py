@@ -4,16 +4,19 @@ No necesitan base de datos: se llama al endpoint con un usuario y una sesión
 simulados. Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
-from datetime import datetime, timedelta, timezone
+
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import HTTPException
 
-from apoyo import SesionFalsa as _SesionFalsa
-from apoyo import usuario_falso
 from app.config import INTENTOS_LOGIN_MAXIMOS, MINUTOS_BLOQUEO_LOGIN
 from app.routers import auth
 from app.schemas.usuario import LoginRequest
+from app.services import autenticacion
+
+from apoyo import SesionFalsa as _SesionFalsa
+from apoyo import usuario_falso
 
 CORRECTA = "Correcta#2024"
 INCORRECTA = "Incorrecta#2024"
@@ -51,13 +54,13 @@ def test_se_bloquea_al_llegar_al_maximo():
 
     error = _fallar(db)
     assert error.status_code == 423
-    assert usuario.bloqueado_hasta > datetime.now(timezone.utc)
+    assert usuario.bloqueado_hasta > datetime.now(UTC)
     # Criterio 3: el mensaje dice cuánto dura el bloqueo.
     assert f"{MINUTOS_BLOQUEO_LOGIN} minuto" in error.detail
 
 
 def test_bloqueada_rechaza_incluso_la_password_correcta():
-    usuario = _usuario(bloqueado_hasta=datetime.now(timezone.utc) + timedelta(minutes=3))
+    usuario = _usuario(bloqueado_hasta=datetime.now(UTC) + timedelta(minutes=3))
     db = _SesionFalsa(usuario)
     with pytest.raises(HTTPException) as err:
         _login(db, CORRECTA)
@@ -68,7 +71,7 @@ def test_bloqueada_rechaza_incluso_la_password_correcta():
 def test_bloqueo_vencido_permite_entrar_y_reinicia():
     usuario = _usuario(
         intentos_fallidos=2,
-        bloqueado_hasta=datetime.now(timezone.utc) - timedelta(minutes=1),
+        bloqueado_hasta=datetime.now(UTC) - timedelta(minutes=1),
     )
     db = _SesionFalsa(usuario)
     salida = _login(db, CORRECTA)
@@ -93,7 +96,7 @@ def test_correo_inexistente_responde_igual_que_password_incorrecta():
 
 
 def test_minutos_de_bloqueo_redondea_hacia_arriba():
-    ahora = datetime.now(timezone.utc)
+    ahora = datetime.now(UTC)
     usuario = _usuario(bloqueado_hasta=ahora + timedelta(seconds=61))
-    assert auth._minutos_de_bloqueo(usuario, ahora) == 2
-    assert auth._minutos_de_bloqueo(_usuario(), ahora) is None
+    assert autenticacion.minutos_de_bloqueo(usuario, ahora) == 2
+    assert autenticacion.minutos_de_bloqueo(_usuario(), ahora) is None

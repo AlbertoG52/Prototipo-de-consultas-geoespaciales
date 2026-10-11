@@ -1,19 +1,22 @@
 """Esquemas de administración — RR_00_09."""
+
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel
 
+from ..dominio import EstadoCuenta, NombreRol
+from .base import EsquemaSalida
+
 
 class CambioEstado(BaseModel):
-    estado: Literal["activo", "inactivo"]
+    estado: EstadoCuenta
 
 
 class CambioRol(BaseModel):
-    rol: Literal["usuario", "moderador", "supermoderador"]
+    rol: NombreRol
 
 
-class RegistroAuditoria(BaseModel):
+class RegistroAuditoria(EsquemaSalida):
     id: int
     accion: str
     detalle: str | None

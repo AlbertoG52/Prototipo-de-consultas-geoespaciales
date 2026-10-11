@@ -9,6 +9,7 @@ Así el contador es correcto sin necesidad de un proceso que lo reinicie cada
 día — el restablecimiento periódico es RR_64, de otro sprint. La columna queda
 disponible para cuando ese requerimiento se implemente.
 """
+
 from __future__ import annotations
 
 from datetime import date
@@ -17,8 +18,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from ..config import LIMITE_CONSULTAS_ANONIMO
+from ..dominio import EstadoConsulta
 from ..models import Consulta, ConsumoAnonimo
-from ..schemas.consulta import ESTADO_RESUELTA
 from ..security import Identidad
 
 
@@ -42,7 +43,7 @@ def consultas_hoy(db: Session, identidad: Identidad) -> int:
             db.query(func.count(Consulta.id))
             .filter(
                 Consulta.usuario_id == identidad.usuario.id,
-                Consulta.estado == ESTADO_RESUELTA,
+                Consulta.estado == EstadoConsulta.RESUELTA,
                 func.date(Consulta.resuelta_en) == date.today(),
             )
             .scalar()

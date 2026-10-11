@@ -12,6 +12,7 @@ import { ClipboardList } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
 import type { RegistroAuditoria, Usuario } from "../types";
+import { IDIOMA_FECHAS } from "../config/textos";
 
 const ACCIONES: Record<string, string> = {
   cambio_rol: "Cambio de rol",
@@ -368,7 +369,7 @@ export function AdminPage() {
                     <div className="flex-1">
                       <div className="flex items-center justify-between mb-0.5">
                         <span className="text-sm font-medium" style={{ color: "var(--color-texto)" }}>{ACCIONES[log.accion] ?? log.accion}</span>
-                        <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>{new Date(log.fecha).toLocaleString("es-CR")}</span>
+                        <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>{new Date(log.fecha).toLocaleString(IDIOMA_FECHAS)}</span>
                       </div>
                       <div className="text-xs" style={{ color: "var(--color-texto-secundario)" }}>
                         Usuario afectado: <strong style={{ color: "var(--color-texto-cuerpo)" }}>{log.afectado ?? "—"}</strong> · Por: <strong style={{ color: "var(--color-texto-cuerpo)" }}>{log.actor ?? "Servidor"}</strong>

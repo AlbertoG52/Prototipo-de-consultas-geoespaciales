@@ -37,7 +37,7 @@ export function PantallaAcceso({ subtitulo, children }: { subtitulo?: string; ch
           <div className="mb-4">
             <Logo tamano={64} redondeo={16} />
           </div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--color-texto)", fontFamily: "'Lora', serif" }}>
+          <h1 className="text-2xl font-bold" style={{ color: "var(--color-texto)", fontFamily: "var(--font-serif)" }}>
             {NOMBRE_APP}
           </h1>
           {subtitulo && (

@@ -519,7 +519,7 @@ export function ProfilePage() {
             <div className="min-w-0">
               <h2
                 className="text-xl font-bold truncate"
-                style={{ color: "var(--color-texto)", fontFamily: "'Lora', serif" }}
+                style={{ color: "var(--color-texto)", fontFamily: "var(--font-serif)" }}
               >
                 {usuario.nombre || "Sin nombre"}
               </h2>
