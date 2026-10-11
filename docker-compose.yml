@@ -24,6 +24,8 @@ services:
       - ./Backend:/app                       # monta el código: editás en tu máquina y se refleja en el contenedor
     ports:
       - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  # para llegar a CR-BioLM en la máquina anfitriona (MCP_URL)
     depends_on:
       db:
         condition: service_healthy           # el backend arranca solo cuando la BD está lista

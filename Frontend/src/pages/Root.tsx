@@ -8,8 +8,11 @@
 import { useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 
+import { LayoutGrid, LogOut, User } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useConsultas } from "../context/ConsultasContext";
+import { Logo } from "../components/Logo";
+import { NOMBRE_APP, SUBTITULO_APP } from "../config/marca";
 
 /** Convierte una fecha ISO en algo corto: "hace 2 min", "ayer", "lun". */
 function tiempoRelativo(iso: string): string {
@@ -60,11 +63,11 @@ export function Root() {
   return (
     <div
       className="flex h-full"
-      style={{ background: "#f7f8f5", fontFamily: "'Inter', sans-serif" }}
+      style={{ background: "var(--color-fondo)", fontFamily: "'Inter', sans-serif" }}
     >
       <aside
         className="flex flex-col shrink-0 border-r"
-        style={{ width: 260, background: "#ffffff", borderColor: "#dde8df" }}
+        style={{ width: 260, background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}
       >
         {/*
           RR_01 — acceso al agente de IA.
@@ -75,33 +78,13 @@ export function Root() {
           className="flex items-center gap-3 px-5 py-5 w-full text-left"
           style={{ border: "none", background: "transparent", cursor: "pointer" }}
         >
-          <div
-            className="flex items-center justify-center rounded-xl shrink-0"
-            style={{ width: 40, height: 40, background: "#2d5a3d" }}
-          >
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M6.5 20C4 20 2 17 2 14C2 9 6 5 11 4C16 3 21 5 21 10C21 16 17 20 12 20C10.5 20 9 19.5 8 18.5"
-                stroke="white"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <path
-                d="M12 20C12 20 8 16 8 12C8 8 11 5 12 4"
-                stroke="white"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </div>
+          <Logo tamano={40} redondeo={12} />
           <div>
-            <div className="font-semibold text-sm" style={{ color: "#1e3d2a" }}>
-              FloraBot CR
+            <div className="font-semibold text-sm" style={{ color: "var(--color-texto)" }}>
+              {NOMBRE_APP}
             </div>
-            <div className="text-xs" style={{ color: "#6b8f74" }}>
-              Agente de Flora
+            <div className="text-xs" style={{ color: "var(--color-texto-secundario)" }}>
+              {SUBTITULO_APP}
             </div>
           </div>
         </button>
@@ -110,9 +93,9 @@ export function Root() {
           <button
             onClick={irAlAgente}
             className="w-full flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-medium transition-all"
-            style={{ border: "1.5px solid #2d5a3d", color: "#2d5a3d", background: "transparent" }}
+            style={{ border: "1.5px solid var(--color-borde-marca)", color: "var(--color-texto-marca)", background: "transparent" }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = "#e8f0eb";
+              e.currentTarget.style.background = "var(--color-superficie-marca)";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = "transparent";
@@ -130,33 +113,33 @@ export function Root() {
           guardan (RR_00_11.
         */}
         <div className="flex-1 overflow-y-auto px-3">
-          <div className="text-xs font-medium mb-2 px-2" style={{ color: "#6b8f74" }}>
+          <div className="text-xs font-medium mb-2 px-2" style={{ color: "var(--color-texto-secundario)" }}>
             Tu historial
           </div>
 
           {!sesion?.guarda_historial ? (
             <div
               className="text-xs leading-relaxed rounded-lg px-3 py-3 mx-1"
-              style={{ background: "#f7f8f5", color: "#8aab92", border: "1px dashed #dde8df" }}
+              style={{ background: "var(--color-fondo)", color: "var(--color-texto-tenue)", border: "1px dashed var(--color-borde)" }}
             >
               Estás consultando sin cuenta, así que tus consultas no se guardan.
               <button
                 onClick={() => navigate("/login")}
                 className="block mt-2 font-medium"
-                style={{ color: "#2d5a3d", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
+                style={{ color: "var(--color-texto-marca)", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
               >
                 Inicia sesión para conservarlas
               </button>
             </div>
           ) : conversaciones.length === 0 ? (
-            <div className="text-xs px-3 py-2" style={{ color: "#a8d4b0" }}>
+            <div className="text-xs px-3 py-2" style={{ color: "var(--color-texto-suave)" }}>
               Todavía no has consultado nada.
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
               {conversaciones.map((c) => {
                 const abierta = c.id === conversacionActual;
-                const fondo = abierta ? "#e8f0eb" : "transparent";
+                const fondo = abierta ? "var(--color-superficie-marca)" : "transparent";
                 return (
                 <button
                   key={c.id}
@@ -169,7 +152,7 @@ export function Root() {
                   className="w-full text-left rounded-lg px-3 py-2.5 transition-all"
                   style={{ background: fondo, border: "none", cursor: "pointer" }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = abierta ? fondo : "#f2f6f3";
+                    e.currentTarget.style.background = abierta ? fondo : "var(--color-superficie-hover)";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.background = fondo;
@@ -177,11 +160,11 @@ export function Root() {
                 >
                   <div
                     className="text-sm leading-snug line-clamp-2"
-                    style={{ color: "#374a3c" }}
+                    style={{ color: "var(--color-texto-cuerpo)" }}
                   >
                     {c.titulo}
                   </div>
-                  <div className="text-xs mt-0.5" style={{ color: "#8aab92" }}>
+                  <div className="text-xs mt-0.5" style={{ color: "var(--color-texto-tenue)" }}>
                     {tiempoRelativo(c.actualizada_en)}
                   </div>
                 </button>
@@ -192,23 +175,20 @@ export function Root() {
         </div>
 
         {/* Navegación inferior — depende de si hay cuenta detrás de la sesión. */}
-        <div className="px-3 py-3 flex flex-col gap-1" style={{ borderTop: "1px solid #dde8df" }}>
+        <div className="px-3 py-3 flex flex-col gap-1" style={{ borderTop: "1px solid var(--color-borde)" }}>
           {autenticado ? (
             <>
               <button
                 onClick={() => navigate("/profile")}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all w-full text-left"
                 style={{
-                  background: esPerfil ? "#e8f0eb" : "transparent",
-                  color: "#374a3c",
+                  background: esPerfil ? "var(--color-superficie-marca)" : "transparent",
+                  color: "var(--color-texto-cuerpo)",
                   border: "none",
                   cursor: "pointer",
                 }}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="12" cy="8" r="4" stroke="#2d5a3d" strokeWidth="1.8" />
-                  <path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" stroke="#2d5a3d" strokeWidth="1.8" strokeLinecap="round" />
-                </svg>
+                <User size={16} strokeWidth={1.8} style={{ color: "var(--color-texto-marca)" }} />
                 Mi perfil
               </button>
 
@@ -217,18 +197,13 @@ export function Root() {
                   onClick={() => navigate("/admin")}
                   className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all w-full text-left"
                   style={{
-                    background: esAdmin ? "#e8f0eb" : "transparent",
-                    color: "#374a3c",
+                    background: esAdmin ? "var(--color-superficie-marca)" : "transparent",
+                    color: "var(--color-texto-cuerpo)",
                     border: "none",
                     cursor: "pointer",
                   }}
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <rect x="3" y="3" width="7" height="7" rx="1.5" stroke="#2d5a3d" strokeWidth="1.8" />
-                    <rect x="14" y="3" width="7" height="7" rx="1.5" stroke="#2d5a3d" strokeWidth="1.8" />
-                    <rect x="3" y="14" width="7" height="7" rx="1.5" stroke="#2d5a3d" strokeWidth="1.8" />
-                    <rect x="14" y="14" width="7" height="7" rx="1.5" stroke="#2d5a3d" strokeWidth="1.8" />
-                  </svg>
+                  <LayoutGrid size={16} strokeWidth={1.8} style={{ color: "var(--color-texto-marca)" }} />
                   Administración
                 </button>
               )}
@@ -237,23 +212,15 @@ export function Root() {
               <button
                 onClick={manejarSalida}
                 className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all w-full text-left"
-                style={{ background: "transparent", color: "#374a3c", border: "none", cursor: "pointer" }}
+                style={{ background: "transparent", color: "var(--color-texto-cuerpo)", border: "none", cursor: "pointer" }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f2f6f3";
+                  e.currentTarget.style.background = "var(--color-superficie-hover)";
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = "transparent";
                 }}
               >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path
-                    d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"
-                    stroke="#2d5a3d"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <LogOut size={16} strokeWidth={1.8} style={{ color: "var(--color-texto-marca)" }} />
                 Cerrar sesión
               </button>
             </>
@@ -262,14 +229,14 @@ export function Root() {
               <button
                 onClick={() => navigate("/login")}
                 className="flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-all w-full"
-                style={{ background: "#2d5a3d", color: "#ffffff", border: "none", cursor: "pointer" }}
+                style={{ background: "var(--color-marca)", color: "var(--color-sobre-marca)", border: "none", cursor: "pointer" }}
               >
                 Iniciar sesión
               </button>
               <button
                 onClick={() => navigate("/register")}
                 className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-all w-full"
-                style={{ background: "transparent", color: "#2d5a3d", border: "none", cursor: "pointer" }}
+                style={{ background: "transparent", color: "var(--color-texto-marca)", border: "none", cursor: "pointer" }}
               >
                 Crear cuenta
               </button>
@@ -283,28 +250,28 @@ export function Root() {
         */}
         <div
           className="mx-3 mb-4 rounded-xl px-4 py-3"
-          style={{ background: "#f0f5f1", border: "1px solid #dde8df" }}
+          style={{ background: "var(--color-superficie-suave)", border: "1px solid var(--color-borde)" }}
         >
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs" style={{ color: "#3d6040" }}>
+            <span className="text-xs" style={{ color: "var(--color-texto-cuerpo)" }}>
               Consultas restantes
             </span>
-            <span className="text-xs font-semibold" style={{ color: "#1e3d2a" }}>
+            <span className="text-xs font-semibold" style={{ color: "var(--color-texto)" }}>
               {sesion ? `${restantes}/${limite}` : "…"}
             </span>
           </div>
-          <div className="rounded-full overflow-hidden" style={{ height: 5, background: "#c5dccb" }}>
+          <div className="rounded-full overflow-hidden" style={{ height: 5, background: "var(--color-borde-fuerte)" }}>
             <div
               className="h-full rounded-full"
               style={{
                 width: `${porcentaje}%`,
-                background: restantes === 0 ? "#dc2626" : "#2d5a3d",
+                background: restantes === 0 ? "var(--color-error)" : "var(--color-marca)",
                 transition: "width 0.3s",
               }}
             />
           </div>
           {!autenticado && (
-            <div className="text-xs mt-2 leading-snug" style={{ color: "#8aab92" }}>
+            <div className="text-xs mt-2 leading-snug" style={{ color: "var(--color-texto-tenue)" }}>
               Con una cuenta tienes más consultas al día.
             </div>
           )}

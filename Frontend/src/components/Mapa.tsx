@@ -3,6 +3,7 @@
  */
 import { useEffect, type Ref } from "react";
 
+import { X } from "lucide-react";
 import type { RegistroPresencia } from "../types";
 import { RANGO_VACIO, type RangoElevacion } from "../utils/elevacion";
 
@@ -49,7 +50,7 @@ export function MapaDistribucion({
       ref={ref}
       viewBox="0 0 340 180"
       className="w-full h-full"
-      style={{ background: "#e8f0e8" }}
+      style={{ background: "var(--color-mapa-fondo)" }}
       role="group"
       aria-label="Mapa de distribución en Costa Rica"
       // RR_12 criterio 3: un clic fuera de los puntos cierra el detalle.
@@ -57,8 +58,7 @@ export function MapaDistribucion({
     >
       <path
         d="M60,90 Q80,60 120,55 Q160,50 200,60 Q230,65 250,80 Q270,90 260,110 Q250,130 220,140 Q180,150 140,148 Q100,145 75,130 Q50,115 60,90 Z"
-        fill="#c8dfc0"
-        stroke="#9ab89a"
+        style={{ fill: "var(--color-mapa-tierra)", stroke: "var(--color-mapa-contorno)" }}
         strokeWidth="1.5"
       />
       {orden.map((i) => {
@@ -71,15 +71,17 @@ export function MapaDistribucion({
             cx={aX(r.longitud)}
             cy={aY(r.latitud)}
             r={activo ? 7 : 4.5}
-            fill={activo ? "#e0552b" : "#5b4fcf"}
-            stroke={activo ? "#ffffff" : "none"}
+            style={{
+              fill: activo ? "var(--color-mapa-activo)" : "var(--color-mapa-punto)",
+              stroke: activo ? "var(--color-sobre-marca)" : "none",
+              cursor: "pointer",
+            }}
             strokeWidth={activo ? 2 : 0}
             opacity={activo ? 1 : 0.85}
             role="button"
             tabIndex={0}
             aria-pressed={activo}
             aria-label={`Registro en ${r.localidad}, ${r.fecha}. Ver detalle.`}
-            style={{ cursor: "pointer" }}
             // RR_12 criterio 1: al seleccionar un punto se abre su detalle.
             onClick={(e) => {
               e.stopPropagation();
@@ -96,14 +98,14 @@ export function MapaDistribucion({
           </circle>
         );
       })}
-      <circle cx="100" cy="160" r="5" fill="#5b4fcf" opacity="0.85" />
-      <text x="110" y="164" fontSize="9" fill="#555" fontFamily="Inter, sans-serif">
+      <circle cx="100" cy="160" r="5" style={{ fill: "var(--color-mapa-punto)" }} opacity="0.85" />
+      <text x="110" y="164" fontSize="9" style={{ fill: "var(--color-mapa-texto)" }} fontFamily="Inter, sans-serif">
         Registros de presencia ({indices.length})
       </text>
-      <line x1="240" y1="162" x2="290" y2="162" stroke="#666" strokeWidth="1.5" />
-      <line x1="240" y1="158" x2="240" y2="162" stroke="#666" strokeWidth="1.5" />
-      <line x1="290" y1="158" x2="290" y2="162" stroke="#666" strokeWidth="1.5" />
-      <text x="257" y="172" fontSize="8" fill="#666" fontFamily="Inter, sans-serif">
+      <line x1="240" y1="162" x2="290" y2="162" style={{ stroke: "var(--color-mapa-texto)" }} strokeWidth="1.5" />
+      <line x1="240" y1="158" x2="240" y2="162" style={{ stroke: "var(--color-mapa-texto)" }} strokeWidth="1.5" />
+      <line x1="290" y1="158" x2="290" y2="162" style={{ stroke: "var(--color-mapa-texto)" }} strokeWidth="1.5" />
+      <text x="257" y="172" fontSize="8" style={{ fill: "var(--color-mapa-texto)" }} fontFamily="Inter, sans-serif">
         50 km
       </text>
     </svg>
@@ -140,30 +142,28 @@ export function DetallePunto({ registro, onCerrar }: { registro: RegistroPresenc
       aria-live="polite"
       aria-label={`Detalle del registro en ${registro.localidad}`}
       className="mt-2 rounded-xl px-4 py-3 text-xs"
-      style={{ background: "#f7faf7", border: "1px solid #c5dccb" }}
+      style={{ background: "var(--color-superficie-suave)", border: "1px solid var(--color-borde-fuerte)" }}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="flex items-center gap-1.5 font-semibold" style={{ color: "#1e3d2a" }}>
-          <span className="inline-block rounded-full" style={{ width: 8, height: 8, background: "#e0552b" }} />
+        <span className="flex items-center gap-1.5 font-semibold" style={{ color: "var(--color-texto)" }}>
+          <span className="inline-block rounded-full" style={{ width: 8, height: 8, background: "var(--color-mapa-activo)" }} />
           Detalle del registro
         </span>
         <button
           onClick={onCerrar}
           aria-label="Cerrar detalle"
           className="flex items-center gap-1 px-2 py-1 rounded-md"
-          style={{ border: "none", background: "transparent", color: "#6b8f74", cursor: "pointer" }}
+          style={{ border: "none", background: "transparent", color: "var(--color-texto-secundario)", cursor: "pointer" }}
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-          </svg>
+          <X size={12} />
           Cerrar
         </button>
       </div>
       <dl className="grid gap-x-4 gap-y-1" style={{ gridTemplateColumns: "auto 1fr" }}>
         {filas.map(([k, v]) => (
           <div key={k} className="contents">
-            <dt style={{ color: "#8aab92" }}>{k}</dt>
-            <dd className="font-medium" style={{ color: "#374a3c" }}>
+            <dt style={{ color: "var(--color-texto-tenue)" }}>{k}</dt>
+            <dd className="font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>
               {v}
             </dd>
           </div>
@@ -192,15 +192,15 @@ export function FiltroElevacion({
   const hayTexto = rango.min !== "" || rango.max !== "";
   const estiloCampo = {
     width: 84,
-    border: `1.5px solid ${error ? "#fca5a5" : "#c5dccb"}`,
-    background: "#f7f8f5",
-    color: "#1e3d2a",
+    border: `1.5px solid ${error ? "var(--color-error-borde)" : "var(--color-borde-fuerte)"}`,
+    background: "var(--color-fondo)",
+    color: "var(--color-texto)",
   };
 
   return (
     <div className="mb-3">
       <div className="flex items-center gap-2 flex-wrap text-xs" role="group" aria-label="Filtrar por elevación">
-        <span className="font-medium" style={{ color: "#374a3c" }}>
+        <span className="font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>
           Elevación (msnm):
         </span>
         <input
@@ -214,7 +214,7 @@ export function FiltroElevacion({
           className="rounded-lg px-2 py-1 outline-none"
           style={estiloCampo}
         />
-        <span style={{ color: "#8aab92" }}>a</span>
+        <span style={{ color: "var(--color-texto-tenue)" }}>a</span>
         <input
           type="number"
           inputMode="numeric"
@@ -231,19 +231,19 @@ export function FiltroElevacion({
           <button
             onClick={() => onCambiar(RANGO_VACIO)}
             className="px-2 py-1 rounded-lg font-medium"
-            style={{ border: "1px solid #c5dccb", background: "transparent", color: "#2d5a3d", cursor: "pointer" }}
+            style={{ border: "1px solid var(--color-borde-fuerte)", background: "transparent", color: "var(--color-texto-marca)", cursor: "pointer" }}
           >
             Quitar filtro
           </button>
         )}
         {activo && (
-          <span aria-live="polite" style={{ color: "#6b8f74" }}>
+          <span aria-live="polite" style={{ color: "var(--color-texto-secundario)" }}>
             Mostrando {visibles} de {total} registros
           </span>
         )}
       </div>
       {error && (
-        <p role="alert" className="text-xs mt-1" style={{ color: "#991b1b" }}>
+        <p role="alert" className="text-xs mt-1" style={{ color: "var(--color-error-texto)" }}>
           {error}
         </p>
       )}

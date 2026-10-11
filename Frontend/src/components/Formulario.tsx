@@ -5,10 +5,10 @@
  */
 import { useId, type ReactNode } from "react";
 
-const BORDE = "#c5dccb";
-const BORDE_ERROR = "#fca5a5";
-const BORDE_FOCO = "#2d5a3d";
-const FONDO = "#f7f8f5";
+const BORDE = "var(--color-borde-fuerte)";
+const BORDE_ERROR = "var(--color-error-borde)";
+const BORDE_FOCO = "var(--color-borde-marca)";
+const FONDO = "var(--color-fondo)";
 
 /**
  * Campo con su etiqueta.
@@ -49,7 +49,7 @@ export function CampoTexto({
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <label htmlFor={id} className="block text-sm font-medium" style={{ color: "#374a3c" }}>
+        <label htmlFor={id} className="block text-sm font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>
           {etiqueta}
         </label>
         {accion}
@@ -66,13 +66,13 @@ export function CampoTexto({
         className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
         style={
           deshabilitado
-            ? { border: "1.5px solid #e8f0eb", background: "#f0f5f1", color: "#8aab92", cursor: "not-allowed" }
-            : { border: `1.5px solid ${borde}`, background: FONDO, color: "#1e3d2a" }
+            ? { border: "1.5px solid var(--color-superficie-marca)", background: "var(--color-superficie-suave)", color: "var(--color-texto-tenue)", cursor: "not-allowed" }
+            : { border: `1.5px solid ${borde}`, background: FONDO, color: "var(--color-texto)" }
         }
         onFocus={(e) => {
           if (deshabilitado) return;
           e.currentTarget.style.borderColor = BORDE_FOCO;
-          e.currentTarget.style.background = "#fff";
+          e.currentTarget.style.background = "var(--color-superficie)";
         }}
         onBlur={(e) => {
           if (deshabilitado) return;
@@ -81,12 +81,12 @@ export function CampoTexto({
         }}
       />
       {error ? (
-        <p className="text-xs mt-1" style={{ color: "#dc2626" }}>
+        <p className="text-xs mt-1" style={{ color: "var(--color-error)" }}>
           {error}
         </p>
       ) : (
         ayuda && (
-          <p className="text-xs mt-1" style={{ color: "#8aab92" }}>
+          <p className="text-xs mt-1" style={{ color: "var(--color-texto-tenue)" }}>
             {ayuda}
           </p>
         )
@@ -97,9 +97,9 @@ export function CampoTexto({
 }
 
 const ESTILOS_AVISO = {
-  error: { background: "#fef3f2", border: "1px solid #fca5a5", color: "#991b1b" },
-  exito: { background: "#e8f0eb", border: "1px solid #c5dccb", color: "#2d5a3d" },
-  advertencia: { background: "#fff8e6", border: "1px solid #f3d58a", color: "#7a5a00" },
+  error: { background: "var(--color-error-fondo)", border: "1px solid var(--color-error-borde)", color: "var(--color-error-texto)" },
+  exito: { background: "var(--color-superficie-marca)", border: "1px solid var(--color-borde-fuerte)", color: "var(--color-texto-marca)" },
+  advertencia: { background: "var(--color-aviso-fondo)", border: "1px solid var(--color-aviso-borde)", color: "var(--color-aviso-texto)" },
 };
 
 /**
@@ -158,8 +158,8 @@ export function BotonPrincipal({
       disabled={deshabilitado}
       className={`rounded-xl text-sm font-semibold transition-all ${bloque ? "w-full py-3" : "self-start px-5 py-2.5"}`}
       style={{
-        background: deshabilitado ? "#a8d4b0" : "#2d5a3d",
-        color: "#ffffff",
+        background: deshabilitado ? "var(--color-marca-deshabilitada)" : "var(--color-marca)",
+        color: "var(--color-sobre-marca)",
         border: "none",
         cursor: deshabilitado ? "default" : "pointer",
       }}

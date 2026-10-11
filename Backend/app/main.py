@@ -1,11 +1,12 @@
 """Punto de entrada de la API."""
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from .config import ORIGENES_PERMITIDOS
 from .db import engine
 from .routers import admin, auth, consultas, conversaciones, especies, perfil
+from .services import mcp_cliente
 
 app = FastAPI(title="Prototipo de consultas geoespaciales - API")
 
@@ -37,3 +38,20 @@ def db_check():
     with engine.connect() as conn:
         roles = conn.execute(text("SELECT count(*) FROM roles")).scalar()
     return {"conexion": "ok", "roles_en_bd": roles}
+
+
+@app.get("/mcp-check", tags=["estado"])
+def mcp_check():
+    """Verifica la conexión con CR-BioLM listando las herramientas de su servidor MCP.
+
+    El motivo del fallo queda en el log del backend; aquí solo se informa que
+    no hay conexión, para no exponer detalles internos.
+    """
+    try:
+        herramientas = mcp_cliente.herramientas_disponibles()
+    except mcp_cliente.ErrorMCP as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="No hay conexión con CR-BioLM. Revise que su servidor MCP esté corriendo.",
+        ) from exc
+    return {"conexion": "ok", "herramientas": herramientas}

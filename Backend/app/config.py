@@ -75,6 +75,26 @@ LONGITUD_MAXIMA_PASSWORD = 255
 # --- consultas --------------------------------------------------------------
 LONGITUD_MAXIMA_CONSULTA = 500
 
+# --- CR-BioLM por MCP (services/mcp_cliente.py) -------------------------------
+# Dirección del servidor MCP de CR-BioLM. En desarrollo corre en la máquina
+# anfitriona, fuera de Docker, porque necesita los datos que entregó el cliente
+# (catálogo, DEM, shapefiles); por eso se llega a él por host.docker.internal.
+# En el deploy será el nombre del servicio en la red de Docker, p. ej.
+# http://crbiolm:8765/mcp. Ver la sección "Conexión con CR-BioLM" del README.
+MCP_URL = os.environ.get("MCP_URL", "http://host.docker.internal:8765/mcp").strip()
+
+# Tiempo máximo de UNA llamada a una herramienta, en segundos. Debe cubrir el
+# caso más lento: una respuesta del LLM (hasta ~40 s) más un mapa generado en
+# el momento (~10-15 s). El tiempo máximo de la consulta completa es RR_38.
+MCP_TIMEOUT_SEGUNDOS = max(float(os.environ.get("MCP_TIMEOUT_SEGUNDOS", "90")), 1.0)
+
+# Reintentos cuando NO se pudo conectar con el servidor. Una llamada que llegó
+# al servidor nunca se reintenta (podría cobrar dos veces una consulta al LLM).
+MCP_REINTENTOS_CONEXION = max(int(os.environ.get("MCP_REINTENTOS_CONEXION", "2")), 0)
+MCP_ESPERA_REINTENTO_SEGUNDOS = max(
+    float(os.environ.get("MCP_ESPERA_REINTENTO_SEGUNDOS", "1")), 0.0
+)
+
 # --- CORS -------------------------------------------------------------------
 ORIGENES_PERMITIDOS = [
     o.strip()

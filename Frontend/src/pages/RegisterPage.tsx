@@ -63,7 +63,7 @@ export function RegisterPage() {
 
   return (
     <PantallaAcceso subtitulo="Crea tu cuenta para comenzar">
-      <h2 className="text-lg font-semibold mb-6" style={{ color: "#1e3d2a" }}>
+      <h2 className="text-lg font-semibold mb-6" style={{ color: "var(--color-texto)" }}>
         Crear cuenta
       </h2>
 
@@ -83,9 +83,9 @@ export function RegisterPage() {
           {...campo("confirmar")}
         />
 
-        <p className="text-xs" style={{ color: "#8aab92" }}>
+        <p className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>
           Al registrarte se te asignará el rol de{" "}
-          <strong style={{ color: "#2d5a3d" }}>usuario estándar</strong>, con más consultas
+          <strong style={{ color: "var(--color-texto-marca)" }}>usuario estándar</strong>, con más consultas
           diarias que las disponibles sin cuenta.
         </p>
 
@@ -94,9 +94,9 @@ export function RegisterPage() {
         </BotonPrincipal>
       </form>
 
-      <p className="text-center text-sm mt-5" style={{ color: "#6b8f74" }}>
+      <p className="text-center text-sm mt-5" style={{ color: "var(--color-texto-secundario)" }}>
         ¿Ya tienes cuenta?{" "}
-        <Link to="/login" className="font-medium" style={{ color: "#2d5a3d" }}>
+        <Link to="/login" className="font-medium" style={{ color: "var(--color-texto-marca)" }}>
           Inicia sesión
         </Link>
       </p>

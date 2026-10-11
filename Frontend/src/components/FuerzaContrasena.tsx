@@ -8,6 +8,8 @@
  * Lo usan el registro, el restablecimiento de contraseña (RR_00_06) y el
  * cambio de contraseña del perfil.
  */
+import { Check, Dot } from "lucide-react";
+
 export const REGLAS_PASSWORD = [
   { etiqueta: "Al menos 8 caracteres", cumple: (p: string) => p.length >= 8 },
   { etiqueta: "Una letra mayúscula", cumple: (p: string) => /[A-Z]/.test(p) },
@@ -19,7 +21,7 @@ export const cumpleReglasPassword = (p: string) => REGLAS_PASSWORD.every((r) => 
 
 export function FuerzaContrasena({ password }: { password: string }) {
   const puntaje = REGLAS_PASSWORD.filter((r) => r.cumple(password)).length;
-  const colores = ["#c5dccb", "#f59e0b", "#f59e0b", "#22c55e", "#2d5a3d"];
+  const colores = ["var(--color-borde-fuerte)", "var(--color-aviso)", "var(--color-aviso)", "var(--color-exito)", "var(--color-marca)"];
   const etiquetas = ["", "Débil", "Regular", "Buena", "Fuerte"];
 
   return (
@@ -29,7 +31,7 @@ export function FuerzaContrasena({ password }: { password: string }) {
           <div
             key={i}
             className="flex-1 rounded-full"
-            style={{ height: 4, background: i < puntaje ? colores[puntaje] : "#e8f0eb", transition: "background 0.3s" }}
+            style={{ height: 4, background: i < puntaje ? colores[puntaje] : "var(--color-superficie-marca)", transition: "background 0.3s" }}
           />
         ))}
       </div>
@@ -42,14 +44,8 @@ export function FuerzaContrasena({ password }: { password: string }) {
         {REGLAS_PASSWORD.map((r) => {
           const ok = r.cumple(password);
           return (
-            <div key={r.etiqueta} className="flex items-center gap-1.5 text-xs" style={{ color: ok ? "#2d5a3d" : "#8aab92" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                {ok ? (
-                  <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                ) : (
-                  <circle cx="12" cy="12" r="4" fill="currentColor" opacity="0.3" />
-                )}
-              </svg>
+            <div key={r.etiqueta} className="flex items-center gap-1.5 text-xs" style={{ color: ok ? "var(--color-texto-marca)" : "var(--color-texto-tenue)" }}>
+              {ok ? <Check size={12} strokeWidth={2.5} /> : <Dot size={12} strokeWidth={6} style={{ opacity: 0.3 }} />}
               {r.etiqueta}
             </div>
           );

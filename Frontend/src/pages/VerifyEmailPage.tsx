@@ -10,6 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
 
+import { CircleCheck, Mail } from "lucide-react";
 import { Aviso, BotonPrincipal, CampoTexto } from "../components/Formulario";
 import { EnlacesAcceso, PantallaAcceso } from "../components/PantallaAcceso";
 import * as api from "../services/api";
@@ -76,34 +77,28 @@ export function VerifyEmailPage() {
   return (
     <PantallaAcceso>
       <div className="flex items-center justify-center mb-5">
-        <div className="rounded-full p-3" style={{ background: estado.fase === "fallido" ? "#fef3f2" : "#e8f0eb" }}>
+        <div className="rounded-full p-3" style={{ background: estado.fase === "fallido" ? "var(--color-error-fondo)" : "var(--color-superficie-marca)" }}>
           {estado.fase === "verificado" ? (
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="12" r="9" stroke="#2d5a3d" strokeWidth="1.8" />
-              <path d="M8 12.5l2.5 2.5L16 9.5" stroke="#2d5a3d" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <CircleCheck size={28} strokeWidth={1.8} style={{ color: "var(--color-texto-marca)" }} />
           ) : (
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <rect x="2" y="4" width="20" height="16" rx="2" stroke={estado.fase === "fallido" ? "#dc2626" : "#2d5a3d"} strokeWidth="1.8" />
-              <path d="M2 8l10 6 10-6" stroke={estado.fase === "fallido" ? "#dc2626" : "#2d5a3d"} strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
+            <Mail size={28} strokeWidth={1.8} style={{ color: estado.fase === "fallido" ? "var(--color-error)" : "var(--color-texto-marca)" }} />
           )}
         </div>
       </div>
 
-      <h2 className="text-lg font-semibold text-center mb-2" style={{ color: "#1e3d2a" }}>
+      <h2 className="text-lg font-semibold text-center mb-2" style={{ color: "var(--color-texto)" }}>
         {titulo}
       </h2>
 
       {estado.fase === "verificando" && (
-        <p role="status" className="text-sm text-center" style={{ color: "#6b8f74" }}>
+        <p role="status" className="text-sm text-center" style={{ color: "var(--color-texto-secundario)" }}>
           Un momento, estamos validando el enlace.
         </p>
       )}
 
       {estado.fase === "verificado" && (
         <>
-          <p role="status" className="text-sm text-center mb-6" style={{ color: "#6b8f74" }}>
+          <p role="status" className="text-sm text-center mb-6" style={{ color: "var(--color-texto-secundario)" }}>
             {estado.mensaje}
           </p>
           <BotonPrincipal onClick={() => navigate("/login")}>Iniciar sesión</BotonPrincipal>
@@ -115,13 +110,13 @@ export function VerifyEmailPage() {
           <p
             role={estado.fase === "fallido" ? "alert" : undefined}
             className="text-sm text-center mb-5"
-            style={{ color: estado.fase === "fallido" ? "#991b1b" : "#6b8f74" }}
+            style={{ color: estado.fase === "fallido" ? "var(--color-error-texto)" : "var(--color-texto-secundario)" }}
           >
             {estado.fase === "fallido"
               ? estado.mensaje
               : "Te enviamos un enlace para activar tu cuenta. Ábrelo en esta misma computadora. Si no lo ves, revisa la carpeta de spam."}
           </p>
-          <p className="text-xs text-center mb-5" style={{ color: "#8aab92" }}>
+          <p className="text-xs text-center mb-5" style={{ color: "var(--color-texto-tenue)" }}>
             Mientras tanto puedes seguir usando el agente sin cuenta.
           </p>
 

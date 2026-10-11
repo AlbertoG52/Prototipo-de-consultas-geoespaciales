@@ -17,6 +17,7 @@
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { Navigate } from "react-router";
+import { ChevronDown } from "lucide-react";
 
 import { Aviso, BotonPrincipal, CampoTexto } from "../components/Formulario";
 import { FuerzaContrasena, cumpleReglasPassword } from "../components/FuerzaContrasena";
@@ -73,22 +74,22 @@ function Tarjeta({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl p-6" style={{ background: "#ffffff", border: "1px solid #dde8df" }}>
+    <div className="rounded-2xl p-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
       <div className="flex items-center gap-2 mb-1">
-        <h3 className="font-semibold" style={{ color: "#1e3d2a" }}>
+        <h3 className="font-semibold" style={{ color: "var(--color-texto)" }}>
           {titulo}
         </h3>
         {etiqueta && (
           <span
             className="text-xs px-2 py-0.5 rounded-full"
-            style={{ background: "#f0f5f1", color: "#8aab92" }}
+            style={{ background: "var(--color-superficie-suave)", color: "var(--color-texto-tenue)" }}
           >
             {etiqueta}
           </span>
         )}
       </div>
       {descripcion && (
-        <p className="text-xs mb-4" style={{ color: "#8aab92" }}>
+        <p className="text-xs mb-4" style={{ color: "var(--color-texto-tenue)" }}>
           {descripcion}
         </p>
       )}
@@ -120,7 +121,7 @@ function Interruptor({
       style={{
         width: 44,
         height: 24,
-        background: activo ? "#2d5a3d" : "#c5dccb",
+        background: activo ? "var(--color-marca)" : "var(--color-borde-fuerte)",
         border: "none",
         cursor: deshabilitado ? "not-allowed" : "pointer",
         opacity: deshabilitado ? 0.6 : 1,
@@ -132,10 +133,10 @@ function Interruptor({
         style={{
           width: 18,
           height: 18,
-          background: "#fff",
+          background: "var(--color-sobre-marca)",
           top: 3,
           left: activo ? 23 : 3,
-          boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+          boxShadow: "var(--sombra-interruptor)",
         }}
       />
     </button>
@@ -215,6 +216,7 @@ function PestanaPerfil() {
 function PestanaPreferencias() {
   const [tema, setTema] = useState<Tema>(leerTema);
   const [fuente, setFuente] = useState<Fuente>(leerFuente);
+  const fuenteActual = FUENTES.find((f) => f.id === fuente) ?? FUENTES[0];
 
   // RR_67 / RR_68: solo interfaz por ahora; no se guardan ni afectan las respuestas.
   const [incluirMapa, setIncluirMapa] = useState(true);
@@ -238,56 +240,52 @@ function PestanaPreferencias() {
         descripcion="Los cambios se aplican al instante y se recuerdan en este navegador."
       >
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "#f0f5f1" }}>
+          <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "var(--color-superficie-suave)" }}>
             <div>
-              <div className="text-sm font-medium" style={{ color: "#1e3d2a" }}>
+              <div className="text-sm font-medium" style={{ color: "var(--color-texto)" }}>
                 Modo oscuro
               </div>
-              <div className="text-xs mt-0.5" style={{ color: "#8aab92" }}>
+              <div className="text-xs mt-0.5" style={{ color: "var(--color-texto-tenue)" }}>
                 Fondo oscuro y texto claro, más cómodo con poca luz.
               </div>
             </div>
             <Interruptor activo={tema === "oscuro"} onCambiar={cambiarTema} etiqueta="Modo oscuro" />
           </div>
 
-          <fieldset>
-            <legend className="text-sm font-medium mb-2" style={{ color: "#1e3d2a" }}>
+          <div>
+            <label htmlFor="fuente-app" className="block text-sm font-medium mb-2" style={{ color: "var(--color-texto)" }}>
               Tipo de letra
-            </legend>
-            <div className="flex flex-col gap-2">
-              {FUENTES.map((f) => {
-                const elegida = fuente === f.id;
-                return (
-                  <label
-                    key={f.id}
-                    className="flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all"
-                    style={{
-                      background: elegida ? "#e8f0eb" : "#f0f5f1",
-                      border: `1.5px solid ${elegida ? "#2d5a3d" : "transparent"}`,
-                    }}
-                  >
-                    <input
-                      type="radio"
-                      name="fuente"
-                      value={f.id}
-                      checked={elegida}
-                      onChange={() => cambiarFuente(f.id)}
-                      style={{ accentColor: "#2d5a3d" }}
-                    />
-                    <span className="flex-1">
-                      {/* Cada opción se muestra con su propia letra. */}
-                      <span className="block text-sm" style={{ color: "#1e3d2a", fontFamily: f.css }}>
-                        {f.nombre}
-                      </span>
-                      <span className="block text-xs" style={{ color: "#8aab92", fontFamily: f.css }}>
-                        {f.descripcion}
-                      </span>
-                    </span>
-                  </label>
-                );
-              })}
+            </label>
+            <div className="relative">
+              {/* Cada opción se muestra con su propia letra (si el navegador lo permite). */}
+              <select
+                id="fuente-app"
+                value={fuente}
+                onChange={(e) => cambiarFuente(e.target.value as Fuente)}
+                className="w-full appearance-none rounded-xl px-4 py-3 pr-10 text-sm cursor-pointer"
+                style={{
+                  background: "var(--color-fondo)",
+                  border: "1.5px solid var(--color-borde-fuerte)",
+                  color: "var(--color-texto)",
+                  fontFamily: fuenteActual.css,
+                }}
+              >
+                {FUENTES.map((f) => (
+                  <option key={f.id} value={f.id} style={{ fontFamily: f.css }}>
+                    {f.nombre}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={16}
+                className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"
+                style={{ color: "var(--color-texto-secundario)" }}
+              />
             </div>
-          </fieldset>
+            <p className="text-xs mt-2" style={{ color: "var(--color-texto-tenue)", fontFamily: fuenteActual.css }}>
+              {fuenteActual.descripcion}
+            </p>
+          </div>
         </div>
       </Tarjeta>
 
@@ -297,12 +295,12 @@ function PestanaPreferencias() {
         descripcion="Personaliza cómo el agente presenta los resultados de tus consultas."
       >
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "#f0f5f1" }}>
+          <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "var(--color-superficie-suave)" }}>
             <div>
-              <div className="text-sm font-medium" style={{ color: "#1e3d2a" }}>
+              <div className="text-sm font-medium" style={{ color: "var(--color-texto)" }}>
                 Incluir mapa de distribución
               </div>
-              <div className="text-xs mt-0.5" style={{ color: "#8aab92" }}>
+              <div className="text-xs mt-0.5" style={{ color: "var(--color-texto-tenue)" }}>
                 Muestra el mapa geoespacial junto a la respuesta cuando hay datos disponibles.
               </div>
             </div>
@@ -312,12 +310,12 @@ function PestanaPreferencias() {
               etiqueta="Incluir mapa de distribución"
             />
           </div>
-          <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "#f0f5f1" }}>
+          <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "var(--color-superficie-suave)" }}>
             <div>
-              <div className="text-sm font-medium" style={{ color: "#1e3d2a" }}>
+              <div className="text-sm font-medium" style={{ color: "var(--color-texto)" }}>
                 Mostrar fuentes de información
               </div>
-              <div className="text-xs mt-0.5" style={{ color: "#8aab92" }}>
+              <div className="text-xs mt-0.5" style={{ color: "var(--color-texto-tenue)" }}>
                 Lista las fuentes utilizadas (GBIF, Manual de Plantas de CR) al final de cada respuesta.
               </div>
             </div>
@@ -451,8 +449,8 @@ function PestanaSeguridad() {
                 key={opt.minutos}
                 className="flex items-center gap-3 p-3 rounded-xl transition-all"
                 style={{
-                  background: elegida ? "#e8f0eb" : "#f0f5f1",
-                  border: `1.5px solid ${elegida ? "#2d5a3d" : "transparent"}`,
+                  background: elegida ? "var(--color-superficie-marca)" : "var(--color-superficie-suave)",
+                  border: `1.5px solid ${elegida ? "var(--color-borde-marca)" : "transparent"}`,
                   cursor: guardandoInactividad ? "default" : "pointer",
                   opacity: guardandoInactividad && !elegida ? 0.6 : 1,
                 }}
@@ -464,16 +462,16 @@ function PestanaSeguridad() {
                   checked={elegida}
                   disabled={guardandoInactividad}
                   onChange={() => void elegirInactividad(opt.minutos)}
-                  style={{ accentColor: "#2d5a3d" }}
+                  style={{ accentColor: "var(--color-marca)" }}
                 />
                 <span
                   className="text-sm"
-                  style={{ color: elegida ? "#1e3d2a" : "#374a3c", fontWeight: elegida ? 500 : 400 }}
+                  style={{ color: elegida ? "var(--color-texto)" : "var(--color-texto-cuerpo)", fontWeight: elegida ? 500 : 400 }}
                 >
                   {opt.label}
                 </span>
                 {opt.minutos === 30 && (
-                  <span className="text-xs ml-auto" style={{ color: "#8aab92" }}>
+                  <span className="text-xs ml-auto" style={{ color: "var(--color-texto-tenue)" }}>
                     Recomendado
                   </span>
                 )}
@@ -499,21 +497,21 @@ export function ProfilePage() {
 
   return (
     <>
-      <div className="px-8 py-5 border-b shrink-0" style={{ background: "#ffffff", borderColor: "#dde8df" }}>
-        <h1 className="text-xl font-semibold" style={{ color: "#1e3d2a" }}>
+      <div className="px-8 py-5 border-b shrink-0" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
+        <h1 className="text-xl font-semibold" style={{ color: "var(--color-texto)" }}>
           Mi perfil
         </h1>
-        <p className="text-sm" style={{ color: "#6b8f74" }}>
+        <p className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>
           Gestiona tu cuenta y tus preferencias
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto" style={{ background: "#f7f8f5" }}>
-        <div className="px-8 py-8" style={{ background: "#ffffff", borderBottom: "1px solid #dde8df" }}>
+      <div className="flex-1 overflow-y-auto" style={{ background: "var(--color-fondo)" }}>
+        <div className="px-8 py-8" style={{ background: "var(--color-superficie)", borderBottom: "1px solid var(--color-borde)" }}>
           <div className="flex items-center gap-5 max-w-2xl">
             <div
               className="flex items-center justify-center rounded-full text-2xl font-bold"
-              style={{ width: 72, height: 72, background: "#2d5a3d", color: "#fff", flexShrink: 0 }}
+              style={{ width: 72, height: 72, background: "var(--color-marca)", color: "var(--color-sobre-marca)", flexShrink: 0 }}
               aria-hidden="true"
             >
               {iniciales(usuario.nombre, usuario.correo)}
@@ -521,18 +519,18 @@ export function ProfilePage() {
             <div className="min-w-0">
               <h2
                 className="text-xl font-bold truncate"
-                style={{ color: "#1e3d2a", fontFamily: "'Lora', serif" }}
+                style={{ color: "var(--color-texto)", fontFamily: "'Lora', serif" }}
               >
                 {usuario.nombre || "Sin nombre"}
               </h2>
-              <p className="text-sm truncate" style={{ color: "#6b8f74" }}>
+              <p className="text-sm truncate" style={{ color: "var(--color-texto-secundario)" }}>
                 {usuario.correo}
               </p>
             </div>
           </div>
         </div>
 
-        <div className="border-b px-8" style={{ background: "#ffffff", borderColor: "#dde8df" }}>
+        <div className="border-b px-8" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
           <div className="flex gap-0 max-w-2xl" role="tablist">
             {PESTANAS.map((t) => {
               const activa = pestana === t.id;
@@ -547,8 +545,8 @@ export function ProfilePage() {
                     border: "none",
                     background: "transparent",
                     cursor: "pointer",
-                    borderBottom: activa ? "2px solid #2d5a3d" : "2px solid transparent",
-                    color: activa ? "#2d5a3d" : "#8aab92",
+                    borderBottom: activa ? "2px solid var(--color-borde-marca)" : "2px solid transparent",
+                    color: activa ? "var(--color-texto-marca)" : "var(--color-texto-tenue)",
                     marginBottom: -1,
                   }}
                 >
