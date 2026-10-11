@@ -6,11 +6,14 @@ se pueda probar.
 
 El resto del sistema —servicios, routers, esquemas, frontend— depende solo de
 la interfaz `FuenteCatalogo` de abajo, nunca de una implementación concreta.
-Los routers la reciben con `Depends(obtener_catalogo)`. Hoy la implementa
-`CatalogoDemo`, con datos en memoria. Cuando se conecte CR-BioLM por MCP
-(services/mcp_cliente.py) se escribe otra clase con los mismos métodos y se
-cambia solo `obtener_catalogo`; nada más del proyecto cambia. En las pruebas
-se puede reemplazar con `app.dependency_overrides[obtener_catalogo]`.
+Los routers la reciben con `Depends(obtener_catalogo)`, que elige según
+CATALOGO en el .env:
+
+- `CatalogoDemo` (CATALOGO=demo): datos de ejemplo en memoria, sin CR-BioLM.
+- `CatalogoCRBioLM` (CATALOGO=crbiolm): datos reales por MCP
+  (services/catalogo_crbiolm.py).
+
+En las pruebas se puede reemplazar con `app.dependency_overrides[obtener_catalogo]`.
 
 Los datos de `CatalogoDemo` son ilustrativos y sirven para probar los tres
 caminos de una consulta: coincidencia única, coincidencia múltiple y sin
@@ -21,8 +24,10 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from .. import config
 from ..sanitizacion import normalizar
 from ..schemas.consulta import EspecieCandidata, FichaEspecie, RegistroPresencia, RespuestaConsulta
+from .catalogo_crbiolm import CatalogoCRBioLM
 
 
 class FuenteCatalogo(Protocol):
@@ -46,6 +51,10 @@ class FuenteCatalogo(Protocol):
 
     def obtener_ficha(self, especie: str) -> FichaEspecie | None:
         """Ficha completa de una especie (RR_20)."""
+        ...
+
+    def obtener_mapa(self, especie_id: str) -> bytes | None:
+        """PNG del mapa de distribución, o None si no hay mapa para la especie."""
         ...
 
 
@@ -292,10 +301,17 @@ class CatalogoDemo:
             fuentes=list(_FUENTES),
         )
 
+    def obtener_mapa(self, especie_id: str) -> bytes | None:
+        """Los datos de demostración no tienen mapas: solo CR-BioLM los genera."""
+        return None
 
-_CATALOGO_DEMO = CatalogoDemo()
+
+_CATALOGOS: dict[str, FuenteCatalogo] = {
+    "demo": CatalogoDemo(),
+    "crbiolm": CatalogoCRBioLM(),
+}
 
 
 def obtener_catalogo() -> FuenteCatalogo:
-    """Dependencia de FastAPI: el catálogo que usan los routers."""
-    return _CATALOGO_DEMO
+    """Dependencia de FastAPI: el catálogo que elige CATALOGO en el .env."""
+    return _CATALOGOS[config.CATALOGO]

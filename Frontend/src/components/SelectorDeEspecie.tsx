@@ -43,12 +43,14 @@ export function SelectorDeEspecie({
                 }}
               >
                 <span>
-                  <span className="block text-sm font-medium" style={{ color: "var(--color-texto)" }}>
-                    {c.nombre_comun ?? c.nombre_cientifico}
-                  </span>
-                  <span className="block text-xs italic" style={{ color: "var(--color-texto-secundario)" }}>
+                  <span className="block text-sm font-medium italic" style={{ color: "var(--color-texto)" }}>
                     {c.nombre_cientifico}
                   </span>
+                  {c.nombre_comun && (
+                    <span className="block text-xs" style={{ color: "var(--color-texto-secundario)" }}>
+                      {c.nombre_comun}
+                    </span>
+                  )}
                 </span>
                 <span className="text-xs px-2 py-1 rounded-full shrink-0" style={{ background: "var(--color-superficie-marca)", color: "var(--color-texto-marca)" }}>
                   {c.familia}

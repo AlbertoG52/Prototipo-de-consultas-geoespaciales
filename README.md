@@ -202,30 +202,54 @@ conversación se pueden elegir sus opciones, y se resuelve enviando
 `consulta_id` + `especie_id`. Se actualiza esa misma consulta, así que se cobra
 una sola vez y cuenta el día en que se resuelve. Del visitante no se guarda nada.
 
+### Tiempo máximo de una consulta (RR_38)
+
+Cada consulta tiene `SEGUNDOS_MAXIMOS_CONSULTA` segundos (120 por defecto, en el
+`.env`) desde que llega al backend hasta que la respuesta está lista, incluidas
+todas las llamadas a CR-BioLM. Una llamada MCP nunca dura más de lo que le queda
+a la consulta. Si se supera:
+
+- `POST /consultas` responde **504** con un mensaje para el usuario, y la
+  consulta **no se guarda ni se descuenta** del límite diario.
+- El chat muestra el mensaje con el botón "Reintentar consulta".
+- El backend deja en el log qué consulta se cortó y en qué paso.
+
+El frontend conoce el límite por `GET /auth/sesion` (`segundos_maximos_consulta`)
+y deja de esperar 10 s después, por si la respuesta del servidor nunca llega.
+
 ---
 
-## El catálogo de especies es provisional
+## El catálogo de especies
 
-`Backend/app/services/catalogo.py` **no es la fuente de datos definitiva.** Los
-módulos 2 y 3 no son de este sprint y el catálogo real vendrá de la API de
-CR-BioLM, cuyo contrato todavía no está congelado.
-
-RR_17 y RR_18 necesitan datos para que su lógica exista, así que ese archivo
-tiene un catálogo de ejemplo (`CatalogoDemo`). Todo lo demás —servicios,
-routers, esquemas, frontend— depende solo de la interfaz `FuenteCatalogo`:
+Todo el sistema —servicios, routers, esquemas, frontend— depende solo de la
+interfaz `FuenteCatalogo` (`Backend/app/services/catalogo.py`):
 
 ```python
 buscar_especies(texto)                  -> list[EspecieCandidata]
 obtener_especie(especie_id)             -> EspecieCandidata | None
 construir_respuesta(especie_id, texto)  -> RespuestaConsulta | None
 obtener_ficha(especie)                  -> FichaEspecie | None
+obtener_mapa(especie_id)                -> bytes | None   (PNG)
 ```
 
-Los routers reciben el catálogo con `Depends(obtener_catalogo)`. Cuando se
-conecte CR-BioLM se escribe otra clase con esos cuatro métodos (que use
-`mcp_cliente`) y se cambia solo `obtener_catalogo`. Nada más del proyecto
-cambia. En una prueba se puede poner un catálogo falso con
-`app.dependency_overrides[obtener_catalogo]`.
+`CATALOGO` en el `.env` elige la implementación:
+
+- `demo` (por defecto): `CatalogoDemo`, datos de ejemplo en memoria (guaria
+  morada, cedro amargo…). No necesita CR-BioLM; lo usan las pruebas.
+- `crbiolm`: `CatalogoCRBioLM` (`services/catalogo_crbiolm.py`), datos reales
+  por MCP. Necesita el servidor de CR-BioLM con las herramientas del fork
+  (`get_occurrence_points`, `get_species_map_image`). Su `buscar_especies` es
+  **provisional**: solo reconoce nombres científicos; la identificación de
+  especies es del módulo de Jesús.
+
+Los routers reciben el catálogo con `Depends(obtener_catalogo)`. En una prueba
+se puede poner un catálogo falso con `app.dependency_overrides[obtener_catalogo]`.
+
+**Mapas: todos vienen de CR-BioLM.** El backend no dibuja mapas propios. La
+respuesta trae `mapa` (url, capas, puntos y advertencia) solo cuando CR-BioLM
+genera uno con la herramienta `get_species_map_image` (fork de CR-BioLM); si no
+lo genera, `mapa` es `null` y no se muestra ninguno. El PNG se pide aparte, con
+sesión, a `GET /especies/{id}/mapa`. El catálogo de demostración no tiene mapas.
 
 ---
 

@@ -15,18 +15,28 @@ usuario que desambigüe, o avisarle que no se encontró nada, no le cuesta.
 De un usuario registrado se guardan los tres estados dentro de una
 conversación (RR_09), para poder reabrirla completa. Del visitante no se
 guarda nada (RR_00_11).
+
+RR_38 — cada consulta tiene SEGUNDOS_MAXIMOS_CONSULTA (config.py) para
+completarse. Si se pasa, se cancela con `TiempoAgotado` (HTTP 504) ANTES de
+guardar o cobrar nada, así que reintentarla no le cuesta al usuario.
 """
+
+import logging
 
 from sqlalchemy.orm import Session
 
+from .. import config
 from ..dominio import EstadoConsulta
-from ..errores import Conflicto, LimiteAlcanzado, NoEncontrado, SolicitudInvalida
+from ..errores import Conflicto, LimiteAlcanzado, NoEncontrado, SolicitudInvalida, TiempoAgotado
 from ..models import Consulta, Conversacion
 from ..schemas.consulta import ConsultaOut, ConsultaRequest, EspecieCandidata, RespuestaConsulta
 from ..security import Identidad
-from ..tiempo import ahora
+from ..tiempo import ahora, plazo, verificar_plazo
 from .catalogo import FuenteCatalogo
+from .mcp_cliente import MCPTiempoAgotado
 from .uso import consultas_hoy, limite_de, registrar_consumo_anonimo
+
+logger = logging.getLogger("uvicorn.error")
 
 # Largo máximo del título de una conversación (columna de la tabla 012).
 LARGO_TITULO = 120
@@ -49,7 +59,26 @@ def procesar_consulta(
     datos: ConsultaRequest,
     catalogo: FuenteCatalogo,
 ) -> ConsultaOut:
-    """Procesa una consulta en lenguaje natural (ver el docstring del módulo)."""
+    """Procesa una consulta en lenguaje natural (ver el docstring del módulo).
+
+    RR_38: todo el procesamiento corre dentro del tiempo máximo de la consulta.
+    """
+    segundos = config.SEGUNDOS_MAXIMOS_CONSULTA
+    try:
+        with plazo(segundos):
+            return _procesar(db, identidad, datos, catalogo)
+    except (TiempoAgotado, MCPTiempoAgotado) as error:
+        # Para el equipo técnico: qué consulta se cortó y en qué paso.
+        logger.warning("Consulta cancelada por superar %g s: %s", segundos, error)
+        raise TiempoAgotado(segundos) from error
+
+
+def _procesar(
+    db: Session,
+    identidad: Identidad,
+    datos: ConsultaRequest,
+    catalogo: FuenteCatalogo,
+) -> ConsultaOut:
     limite = limite_de(identidad)
     usadas = consultas_hoy(db, identidad)
 
@@ -69,6 +98,10 @@ def procesar_consulta(
     else:
         estado = EstadoConsulta.RESUELTA
         respuesta = _construir_respuesta(catalogo, candidatas[0].id, datos.texto)
+
+    # RR_38: si el tiempo se acabó mientras se buscaba, se corta aquí, antes de
+    # guardar o cobrar nada.
+    verificar_plazo()
 
     resuelta = estado == EstadoConsulta.RESUELTA
     mensaje = _MENSAJES.get(estado)
@@ -173,6 +206,7 @@ def _resolver_pendiente(
         raise _limite_alcanzado(identidad, pendiente=True)
 
     respuesta = _construir_respuesta(catalogo, datos.especie_id, consulta.texto)
+    verificar_plazo()  # RR_38: antes de resolverla y cobrarla
     momento = ahora()
 
     consulta.estado = EstadoConsulta.RESUELTA

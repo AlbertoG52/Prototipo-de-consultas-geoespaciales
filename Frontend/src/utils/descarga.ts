@@ -60,7 +60,7 @@ export function respuestaATexto(
     "",
     `Consulta: ${consulta}`,
     "",
-    `Especie: ${especie.nombre_comun ?? CELDA_VACIA} (${especie.nombre_cientifico})`,
+    `Especie: ${especie.nombre_cientifico}${especie.nombre_comun ? ` (${especie.nombre_comun})` : ""}`,
     `Familia: ${especie.familia}`,
   ];
   if (respuesta.elevacion) lineas.push(`Elevación: ${respuesta.elevacion}`);
@@ -130,8 +130,8 @@ export function fichaATexto(ficha: FichaEspecie, fecha = new Date()): string {
     `${NOMBRE_APP} — Ficha de especie`,
     `Descargado: ${fecha.toLocaleString(IDIOMA_FECHAS)}`,
     "",
-    `Nombre común: ${dato(ficha.nombre_comun)}`,
     `Nombre científico: ${ficha.nombre_cientifico}`,
+    ...(ficha.nombre_comun ? [`Nombre común: ${ficha.nombre_comun}`] : []),
     `Familia: ${ficha.familia}`,
     `Hábitat: ${dato(ficha.habitat)}`,
     `Elevación: ${dato(ficha.elevacion)}`,

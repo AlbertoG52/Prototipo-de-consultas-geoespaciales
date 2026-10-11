@@ -101,7 +101,8 @@ def _ids(fragmento: str) -> list[str]:
 
 
 def test_sugiere_por_nombre_comun_sin_tildes_y_sin_repetir():
-    assert _ids("guaría") == ["guarianthe-skinneri", "guarianthe-aurantiaca"]
+    # Ordenadas por nombre científico: aurantiaca antes que skinneri.
+    assert _ids("guaría") == ["guarianthe-aurantiaca", "guarianthe-skinneri"]
 
 
 def test_sugiere_por_nombre_cientifico_y_por_cualquier_palabra():

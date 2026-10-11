@@ -81,6 +81,20 @@ export class ErrorApi extends Error {
   }
 }
 
+/**
+ * RR_38 — el navegador dejó de esperar la respuesta.
+ *
+ * El servidor corta la consulta al llegar a su tiempo máximo y responde 504;
+ * este error es la red de seguridad para cuando ni siquiera esa respuesta llega
+ * (servidor colgado o red caída a mitad de la petición).
+ */
+export class TiempoAgotado extends Error {
+  constructor() {
+    super("Se agotó el tiempo de espera de la respuesta.");
+    this.name = "TiempoAgotado";
+  }
+}
+
 async function manejar<T>(res: Response): Promise<T> {
   // RR_00_04: un 401 con el token de un usuario = la sesión venció.
   // (Se excluye el login: ahí un 401 significa credenciales incorrectas.)
@@ -108,14 +122,32 @@ async function manejar<T>(res: Response): Promise<T> {
 /**
  * Hace una petición a la API con el token guardado y devuelve el cuerpo ya
  * interpretado (o lanza ErrorApi). Los endpoints públicos ignoran el token.
+ *
+ * Con `esperaMaximaMs`, la petición se cancela si no termina en ese tiempo y
+ * se lanza TiempoAgotado (RR_38).
  */
-async function pedir<T>(ruta: string, metodo = "GET", cuerpo?: unknown): Promise<T> {
-  const res = await fetch(`${API_URL}${ruta}`, {
-    method: metodo,
-    headers: cabeceras(),
-    body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
-  });
-  return manejar<T>(res);
+async function pedir<T>(
+  ruta: string,
+  metodo = "GET",
+  cuerpo?: unknown,
+  esperaMaximaMs?: number,
+): Promise<T> {
+  const control = esperaMaximaMs ? new AbortController() : undefined;
+  const reloj = control ? setTimeout(() => control.abort(), esperaMaximaMs) : undefined;
+  try {
+    const res = await fetch(`${API_URL}${ruta}`, {
+      method: metodo,
+      headers: cabeceras(),
+      body: cuerpo === undefined ? undefined : JSON.stringify(cuerpo),
+      signal: control?.signal,
+    });
+    return await manejar<T>(res);
+  } catch (err) {
+    if (control?.signal.aborted) throw new TiempoAgotado();
+    throw err;
+  } finally {
+    clearTimeout(reloj);
+  }
 }
 
 /** Pide un token nuevo al servidor y lo guarda. */
@@ -183,18 +215,28 @@ export async function renovarSesion(): Promise<void> {
  *   crea una nueva (RR_09). Solo aplica con cuenta.
  * - `consultaId`: la consulta ambigua guardada que se está resolviendo. El
  *   servidor resuelve esa misma consulta, así que no se cobra dos veces.
+ * - `esperaMaximaMs`: cuánto esperar la respuesta antes de lanzar TiempoAgotado (RR_38).
  */
 export const enviarConsulta = (
   texto: string,
   especieId?: string,
-  opciones: { conversacionId?: number | null; consultaId?: number | null } = {},
+  opciones: {
+    conversacionId?: number | null;
+    consultaId?: number | null;
+    esperaMaximaMs?: number;
+  } = {},
 ) =>
-  pedir<ConsultaOut>("/consultas", "POST", {
-    texto,
-    especie_id: especieId ?? null,
-    conversacion_id: opciones.conversacionId ?? null,
-    consulta_id: opciones.consultaId ?? null,
-  });
+  pedir<ConsultaOut>(
+    "/consultas",
+    "POST",
+    {
+      texto,
+      especie_id: especieId ?? null,
+      conversacion_id: opciones.conversacionId ?? null,
+      consulta_id: opciones.consultaId ?? null,
+    },
+    opciones.esperaMaximaMs,
+  );
 
 /** RR_09 — conversaciones de la cuenta, la de actividad más reciente primero. */
 export const listarConversaciones = () => pedir<ConversacionResumen[]>("/conversaciones");

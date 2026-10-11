@@ -249,3 +249,54 @@ def test_mcp_check_sin_servidor_responde_503_sin_detalles_internos(monkeypatch):
 
     assert respuesta.status_code == 503
     assert url not in respuesta.text
+
+
+# --- RR_38: la llamada respeta el tiempo que le queda a la consulta -------------
+
+
+def test_la_llamada_se_corta_con_el_tiempo_restante_de_la_consulta(conectado):
+    from app.tiempo import plazo
+
+    inicio = time.monotonic()
+    with plazo(0.3), pytest.raises(MCPTiempoAgotado):
+        mcp_cliente.llamar("lenta")  # MCP_TIMEOUT_SEGUNDOS es 1 s en estas pruebas
+    assert time.monotonic() - inicio < 0.9
+
+
+def test_sin_tiempo_restante_ni_siquiera_se_llama(conectado, monkeypatch):
+    from app.tiempo import plazo
+
+    monkeypatch.setattr(config, "MCP_URL", "http://127.0.0.1:9/no-se-usa")
+    with plazo(0.01):
+        time.sleep(0.02)
+        with pytest.raises(MCPTiempoAgotado) as error:
+            mcp_cliente.llamar("get_species", name="Quercus costaricensis")
+    assert "agotado su tiempo" in error.value.detalle
+
+
+def test_la_api_corta_la_consulta_si_cr_biolm_tarda(conectado, monkeypatch):
+    """De punta a punta: el endpoint abre el plazo y la llamada MCP lo respeta."""
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.services.catalogo import CatalogoDemo, obtener_catalogo
+
+    class CatalogoQueLlamaACRBioLM(CatalogoDemo):
+        def construir_respuesta(self, especie_id, texto_consulta):
+            mcp_cliente.llamar("lenta")
+            return super().construir_respuesta(especie_id, texto_consulta)
+
+    cliente = TestClient(app)
+    token = cliente.post("/auth/anonimo").json()["access_token"]
+    monkeypatch.setattr(config, "SEGUNDOS_MAXIMOS_CONSULTA", 0.4)
+    app.dependency_overrides[obtener_catalogo] = CatalogoQueLlamaACRBioLM
+    try:
+        inicio = time.monotonic()
+        respuesta = cliente.post(
+            "/consultas", headers={"Authorization": f"Bearer {token}"}, json={"texto": "pejibaye"}
+        )
+    finally:
+        app.dependency_overrides.pop(obtener_catalogo, None)
+
+    assert respuesta.status_code == 504
+    assert time.monotonic() - inicio < 0.9  # antes que MCP_TIMEOUT_SEGUNDOS (1 s)

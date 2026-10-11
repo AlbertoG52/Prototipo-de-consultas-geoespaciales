@@ -67,3 +67,6 @@ class SesionOut(EsquemaSalida):
     # RR_00_04: minutos sin actividad que cierran la sesión. None para el
     # visitante (no tiene nada que proteger); 0 = "Nunca".
     minutos_inactividad: int | None = None
+    # RR_38: tiempo máximo de una consulta. El frontend deja de esperar un poco
+    # después, por si el servidor no llega a responder.
+    segundos_maximos_consulta: float

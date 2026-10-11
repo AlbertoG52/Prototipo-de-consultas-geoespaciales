@@ -306,8 +306,8 @@ export function ChatPage() {
                   className="text-xs px-3 py-1.5 rounded-full"
                   style={{ border: "1px solid var(--color-borde-marca)", color: "var(--color-texto-marca)", background: "var(--color-superficie-marca)", cursor: "pointer" }}
                 >
-                  {s.nombre_comun ?? s.nombre_cientifico}
-                  {s.nombre_comun && <em style={{ color: "var(--color-texto-secundario)" }}> · {s.nombre_cientifico}</em>}
+                  <em>{s.nombre_cientifico}</em>
+                  {s.nombre_comun && <span style={{ color: "var(--color-texto-secundario)" }}> · {s.nombre_comun}</span>}
                 </button>
               ))}
             </>

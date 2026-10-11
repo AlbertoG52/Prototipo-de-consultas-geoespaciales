@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from ..config import (
     HORAS_TOKEN_VERIFICACION,
     MINUTOS_TOKEN_RECUPERACION,
+    SEGUNDOS_MAXIMOS_CONSULTA,
     URL_FRONTEND,
 )
 from ..db import get_db
@@ -334,6 +335,7 @@ def estado_sesion(
         minutos_inactividad=(
             minutos_inactividad_de(identidad.usuario) if identidad.usuario else None
         ),
+        segundos_maximos_consulta=SEGUNDOS_MAXIMOS_CONSULTA,
     )
 
 

@@ -113,16 +113,16 @@ export function SpeciesPage() {
 }
 
 function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => void }) {
-  const nombre = ficha.nombre_comun ?? ficha.nombre_cientifico;
-
   const etiquetas = [
     `${ficha.total_registros} registros`,
     ficha.elevacion,
   ].filter((e): e is string => Boolean(e));
 
+  // El nombre científico identifica a la especie; el común solo se muestra si
+  // existe (muchas plantas no tienen uno).
   const datosClave: [string, string][] = [
-    ["Nombre común", ficha.nombre_comun ?? SIN_DATO],
     ["Nombre científico", ficha.nombre_cientifico],
+    ...(ficha.nombre_comun ? [["Nombre común", ficha.nombre_comun] as [string, string]] : []),
     ["Familia", ficha.familia],
     ["Hábitat", ficha.habitat ?? SIN_DATO],
     [ETIQUETAS_REGISTRO.elevacion, ficha.elevacion ?? SIN_DATO],
@@ -136,12 +136,17 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
           <div className="text-xs font-medium tracking-widest mb-2" style={{ color: "var(--color-sobre-marca-suave)", letterSpacing: "0.15em" }}>
             {ficha.familia.toUpperCase()}
           </div>
-          <h2 className="text-4xl font-bold mb-1" style={{ color: "var(--color-sobre-marca)", fontFamily: "var(--font-serif)" }}>
-            {nombre}
-          </h2>
-          <p className="text-lg italic mb-4" style={{ color: "var(--color-sobre-marca-tenue)" }}>
+          <h2
+            className={`text-4xl font-semibold italic ${ficha.nombre_comun ? "mb-1" : "mb-4"}`}
+            style={{ color: "var(--color-sobre-marca)", fontFamily: "var(--font-serif)" }}
+          >
             {ficha.nombre_cientifico}
-          </p>
+          </h2>
+          {ficha.nombre_comun && (
+            <p className="text-lg mb-4" style={{ color: "var(--color-sobre-marca-tenue)" }}>
+              {ficha.nombre_comun}
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {etiquetas.map((t) => (
               <span
