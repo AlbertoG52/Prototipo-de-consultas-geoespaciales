@@ -38,6 +38,12 @@ export type RegistroPresencia = Esquema<"RegistroPresencia">;
 
 export type RespuestaConsulta = Esquema<"RespuestaConsulta">;
 
+/**
+ * Mapa de distribución generado por CR-BioLM. Si `respuesta.mapa` es null no se
+ * muestra ningún mapa. La imagen se pide con sesión a `url` (PNG).
+ */
+export type MapaEspecie = Esquema<"MapaEspecie">;
+
 /** RR_20 — ficha completa de una especie. Lo que no se conoce llega como null. */
 export type FichaEspecie = Esquema<"FichaEspecie">;
 

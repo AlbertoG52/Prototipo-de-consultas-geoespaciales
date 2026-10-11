@@ -6,7 +6,7 @@ sesión válida, y la validación se hace en el servidor (RR_00_10). Ninguna
 consume una consulta del límite diario (no pasan por el agente).
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -24,7 +24,8 @@ LIMITE_SUGERENCIAS = 5
 
 def coincidencias(especies: list[dict], fragmento: str) -> list[EspecieCandidata]:
     """Especies con alguna palabra del nombre común o científico que empiece por
-    `fragmento`, sin repetir y en orden alfabético, hasta LIMITE_SUGERENCIAS."""
+    `fragmento`, sin repetir y en orden alfabético del nombre científico (el que
+    toda especie tiene; el común puede no existir), hasta LIMITE_SUGERENCIAS."""
     buscado = normalizar(fragmento)
     vistas: dict[str, EspecieCandidata] = {}
     for e in especies:
@@ -33,9 +34,7 @@ def coincidencias(especies: list[dict], fragmento: str) -> list[EspecieCandidata
             p.startswith(buscado) for p in normalizar(nombres).split()
         ):
             vistas[e["id"]] = EspecieCandidata(**e)
-    ordenadas = sorted(
-        vistas.values(), key=lambda c: (c.nombre_comun or c.nombre_cientifico).lower()
-    )
+    ordenadas = sorted(vistas.values(), key=lambda c: c.nombre_cientifico.lower())
     return ordenadas[:LIMITE_SUGERENCIAS]
 
 
@@ -86,3 +85,31 @@ def ficha_de_especie(
             detail="No se encontró información de esa especie.",
         )
     return ficha
+
+
+@router.get(
+    "/{especie}/mapa",
+    response_class=Response,
+    responses={200: {"content": {"image/png": {}}, "description": "Mapa en PNG"}},
+)
+def mapa_de_especie(
+    especie: str = Path(max_length=100, pattern=r"^[a-z0-9-]+$"),
+    identidad: Identidad = Depends(obtener_identidad),
+    catalogo: FuenteCatalogo = Depends(obtener_catalogo),
+) -> Response:
+    """RR_41 — mapa de distribución generado por CR-BioLM, en PNG.
+
+    Es la `url` de RespuestaConsulta.mapa. Pide sesión como el resto de
+    /especies, así que el frontend lo descarga con el token (no sirve un
+    <img src> directo). 404 si no hay mapa: en ese caso no se muestra ninguno.
+    """
+    exigir_sesion(identidad)
+    png = catalogo.obtener_mapa(especie)
+    if png is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No hay mapa de distribución para esa especie.",
+        )
+    return Response(
+        content=png, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"}
+    )

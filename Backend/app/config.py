@@ -75,6 +75,14 @@ LONGITUD_MAXIMA_PASSWORD = 255
 # --- consultas --------------------------------------------------------------
 LONGITUD_MAXIMA_CONSULTA = 500
 
+# RR_38 — tiempo máximo de procesamiento de UNA consulta, en segundos, desde
+# que llega al backend hasta que la respuesta está lista. Si se supera, la
+# consulta se corta, no se descuenta del límite diario y el usuario ve un
+# mensaje con la opción de reintentarla. Abarca todas las llamadas a CR-BioLM
+# de esa consulta, así que debe ser mayor que MCP_TIMEOUT_SEGUNDOS (el máximo
+# de una sola llamada). Se configura en el .env.
+SEGUNDOS_MAXIMOS_CONSULTA = max(float(os.environ.get("SEGUNDOS_MAXIMOS_CONSULTA", "120")), 1.0)
+
 # --- CR-BioLM por MCP (services/mcp_cliente.py) -------------------------------
 # Dirección del servidor MCP de CR-BioLM. En desarrollo corre en la máquina
 # anfitriona, fuera de Docker, porque necesita los datos que entregó el cliente
@@ -85,7 +93,9 @@ MCP_URL = os.environ.get("MCP_URL", "http://host.docker.internal:8765/mcp").stri
 
 # Tiempo máximo de UNA llamada a una herramienta, en segundos. Debe cubrir el
 # caso más lento: una respuesta del LLM (hasta ~40 s) más un mapa generado en
-# el momento (~10-15 s). El tiempo máximo de la consulta completa es RR_38.
+# el momento (~10-15 s). El tiempo máximo de la consulta completa es
+# SEGUNDOS_MAXIMOS_CONSULTA (RR_38): una llamada nunca se extiende más allá de
+# lo que le queda a la consulta.
 MCP_TIMEOUT_SEGUNDOS = max(float(os.environ.get("MCP_TIMEOUT_SEGUNDOS", "90")), 1.0)
 
 # Reintentos cuando NO se pudo conectar con el servidor. Una llamada que llegó
@@ -94,6 +104,13 @@ MCP_REINTENTOS_CONEXION = max(int(os.environ.get("MCP_REINTENTOS_CONEXION", "2")
 MCP_ESPERA_REINTENTO_SEGUNDOS = max(
     float(os.environ.get("MCP_ESPERA_REINTENTO_SEGUNDOS", "1")), 0.0
 )
+
+# Qué catálogo de especies usa el backend (services/catalogo.py):
+#   demo     datos de ejemplo en memoria; no necesita CR-BioLM. Lo usan las pruebas.
+#   crbiolm  datos reales del servidor MCP de CR-BioLM (MCP_URL).
+CATALOGO = os.environ.get("CATALOGO", "demo").strip().lower()
+if CATALOGO not in ("demo", "crbiolm"):
+    raise ValueError(f"CATALOGO debe ser 'demo' o 'crbiolm', no {CATALOGO!r}")
 
 # --- CORS -------------------------------------------------------------------
 ORIGENES_PERMITIDOS = [

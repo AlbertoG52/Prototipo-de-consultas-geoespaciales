@@ -10,6 +10,7 @@
  *           elegir la especie incluso al reabrir la conversación otro día.
  *  - RR_00_11 al visitante sin cuenta no se le guarda nada
  *  - RR_05  el error de una consulta se explica en lenguaje sencillo
+ *  - RR_38  si la consulta supera el tiempo máximo, se avisa y se puede reintentar
  *
  * Las conversaciones del usuario registrado se cargan del servidor. La del
  * visitante vive solo aquí, en memoria, y desaparece al recargar la página.
@@ -100,17 +101,35 @@ const MENSAJE_FALLO_SERVIDOR =
   "Ocurrió un problema al procesar tu consulta. Intenta de nuevo en un momento.";
 
 /**
+ * RR_38 — segundos que el navegador espera DESPUÉS del tiempo máximo del
+ * servidor (Sesion.segundos_maximos_consulta). El servidor corta primero y
+ * responde con su propio mensaje; el navegador solo deja de esperar si esa
+ * respuesta nunca llega.
+ */
+const MARGEN_ESPERA_SEGUNDOS = 10;
+
+function mensajeTiempoAgotado(segundos?: number): string {
+  const limite = segundos ? ` de ${segundos} ${segundos === 1 ? "segundo" : "segundos"}` : "";
+  return `La consulta superó el tiempo máximo${limite}. Puedes reintentarla.`;
+}
+
+/**
  * RR_05 criterio 1 — el error de una consulta explicado en lenguaje sencillo.
  *
  * - Sin respuesta del servidor, fetch lanza un TypeError ("Failed to fetch").
+ * - RR_38: el servidor cortó la consulta por tiempo (504, con su propio
+ *   mensaje) o el navegador dejó de esperar (TiempoAgotado).
  * - Un 5xx o un error sin detalle solo trae "Error 500" y similares.
  * - Los demás (límite de consultas, validaciones) ya vienen del backend
  *   redactados para el usuario y se muestran tal cual.
  */
-function mensajeDeError(err: unknown): string {
+function mensajeDeError(err: unknown, segundosMaximos?: number): string {
+  if (err instanceof api.TiempoAgotado) return mensajeTiempoAgotado(segundosMaximos);
   if (err instanceof TypeError) return MENSAJE_SIN_CONEXION;
   if (!(err instanceof api.ErrorApi)) return MENSAJE_FALLO_SERVIDOR;
-  if (err.status >= 500 || /^Error \d+$/.test(err.message)) return MENSAJE_FALLO_SERVIDOR;
+  const sinDetalle = /^Error \d+$/.test(err.message);
+  if (err.status === 504) return sinDetalle ? mensajeTiempoAgotado(segundosMaximos) : err.message;
+  if (err.status >= 500 || sinDetalle) return MENSAJE_FALLO_SERVIDOR;
   return err.message;
 }
 
@@ -162,6 +181,7 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
   // Al cambiar de cuenta (iniciar o cerrar sesión) se empieza de cero y se
   // cargan las conversaciones de la nueva cuenta. El visitante no tiene.
   const guardaHistorial = sesion?.guarda_historial ?? false;
+  const segundosMaximos = sesion?.segundos_maximos_consulta;
   useEffect(() => {
     setMensajes([]);
     cambiarConversacion(null);
@@ -215,6 +235,10 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
         const salida = await api.enviarConsulta(limpio, especieId, {
           conversacionId: conversacionRef.current,
           consultaId,
+          esperaMaximaMs:
+            segundosMaximos !== undefined
+              ? (segundosMaximos + MARGEN_ESPERA_SEGUNDOS) * 1000
+              : undefined,
         });
 
         // RR_09: la consulta quedó guardada en una conversación (solo con cuenta).
@@ -288,7 +312,7 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
         // Solo una consulta resuelta consume del límite.
         if (salida.estado === "resuelta") await refrescarSesion();
       } catch (err) {
-        const mensaje = mensajeDeError(err);
+        const mensaje = mensajeDeError(err, segundosMaximos);
         setMensajes((prev) => [
           ...prev.filter((m) => m.id !== idCarga),
           { clase: "error", id: nuevoId(), mensaje, textoOriginal: limpio },
@@ -298,7 +322,7 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
         setEnviando(false);
       }
     },
-    [enviando, refrescarSesion, cambiarConversacion, tocarConversacion],
+    [enviando, segundosMaximos, refrescarSesion, cambiarConversacion, tocarConversacion],
   );
 
   /**

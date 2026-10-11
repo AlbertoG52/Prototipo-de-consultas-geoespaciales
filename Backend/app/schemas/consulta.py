@@ -32,6 +32,20 @@ class EspecieCandidata(EsquemaSalida):
     familia: str
 
 
+class MapaEspecie(EsquemaSalida):
+    """Mapa de distribución generado por CR-BioLM (RR_41).
+
+    El backend no dibuja mapas: todos vienen de CR-BioLM. Si CR-BioLM no
+    genera uno, la respuesta trae `mapa = None` y el frontend no muestra mapa.
+    La imagen PNG se pide aparte a `url` (GET /especies/{id}/mapa, con sesión).
+    """
+
+    url: str
+    capas: list[str] = Field(default_factory=list)  # qué muestra el mapa (leyenda)
+    puntos: int = 0  # registros de GBIF dibujados en el mapa
+    advertencia: str | None = None  # aviso de CR-BioLM sobre el mapa, si lo hay
+
+
 class RespuestaConsulta(EsquemaSalida):
     """Lo que el agente devuelve para una consulta ya resuelta."""
 
@@ -41,6 +55,7 @@ class RespuestaConsulta(EsquemaSalida):
     registros: list[RegistroPresencia] = Field(default_factory=list)
     total_registros: int = 0
     fuentes: list[str] = Field(default_factory=list)
+    mapa: MapaEspecie | None = None
 
 
 class FichaEspecie(EspecieCandidata):
@@ -56,6 +71,7 @@ class FichaEspecie(EspecieCandidata):
     registros: list[RegistroPresencia] = Field(default_factory=list)
     total_registros: int = 0
     fuentes: list[str] = Field(default_factory=list)
+    mapa: MapaEspecie | None = None
 
 
 class ConsultaRequest(BaseModel):

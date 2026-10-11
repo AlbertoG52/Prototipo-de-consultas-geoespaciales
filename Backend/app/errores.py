@@ -46,3 +46,17 @@ class CuentaBloqueada(ErrorDominio):
 
 class LimiteAlcanzado(ErrorDominio):
     estado_http = 429
+
+
+class TiempoAgotado(ErrorDominio):
+    """RR_38 — la consulta superó el tiempo máximo de procesamiento."""
+
+    estado_http = 504
+
+    def __init__(self, segundos: float):
+        unidad = "segundo" if segundos == 1 else "segundos"
+        super().__init__(
+            f"La consulta superó el tiempo máximo de {segundos:g} {unidad} y se canceló. "
+            "No se descontó de tus consultas del día: puedes reintentarla."
+        )
+        self.segundos = segundos

@@ -511,6 +511,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/especies/{especie}/mapa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Mapa De Especie
+         * @description RR_41 — mapa de distribución generado por CR-BioLM, en PNG.
+         *
+         *     Es la `url` de RespuestaConsulta.mapa. Pide sesión como el resto de
+         *     /especies, así que el frontend lo descarga con el token (no sirve un
+         *     <img src> directo). 404 si no hay mapa: en ese caso no se muestra ninguno.
+         */
+        get: operations["mapa_de_especie_especies__especie__mapa_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -783,6 +807,7 @@ export interface components {
             total_registros: number;
             /** Fuentes */
             fuentes: string[];
+            mapa: components["schemas"]["MapaEspecie"] | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -798,6 +823,27 @@ export interface components {
             correo: string;
             /** Password */
             password: string;
+        };
+        /**
+         * MapaEspecie
+         * @description Mapa de distribución generado por CR-BioLM (RR_41).
+         *
+         *     El backend no dibuja mapas: todos vienen de CR-BioLM. Si CR-BioLM no
+         *     genera uno, la respuesta trae `mapa = None` y el frontend no muestra mapa.
+         *     La imagen PNG se pide aparte a `url` (GET /especies/{id}/mapa, con sesión).
+         */
+        MapaEspecie: {
+            /** Url */
+            url: string;
+            /** Capas */
+            capas: string[];
+            /**
+             * Puntos
+             * @default 0
+             */
+            puntos: number;
+            /** Advertencia */
+            advertencia: string | null;
         };
         /** MensajeOut */
         MensajeOut: {
@@ -883,6 +929,7 @@ export interface components {
             total_registros: number;
             /** Fuentes */
             fuentes: string[];
+            mapa: components["schemas"]["MapaEspecie"] | null;
         };
         /**
          * RestablecerPasswordRequest
@@ -915,6 +962,8 @@ export interface components {
             guarda_historial: boolean;
             /** Minutos Inactividad */
             minutos_inactividad: number | null;
+            /** Segundos Maximos Consulta */
+            segundos_maximos_consulta: number;
         };
         /**
          * TipoSesion
@@ -1602,6 +1651,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FichaEspecie"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mapa_de_especie_especies__especie__mapa_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                especie: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mapa en PNG */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": unknown;
                 };
             };
             /** @description Validation Error */

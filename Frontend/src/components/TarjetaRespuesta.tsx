@@ -80,12 +80,14 @@ export function TarjetaRespuesta({
           >
             {respuesta.especie.familia}
           </div>
-          <div className="text-2xl font-bold" style={{ color: "var(--color-sobre-marca)", fontFamily: "var(--font-serif)" }}>
-            {respuesta.especie.nombre_comun ?? respuesta.especie.nombre_cientifico}
-          </div>
-          <div className="text-sm italic mt-0.5" style={{ color: "var(--color-sobre-marca-tenue)" }}>
+          <div className="text-2xl font-semibold italic" style={{ color: "var(--color-sobre-marca)", fontFamily: "var(--font-serif)" }}>
             {respuesta.especie.nombre_cientifico}
           </div>
+          {respuesta.especie.nombre_comun && (
+            <div className="text-sm mt-0.5" style={{ color: "var(--color-sobre-marca-tenue)" }}>
+              {respuesta.especie.nombre_comun}
+            </div>
+          )}
           <div className="flex items-center gap-4 mt-3 flex-wrap">
             <span
               className="text-xs px-2 py-1 rounded-full"

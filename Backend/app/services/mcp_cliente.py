@@ -18,7 +18,8 @@ Desde una función `async` se usa `allamar(...)` con `await`.
 Qué hace:
 - Abre una sesión por llamada. Es lo más simple y suficiente para el
   prototipo: el servidor corre en la misma máquina o en la red de Docker.
-- Corta la llamada si pasa de MCP_TIMEOUT_SEGUNDOS (base técnica de RR_38).
+- Corta la llamada si pasa de MCP_TIMEOUT_SEGUNDOS, o antes si la consulta que
+  la hizo tiene menos tiempo restante (RR_38, ver tiempo.plazo).
 - Reintenta solo cuando no se pudo conectar, y solo si la herramienta todavía no
   se había pedido. Una llamada que ya llegó al servidor no se repite: podría
   haber gastado una consulta al LLM (L2), y repetirla la cobraría dos veces.
@@ -51,6 +52,7 @@ from mcp.shared.exceptions import McpError
 from mcp.types import CallToolResult, TextContent
 
 from .. import config
+from ..tiempo import segundos_restantes
 
 # El logger de uvicorn es el que ya aparece en los logs del contenedor.
 logger = logging.getLogger("uvicorn.error")
@@ -88,7 +90,7 @@ class MCPNoDisponible(ErrorMCP):
 
 
 class MCPTiempoAgotado(ErrorMCP):
-    """La llamada superó MCP_TIMEOUT_SEGUNDOS (RR_38)."""
+    """La llamada superó MCP_TIMEOUT_SEGUNDOS o el tiempo que le quedaba a la consulta (RR_38)."""
 
 
 class MCPErrorHerramienta(ErrorMCP):
@@ -224,17 +226,24 @@ async def _con_reintentos(herramienta: str, operacion, *argumentos):
     """Ejecuta `operacion` con tiempo máximo y reintentos de conexión.
 
     Se reintenta solo si no se pudo conectar Y la herramienta todavía no se
-    había pedido. Entre intentos se espera MCP_ESPERA_REINTENTO_SEGUNDOS.
+    había pedido. Entre intentos se espera MCP_ESPERA_REINTENTO_SEGUNDOS, salvo
+    que a la consulta ya no le alcance el tiempo para otro intento (RR_38).
     """
     intentos = config.MCP_REINTENTOS_CONEXION + 1
     for intento in range(1, intentos + 1):
+        limite = _tiempo_para_la_llamada(herramienta)
         progreso = _Progreso()
         try:
-            with anyio.fail_after(config.MCP_TIMEOUT_SEGUNDOS):
+            with anyio.fail_after(limite):
                 return await operacion(progreso, *argumentos)
         except Exception as exc:
-            error, reintentable = _clasificar(herramienta, exc)
-            if reintentable and not progreso.pedida and intento < intentos:
+            error, reintentable = _clasificar(herramienta, exc, limite)
+            if (
+                reintentable
+                and not progreso.pedida
+                and intento < intentos
+                and _alcanza_para_reintentar()
+            ):
                 logger.warning(
                     "MCP %s: no se pudo conectar (intento %d de %d), se reintenta",
                     herramienta,
@@ -247,13 +256,29 @@ async def _con_reintentos(herramienta: str, operacion, *argumentos):
     raise AssertionError("inalcanzable")  # el ciclo siempre retorna o lanza
 
 
-def _clasificar(herramienta: str, exc: Exception) -> tuple[ErrorMCP, bool]:
+def _tiempo_para_la_llamada(herramienta: str) -> float:
+    """MCP_TIMEOUT_SEGUNDOS, o lo que le quede a la consulta si es menos (RR_38)."""
+    restantes = segundos_restantes()
+    if restantes is None:
+        return config.MCP_TIMEOUT_SEGUNDOS
+    if restantes <= 0:
+        raise MCPTiempoAgotado(herramienta, "la consulta ya había agotado su tiempo máximo")
+    return min(config.MCP_TIMEOUT_SEGUNDOS, restantes)
+
+
+def _alcanza_para_reintentar() -> bool:
+    """False si, tras la espera entre intentos, a la consulta ya no le quedaría tiempo."""
+    restantes = segundos_restantes()
+    return restantes is None or restantes > config.MCP_ESPERA_REINTENTO_SEGUNDOS
+
+
+def _clasificar(herramienta: str, exc: Exception, limite: float) -> tuple[ErrorMCP, bool]:
     """Traduce un fallo del SDK o de la red a un ErrorMCP del proyecto.
 
     El booleano dice si vale la pena reintentar: solo cuando no se pudo conectar.
     """
     if _contiene(exc, TimeoutError):
-        detalle = f"superó {config.MCP_TIMEOUT_SEGUNDOS:g} s sin responder"
+        detalle = f"superó {limite:g} s sin responder"
         return MCPTiempoAgotado(herramienta, detalle), False
 
     rechazo = _contiene(exc, httpx.HTTPStatusError)
