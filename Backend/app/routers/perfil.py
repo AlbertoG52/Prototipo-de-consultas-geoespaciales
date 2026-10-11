@@ -7,16 +7,17 @@ de la URL ni del cuerpo de la petición.
 Ninguno de estos cambios pasa por la auditoría (RR_00_09): el trigger de la
 BD solo registra cambios de rol y de estado.
 """
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..dominio import TipoSesion
 from ..models import Usuario
 from ..schemas.auth import TokenOut
 from ..schemas.perfil import CambioInactividadRequest, CambioNombreRequest, CambioPasswordRequest
 from ..schemas.usuario import UsuarioOut
 from ..security import (
-    TIPO_USUARIO,
     Identidad,
     crear_token_usuario,
     hash_password,
@@ -85,4 +86,4 @@ def cambiar_inactividad(
     db.commit()
     db.refresh(usuario)
     token, _ = crear_token_usuario(usuario, sesion_id=identidad.sesion_id or None)
-    return TokenOut(access_token=token, tipo=TIPO_USUARIO)
+    return TokenOut(access_token=token, tipo=TipoSesion.USUARIO)

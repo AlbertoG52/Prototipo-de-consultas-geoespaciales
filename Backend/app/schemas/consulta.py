@@ -1,23 +1,18 @@
 """Esquemas de consultas y de sus respuestas."""
-from datetime import datetime
-from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..config import LONGITUD_MAXIMA_CONSULTA
+from ..dominio import EstadoConsulta
 from ..sanitizacion import sanitizar_texto
+from .base import EsquemaSalida
 
-# Estados de una consulta (columna consultas.estado):
-#   - "resuelta"          -> trae 'respuesta'; es la única que cuesta del límite diario
-#   - "ambigua"           -> trae 'candidatos' (RR_17); sigue pendiente hasta que se elige
-#   - "sin_coincidencias" -> no se reconoció ninguna especie
-ESTADO_RESUELTA = "resuelta"
-ESTADO_AMBIGUA = "ambigua"
-ESTADO_SIN_COINCIDENCIAS = "sin_coincidencias"
-EstadoConsulta = Literal["resuelta", "ambigua", "sin_coincidencias"]
+# Los estados de una consulta están en dominio.EstadoConsulta.
 
 
-class RegistroPresencia(BaseModel):
+class RegistroPresencia(EsquemaSalida):
     """Un punto de presencia de la especie (RR_18, vista de lista)."""
 
     localidad: str
@@ -28,7 +23,7 @@ class RegistroPresencia(BaseModel):
     fuente: str
 
 
-class EspecieCandidata(BaseModel):
+class EspecieCandidata(EsquemaSalida):
     """Una de las especies que coinciden con la consulta (RR_17)."""
 
     id: str
@@ -37,7 +32,7 @@ class EspecieCandidata(BaseModel):
     familia: str
 
 
-class RespuestaConsulta(BaseModel):
+class RespuestaConsulta(EsquemaSalida):
     """Lo que el agente devuelve para una consulta ya resuelta."""
 
     especie: EspecieCandidata
@@ -93,7 +88,7 @@ class ConsultaRequest(BaseModel):
         return limpio
 
 
-class ConsultaOut(BaseModel):
+class ConsultaOut(EsquemaSalida):
     """Resultado de enviar una consulta (ver los estados al inicio del archivo)."""
 
     id: int | None = None
@@ -111,7 +106,7 @@ class ConsultaOut(BaseModel):
 # --- RR_09: historial por conversaciones ----------------------------------------
 
 
-class ConsultaGuardada(BaseModel):
+class ConsultaGuardada(EsquemaSalida):
     """Una consulta dentro de una conversación, en cualquiera de sus estados.
 
     Una "ambigua" trae además 'candidatos' y 'mensaje', y se puede resolver
@@ -127,10 +122,10 @@ class ConsultaGuardada(BaseModel):
     realizada_en: datetime
 
 
-class ConversacionResumen(BaseModel):
+class ConversacionResumen(EsquemaSalida):
     """Una entrada de la barra lateral."""
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
     id: int
     titulo: str

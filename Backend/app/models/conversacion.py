@@ -3,26 +3,37 @@
 Agrupa las consultas que se hicieron en un mismo chat (RR_09). Un visitante
 anónimo no tiene conversaciones guardadas (RR_00_11).
 """
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+
+from __future__ import annotations
+
+from datetime import datetime
+from typing import TYPE_CHECKING
+
+from sqlalchemy import DateTime, ForeignKey, String
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from ..db import Base
+
+if TYPE_CHECKING:
+    from .consulta import Consulta
 
 
 class Conversacion(Base):
     __tablename__ = "conversaciones"
 
-    id = Column(Integer, primary_key=True)
-    usuario_id = Column(Integer, ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id", ondelete="CASCADE"))
 
     # El texto de la primera consulta, recortado.
-    titulo = Column(String(120), nullable=False)
+    titulo: Mapped[str] = mapped_column(String(120))
 
-    creada_en = Column(DateTime(timezone=True), server_default=func.now())
+    creada_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     # Se actualiza con cada consulta: la barra lateral ordena por aquí.
-    actualizada_en = Column(DateTime(timezone=True), server_default=func.now())
+    actualizada_en: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
-    consultas = relationship(
-        "Consulta", back_populates="conversacion", order_by="Consulta.realizada_en"
+    consultas: Mapped[list[Consulta]] = relationship(
+        back_populates="conversacion", order_by="Consulta.realizada_en"
     )

@@ -13,6 +13,7 @@ import { useAuth } from "../context/AuthContext";
 import { useConsultas } from "../context/ConsultasContext";
 import { Logo } from "../components/Logo";
 import { NOMBRE_APP, SUBTITULO_APP } from "../config/marca";
+import { IDIOMA_FECHAS } from "../config/textos";
 
 /** Convierte una fecha ISO en algo corto: "hace 2 min", "ayer", "lun". */
 function tiempoRelativo(iso: string): string {
@@ -24,8 +25,8 @@ function tiempoRelativo(iso: string): string {
   if (horas < 24) return `hace ${horas} h`;
   const dias = Math.floor(horas / 24);
   if (dias === 1) return "ayer";
-  if (dias < 7) return fecha.toLocaleDateString("es-CR", { weekday: "short" });
-  return fecha.toLocaleDateString("es-CR", { day: "numeric", month: "short" });
+  if (dias < 7) return fecha.toLocaleDateString(IDIOMA_FECHAS, { weekday: "short" });
+  return fecha.toLocaleDateString(IDIOMA_FECHAS, { day: "numeric", month: "short" });
 }
 
 export function Root() {
@@ -63,7 +64,7 @@ export function Root() {
   return (
     <div
       className="flex h-full"
-      style={{ background: "var(--color-fondo)", fontFamily: "'Inter', sans-serif" }}
+      style={{ background: "var(--color-fondo)", fontFamily: "var(--fuente-app)" }}
     >
       <aside
         className="flex flex-col shrink-0 border-r"

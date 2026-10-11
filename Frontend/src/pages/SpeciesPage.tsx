@@ -17,13 +17,12 @@ import { PREFIJO_ARCHIVOS } from "../config/marca";
 import * as api from "../services/api";
 import type { FichaEspecie } from "../types";
 import { descargarArchivo, fichaATexto } from "../utils/descarga";
+import { CELDA_VACIA, COLUMNAS_TABLA_REGISTROS, ETIQUETAS_REGISTRO, formatearCoordenadas, SIN_DATO } from "../config/textos";
 
 type Estado =
   | { tipo: "cargando" }
   | { tipo: "error"; mensaje: string }
   | { tipo: "lista"; ficha: FichaEspecie };
-
-const SIN_DATO = "Sin dato";
 
 export function SpeciesPage() {
   const { name } = useParams();
@@ -126,7 +125,7 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
     ["Nombre científico", ficha.nombre_cientifico],
     ["Familia", ficha.familia],
     ["Hábitat", ficha.habitat ?? SIN_DATO],
-    ["Elevación", ficha.elevacion ?? SIN_DATO],
+    [ETIQUETAS_REGISTRO.elevacion, ficha.elevacion ?? SIN_DATO],
   ];
 
   return (
@@ -137,7 +136,7 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
           <div className="text-xs font-medium tracking-widest mb-2" style={{ color: "var(--color-sobre-marca-suave)", letterSpacing: "0.15em" }}>
             {ficha.familia.toUpperCase()}
           </div>
-          <h2 className="text-4xl font-bold mb-1" style={{ color: "var(--color-sobre-marca)", fontFamily: "'Lora', serif" }}>
+          <h2 className="text-4xl font-bold mb-1" style={{ color: "var(--color-sobre-marca)", fontFamily: "var(--font-serif)" }}>
             {nombre}
           </h2>
           <p className="text-lg italic mb-4" style={{ color: "var(--color-sobre-marca-tenue)" }}>
@@ -182,7 +181,7 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
                   <table className="w-full text-xs">
                     <thead style={{ background: "var(--color-superficie-suave)" }}>
                       <tr>
-                        {["Localidad", "Fecha", "Coordenadas", "Elevación"].map((h) => (
+                        {COLUMNAS_TABLA_REGISTROS.map((h) => (
                           <th key={h} className="px-3 py-2 text-left font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>
                             {h}
                           </th>
@@ -194,11 +193,11 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
                         <tr key={i} style={{ borderTop: "1px solid var(--color-borde)" }}>
                           <td className="px-3 py-2" style={{ color: "var(--color-texto-cuerpo)" }}>{r.localidad}</td>
                           <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>{r.fecha}</td>
-                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)", fontFamily: "monospace" }}>
-                            {r.latitud.toFixed(4)}, {r.longitud.toFixed(4)}
+                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)", fontFamily: "var(--font-mono)" }}>
+                            {formatearCoordenadas(r)}
                           </td>
                           <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>
-                            {r.elevacion_m !== null ? `${r.elevacion_m} m` : "—"}
+                            {r.elevacion_m !== null ? `${r.elevacion_m} m` : CELDA_VACIA}
                           </td>
                         </tr>
                       ))}

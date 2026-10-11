@@ -3,9 +3,11 @@ Aplica en orden los archivos .sql de la carpeta migrations/ que aún no se hayan
 aplicado, y lleva el registro en la tabla schema_migrations.
 Es idempotente: correrlo varias veces solo aplica lo que falte.
 """
-import os
+
 import glob
+import os
 import sys
+
 import psycopg2
 
 DATABASE_URL = os.environ["DATABASE_URL"]
@@ -34,7 +36,8 @@ def main():
 
     if not pendientes:
         print("  Sin migraciones pendientes.")
-        cur.close(); conn.close()
+        cur.close()
+        conn.close()
         return
 
     for ruta in pendientes:
@@ -51,7 +54,8 @@ def main():
             print(f"  ERROR en {nombre}: {e}", file=sys.stderr)
             sys.exit(1)
 
-    cur.close(); conn.close()
+    cur.close()
+    conn.close()
 
 
 if __name__ == "__main__":

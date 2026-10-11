@@ -3,23 +3,27 @@
 Las que sí la necesitan (correos de prueba que se borran al terminar, buzón
 falso, sesión de BD que se deshace) son fixtures en conftest.py.
 """
+
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.db import SessionLocal
+from app.dominio import TipoSesion
 from app.main import app
-from app.security import TIPO_ANONIMO, Identidad, hash_password
+from app.security import Identidad, hash_password
 
 # Cliente HTTP contra la API real; las pruebas que lo usan necesitan la BD.
 api = TestClient(app)
 
 # Un visitante con sesión anónima válida (RR_00_11).
-VISITANTE = Identidad(tipo=TIPO_ANONIMO, sesion_id="anon-1", anon_id="anon-1")
+VISITANTE = Identidad(tipo=TipoSesion.ANONIMO, sesion_id="anon-1", anon_id="anon-1")
 
 # Llegó un token, pero venció o no es válido (RR_00_04).
-SESION_INVALIDA = Identidad(tipo=TIPO_ANONIMO, sesion_id="", anon_id=None, token_invalido=True)
+SESION_INVALIDA = Identidad(
+    tipo=TipoSesion.ANONIMO, sesion_id="", anon_id=None, token_invalido=True
+)
 
 
 def sql(consulta: str, **parametros):
@@ -40,24 +44,26 @@ def crear_cuenta_verificada(correo: str, password: str) -> None:
     )
 
 
-def usuario_falso(password: str | None = None, rol: str | None = "usuario", **extra) -> SimpleNamespace:
+def usuario_falso(
+    password: str | None = None, rol: str | None = "usuario", **extra
+) -> SimpleNamespace:
     """Un usuario en memoria con los campos que leen los routers, sin tocar la BD.
 
     `password` se guarda hasheada; `rol=None` simula una cuenta sin rol.
     """
-    datos = dict(
-        id=7,
-        correo="ana@test.com",
-        nombre="Ana",
-        password_hash=hash_password(password) if password else None,
-        rol=SimpleNamespace(nombre=rol) if rol else None,
-        estado="activo",
-        activo=True,
-        minutos_inactividad=None,
-        intentos_fallidos=0,
-        bloqueado_hasta=None,
-        correo_verificado=True,
-    )
+    datos = {
+        "id": 7,
+        "correo": "ana@test.com",
+        "nombre": "Ana",
+        "password_hash": hash_password(password) if password else None,
+        "rol": SimpleNamespace(nombre=rol) if rol else None,
+        "estado": "activo",
+        "activo": True,
+        "minutos_inactividad": None,
+        "intentos_fallidos": 0,
+        "bloqueado_hasta": None,
+        "correo_verificado": True,
+    }
     datos.update(extra)
     return SimpleNamespace(**datos)
 

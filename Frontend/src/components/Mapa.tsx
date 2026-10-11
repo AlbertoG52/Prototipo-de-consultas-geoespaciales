@@ -6,6 +6,7 @@ import { useEffect, type Ref } from "react";
 import { X } from "lucide-react";
 import type { RegistroPresencia } from "../types";
 import { RANGO_VACIO, type RangoElevacion } from "../utils/elevacion";
+import { ETIQUETAS_REGISTRO, formatearCoordenadas, SIN_DATO } from "../config/textos";
 
 /**
  * Mapa de distribución.
@@ -129,11 +130,11 @@ export function DetallePunto({ registro, onCerrar }: { registro: RegistroPresenc
   }, [onCerrar]);
 
   const filas: [string, string][] = [
-    ["Localidad", registro.localidad],
-    ["Fecha del registro", registro.fecha],
-    ["Coordenadas", `${registro.latitud.toFixed(4)}, ${registro.longitud.toFixed(4)}`],
-    ["Elevación", registro.elevacion_m !== null ? `${registro.elevacion_m} msnm` : "Sin dato"],
-    ["Fuente", registro.fuente],
+    [ETIQUETAS_REGISTRO.localidad, registro.localidad],
+    [ETIQUETAS_REGISTRO.fechaDelRegistro, registro.fecha],
+    [ETIQUETAS_REGISTRO.coordenadas, formatearCoordenadas(registro)],
+    [ETIQUETAS_REGISTRO.elevacion, registro.elevacion_m !== null ? `${registro.elevacion_m} msnm` : SIN_DATO],
+    [ETIQUETAS_REGISTRO.fuente, registro.fuente],
   ];
 
   return (

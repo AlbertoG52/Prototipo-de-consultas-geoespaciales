@@ -1,0 +1,51 @@
+# Configuración de las herramientas de calidad del backend.
+# No es un paquete instalable: las dependencias siguen en requirements.txt.
+#
+#   ruff check .        estilo, imports ordenados y errores comunes
+#   ruff format .       formato del código
+#   mypy                tipos
+#
+# Se ejecutan solas antes de cada commit (pre-commit, ver README) y en GitHub
+# Actions (.github/workflows/ci.yml).
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["migrations"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes: imports y variables sin usar, nombres indefinidos
+    "I",       # imports ordenados (isort)
+    "B",       # bugbear: errores probables
+    "UP",      # sintaxis moderna de Python (X | None en vez de Optional[X])
+    "SIM",     # simplificaciones
+    "C4",      # comprensiones
+    "RUF",     # reglas propias de ruff
+]
+ignore = [
+    "B008",    # Depends(...) en los parámetros es el patrón normal de FastAPI
+    "RUF001", "RUF002", "RUF003",  # el código está en español: tildes, ñ y rayas son intencionales
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+# Las pruebas importan su módulo de apoyo como 'apoyo' (tests/apoyo.py).
+known-local-folder = ["apoyo"]
+
+
+[tool.mypy]
+python_version = "3.12"
+files = ["app", "cambiar_rol.py", "migrate.py"]
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+warn_redundant_casts = true
+no_implicit_optional = true
+check_untyped_defs = true
+# Las librerías sin tipos (passlib, jose) no deben frenar la revisión.
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [".", "tests"]

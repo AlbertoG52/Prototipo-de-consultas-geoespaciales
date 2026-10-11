@@ -1,4 +1,5 @@
 """Punto de entrada de la API."""
+
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text

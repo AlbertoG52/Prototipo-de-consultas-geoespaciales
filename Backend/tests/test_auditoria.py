@@ -4,13 +4,15 @@ Las de registro e inmutabilidad usan la BD del contenedor y deshacen todo al
 terminar, así que no dejan datos. Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
+
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from apoyo import usuario_falso
 from app.routers.admin import _usuario_a_modificar
+
+from apoyo import usuario_falso
 
 
 def test_no_puede_modificarse_a_si_mismo():
@@ -35,12 +37,17 @@ def test_cambio_registra_accion_fecha_afectado_y_actor(db):
 
     db.execute(text("SELECT set_config('app.actor_id', :id, true)"), {"id": str(actor)})
     db.execute(
-        text("UPDATE usuarios SET rol_id = (SELECT id FROM roles WHERE nombre = 'moderador') WHERE id = :id"),
+        text(
+            "UPDATE usuarios SET rol_id = (SELECT id FROM roles WHERE nombre = 'moderador') "
+            "WHERE id = :id"
+        ),
         {"id": afectado},
     )
 
     fila = db.execute(
-        text("SELECT accion, detalle, fecha, actor_id FROM auditoria WHERE usuario_afectado_id = :id"),
+        text(
+            "SELECT accion, detalle, fecha, actor_id FROM auditoria WHERE usuario_afectado_id = :id"
+        ),
         {"id": afectado},
     ).one()
     assert fila.accion == "cambio_rol"
@@ -49,7 +56,10 @@ def test_cambio_registra_accion_fecha_afectado_y_actor(db):
     assert fila.actor_id == actor
 
 
-@pytest.mark.parametrize("sentencia", ["UPDATE auditoria SET detalle = 'x'", "DELETE FROM auditoria", "TRUNCATE auditoria"])
+@pytest.mark.parametrize(
+    "sentencia",
+    ["UPDATE auditoria SET detalle = 'x'", "DELETE FROM auditoria", "TRUNCATE auditoria"],
+)
 def test_registro_no_se_puede_modificar(db, sentencia):
     afectado = _crear_usuario(db, "inmutable.prueba@example.com")
     db.execute(text("UPDATE usuarios SET estado = 'inactivo' WHERE id = :id"), {"id": afectado})

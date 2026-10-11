@@ -6,14 +6,17 @@ Cada prueba borra las cuentas que crea (el borrado arrastra sus tokens). Se
 ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
+
 import re
 
 import pytest
 
-from apoyo import SesionFalsa, api, crear_cuenta_verificada, usuario_falso
-from apoyo import sql as _sql
+from app.dominio import EstadoCuenta
 from app.routers import auth
 from app.schemas.auth import CorreoRequest
+
+from apoyo import SesionFalsa, api, crear_cuenta_verificada, usuario_falso
+from apoyo import sql as _sql
 
 VIEJA = "Vieja#2024"
 NUEVA = "Nueva#2025x"
@@ -103,7 +106,7 @@ def test_no_revela_si_el_correo_existe(buzon, correo):
 def test_cuenta_desactivada_no_recibe_enlace(buzon):
     # Sin BD: desactivar una cuenta real deja un registro de auditoría que no
     # se puede borrar (RR_00_09), así que se simula el usuario.
-    desactivada = SesionFalsa(usuario_falso(activo=False, estado="inactivo"))
+    desactivada = SesionFalsa(usuario_falso(activo=False, estado=EstadoCuenta.INACTIVO))
     salida = auth.recuperar_password(CorreoRequest(correo="ana@test.com"), desactivada)
     assert salida.mensaje == _pedir("nadie-xyz@test.com").json()["mensaje"]
     assert buzon == []

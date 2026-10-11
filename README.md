@@ -48,28 +48,34 @@ Backend/
   app/
     config.py      variables de entorno y límites
     db.py          engine, sesión por petición
+    dominio.py     valores fijos: roles, estados de cuenta y de consulta, tipos de sesión
+    errores.py     errores de negocio (los lanzan los servicios)
+    tiempo.py      ahora(): la hora actual en UTC
     security.py    hash de contraseñas, tokens, identidad de la petición
     main.py        montaje de la API
     models/        mapeo SQLAlchemy de las tablas que crean las migraciones
     schemas/       entrada y salida (Pydantic)
-    routers/       endpoints HTTP
-    services/      lógica que no es HTTP ni BD
-  tests/           pruebas unitarias
+    routers/       endpoints HTTP: reciben la petición y llaman a un servicio
+    services/      lógica de negocio (consultas, autenticación, catálogo, MCP…)
+  tests/           pruebas
+  pyproject.toml   configuración de ruff y mypy
+  exportar_openapi.py  contrato de la API para generar los tipos del frontend
 
 Frontend/src/
-  types/           tipos compartidos con la API
+  types/           tipos compartidos con la API (api.ts se genera, ver "Calidad del código")
   services/api.ts  única puerta de salida hacia el backend
   context/         AuthContext (sesión) y ConsultasContext (conversación)
   pages/           vistas
   components/      piezas reutilizables (Logo, TarjetaRespuesta, Mapa, Formulario…)
   config/marca.ts  nombre, subtítulo y logo de la aplicación
+  config/textos.ts textos y formatos repetidos (idioma de fechas, etiquetas de registros)
   index.css        paleta de colores (modo claro y oscuro)
   routes.tsx       enrutamiento
 Frontend/public/
   logo.svg         archivo del logo
 ```
 
-Tres reglas que conviene mantener:
+Reglas que conviene mantener:
 
 1. **Ninguna vista llama a `fetch` directamente.** Todo pasa por `services/api.ts`,
    para que el manejo del token y de los errores viva en un solo lugar.
@@ -81,7 +87,16 @@ Tres reglas que conviene mantener:
    `style={{ color: "var(--color-texto)" }}`. El nombre y el logo salen de
    `config/marca.ts` y `public/logo.svg`. Así, la marca del cliente (logo,
    nombre, colores) se cambia en esos tres archivos. Los íconos vienen de
-   `lucide-react`.
+   `lucide-react`. Las fuentes también son variables (`var(--font-serif)`,
+   `var(--font-mono)`, `var(--fuente-app)`).
+4. **Los routers no tienen lógica de negocio.** Un endpoint valida la sesión,
+   llama a una función de `services/` y devuelve lo que esta responde. Los
+   servicios no saben de HTTP: si una regla no se cumple lanzan un error de
+   `app/errores.py` (`NoEncontrado`, `LimiteAlcanzado`…) y el router lo
+   convierte en la respuesta HTTP con `with errores_http():`.
+5. **Ningún rol, estado o tipo de sesión se escribe como texto suelto.** Se usa
+   el enum de `app/dominio.py` (`NombreRol.MODERADOR`, `EstadoConsulta.AMBIGUA`…).
+   Un error de tipeo así lo detecta mypy en lugar de fallar en producción.
 
 ### La sesión siempre existe
 
@@ -196,17 +211,21 @@ módulos 2 y 3 no son de este sprint y el catálogo real vendrá de la API de
 CR-BioLM, cuyo contrato todavía no está congelado.
 
 RR_17 y RR_18 necesitan datos para que su lógica exista, así que ese archivo
-tiene un catálogo de ejemplo. Todo lo demás —routers, esquemas, frontend,
-pruebas— está escrito contra sus dos funciones públicas:
+tiene un catálogo de ejemplo (`CatalogoDemo`). Todo lo demás —servicios,
+routers, esquemas, frontend— depende solo de la interfaz `FuenteCatalogo`:
 
 ```python
-buscar_especies(texto)              -> list[EspecieCandidata]
-construir_respuesta(especie_id, t)  -> RespuestaConsulta
+buscar_especies(texto)                  -> list[EspecieCandidata]
+obtener_especie(especie_id)             -> EspecieCandidata | None
+construir_respuesta(especie_id, texto)  -> RespuestaConsulta | None
+obtener_ficha(especie)                  -> FichaEspecie | None
 ```
 
-Cuando llegue la API real se reescribe **solo ese archivo**, respetando esas dos
-firmas. Nada más del proyecto cambia. Las pruebas de `test_catalogo.py`
-verifican comportamiento y no datos, así que siguen sirviendo después.
+Los routers reciben el catálogo con `Depends(obtener_catalogo)`. Cuando se
+conecte CR-BioLM se escribe otra clase con esos cuatro métodos (que use
+`mcp_cliente`) y se cambia solo `obtener_catalogo`. Nada más del proyecto
+cambia. En una prueba se puede poner un catálogo falso con
+`app.dependency_overrides[obtener_catalogo]`.
 
 ---
 
@@ -279,6 +298,52 @@ roles, la auditoría, el perfil, el historial por conversaciones y el adaptador
 MCP (`test_mcp_cliente.py`, con un servidor MCP falso: no necesita CR-BioLM). Las de
 auditoría y conversaciones usan la base de datos del contenedor y borran lo que
 crean al terminar.
+
+---
+
+## Calidad del código
+
+| Qué revisa | Backend | Frontend |
+|---|---|---|
+| Estilo y errores probables | `ruff check .` | `npm run lint` (ESLint) |
+| Formato | `ruff format .` | — |
+| Tipos | `mypy` | `npm run typecheck` (TypeScript) |
+
+La configuración está en `Backend/pyproject.toml` y `Frontend/eslint.config.js`.
+Para revisar todo a mano (el backend con pre-commit, ver abajo; el frontend
+dentro de su contenedor):
+
+```bash
+pre-commit run --all-files
+docker compose exec frontend npm run lint
+docker compose exec frontend npm run typecheck
+```
+
+**Antes de cada commit (pre-commit).** El archivo `.pre-commit-config.yaml`
+ejecuta ruff y mypy sobre los archivos de Python que cambiaron, y además
+impide subir archivos de más de 1 MB (datos del cliente) o llaves privadas.
+Se activa una vez por clon, con Python instalado en la máquina:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+**En GitHub (Actions).** `.github/workflows/ci.yml` corre en cada push y pull
+request: ruff, mypy, migraciones y pytest contra un Postgres de prueba; ESLint
+y el build del frontend; y que los tipos del frontend coincidan con la API.
+
+**Tipos del frontend generados desde la API.** `Frontend/src/types/api.ts` no
+se escribe a mano: sale del contrato OpenAPI que FastAPI genera a partir de los
+esquemas de Pydantic. `src/types/index.ts` solo les pone nombres. Si se cambia
+un esquema del backend, con el backend levantado:
+
+```bash
+docker compose exec frontend npm run tipos
+```
+
+y TypeScript marca cada pantalla que haya que ajustar. Si se olvida, el paso
+"Tipos del frontend al día con la API" de GitHub Actions falla.
 
 ---
 

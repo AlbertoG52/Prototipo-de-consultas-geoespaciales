@@ -31,6 +31,7 @@ Qué NO hace, a propósito:
 - No decide qué herramientas llamar: eso es del flujo de consultas.
 - No aplica límites ni costos por rol (RR_62, RR_77): eso va por encima.
 """
+
 from __future__ import annotations
 
 import json
@@ -236,7 +237,9 @@ async def _con_reintentos(herramienta: str, operacion, *argumentos):
             if reintentable and not progreso.pedida and intento < intentos:
                 logger.warning(
                     "MCP %s: no se pudo conectar (intento %d de %d), se reintenta",
-                    herramienta, intento, intentos,
+                    herramienta,
+                    intento,
+                    intentos,
                 )
                 await anyio.sleep(config.MCP_ESPERA_REINTENTO_SEGUNDOS)
                 continue
@@ -270,15 +273,14 @@ def _clasificar(herramienta: str, exc: Exception) -> tuple[ErrorMCP, bool]:
     if protocolo is not None:
         # p. ej. "Session terminated": la ruta no es la de un servidor MCP.
         detalle = (
-            f"el servidor rechazó la sesión MCP ({protocolo}); "
-            f"revise MCP_URL ({config.MCP_URL})"
+            f"el servidor rechazó la sesión MCP ({protocolo}); revise MCP_URL ({config.MCP_URL})"
         )
         return MCPNoDisponible(herramienta, detalle), False
 
     return ErrorMCP(herramienta, f"error inesperado: {exc!r}"), False
 
 
-def _contiene(exc: BaseException, *tipos: type[BaseException]) -> BaseException | None:
+def _contiene[E: BaseException](exc: BaseException, *tipos: type[E]) -> E | None:
     """Busca un error de los tipos dados dentro de `exc`.
 
     El SDK de MCP trabaja con grupos de tareas, así que un fallo de red suele

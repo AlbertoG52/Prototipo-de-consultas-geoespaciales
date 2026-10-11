@@ -7,13 +7,14 @@ recibe 401, porque sus consultas no se guardan (RR_00_11).
 Cada persona solo ve sus propias conversaciones: pedir la de otra responde
 404, igual que si no existiera, para no revelar qué ids existen.
 """
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..db import get_db
+from ..dominio import EstadoConsulta
 from ..models import Consulta, Conversacion, Usuario
 from ..schemas.consulta import (
-    ESTADO_AMBIGUA,
     ConsultaGuardada,
     ConversacionDetalle,
     ConversacionResumen,
@@ -26,6 +27,7 @@ router = APIRouter(prefix="/conversaciones", tags=["conversaciones"])
 
 # Cuántas conversaciones muestra la barra lateral.
 LIMITE_CONVERSACIONES = 50
+
 
 @router.get("", response_model=list[ConversacionResumen])
 def listar_conversaciones(
@@ -41,6 +43,7 @@ def listar_conversaciones(
         .all()
     )
 
+
 def _a_guardada(consulta: Consulta) -> ConsultaGuardada:
     return ConsultaGuardada(
         id=consulta.id,
@@ -48,7 +51,7 @@ def _a_guardada(consulta: Consulta) -> ConsultaGuardada:
         estado=consulta.estado,
         respuesta=RespuestaConsulta(**consulta.respuesta) if consulta.respuesta else None,
         candidatos=[EspecieCandidata(**c) for c in (consulta.candidatos or [])]
-        if consulta.estado == ESTADO_AMBIGUA
+        if consulta.estado == EstadoConsulta.AMBIGUA
         else [],
         mensaje=consulta.mensaje,
         realizada_en=consulta.realizada_en,
@@ -61,7 +64,7 @@ def ver_conversacion(
     usuario: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    """Una conversación completa, con sus consultas en orden cronológico. """
+    """Una conversación completa, con sus consultas en orden cronológico."""
     conversacion = (
         db.query(Conversacion)
         .filter(Conversacion.id == conversacion_id, Conversacion.usuario_id == usuario.id)

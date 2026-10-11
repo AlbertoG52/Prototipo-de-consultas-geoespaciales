@@ -1,0 +1,48 @@
+"""Valores fijos del dominio: roles, estados y tipos de sesión.
+
+Es el único lugar donde se escriben estos textos. Coinciden con lo que guarda
+la base de datos (las migraciones siembran los roles) y con lo que espera el
+frontend (Frontend/src/types), así que renombrar uno implica una migración y
+regenerar los tipos del frontend (npm run tipos).
+
+Son StrEnum: cada miembro ES un str (Rol.USUARIO == "usuario"), así que se
+guardan en la BD, viajan en JSON y se comparan como texto normal, pero el
+editor y mypy detectan un nombre mal escrito.
+"""
+
+from enum import StrEnum
+
+
+class NombreRol(StrEnum):
+    """Roles de la tabla 'roles' (001_crear_tabla_roles.sql)."""
+
+    USUARIO = "usuario"
+    MODERADOR = "moderador"
+    SUPERMODERADOR = "supermoderador"
+
+
+class EstadoCuenta(StrEnum):
+    """Columna usuarios.estado (RR_74, RR_75)."""
+
+    ACTIVO = "activo"
+    INACTIVO = "inactivo"
+
+
+class TipoSesion(StrEnum):
+    """Quién hace la petición: una cuenta registrada o un visitante (RR_00_11)."""
+
+    USUARIO = "usuario"
+    ANONIMO = "anonimo"
+
+
+class EstadoConsulta(StrEnum):
+    """Columna consultas.estado.
+
+    - RESUELTA: trae la respuesta; es la única que cuesta del límite diario.
+    - AMBIGUA: trae las candidatas (RR_17); queda pendiente hasta que se elige.
+    - SIN_COINCIDENCIAS: no se reconoció ninguna especie.
+    """
+
+    RESUELTA = "resuelta"
+    AMBIGUA = "ambigua"
+    SIN_COINCIDENCIAS = "sin_coincidencias"

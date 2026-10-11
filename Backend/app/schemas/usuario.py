@@ -1,12 +1,14 @@
 """Esquemas de entrada y salida de usuarios."""
+
 import re
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from ..config import LONGITUD_MAXIMA_PASSWORD, LONGITUD_MINIMA_PASSWORD
+from ..dominio import EstadoCuenta, NombreRol
 from ..models import Usuario
 from ..sanitizacion import sanitizar_texto
-from ..security import ROL_USUARIO
+from .base import EsquemaSalida
 
 LONGITUD_MINIMA_NOMBRE = 2
 LONGITUD_MAXIMA_NOMBRE = 120
@@ -27,9 +29,13 @@ def validar_nombre(valor: str) -> str:
 def validar_password(valor: str) -> str:
     """Reglas mínimas de contraseña (RR_00_03), en el registro y en cada cambio."""
     if len(valor) < LONGITUD_MINIMA_PASSWORD:
-        raise ValueError(f"La contraseña debe tener al menos {LONGITUD_MINIMA_PASSWORD} caracteres.")
+        raise ValueError(
+            f"La contraseña debe tener al menos {LONGITUD_MINIMA_PASSWORD} caracteres."
+        )
     if len(valor.encode("utf-8")) > LONGITUD_MAXIMA_PASSWORD:
-        raise ValueError(f"La contraseña no puede superar los {LONGITUD_MAXIMA_PASSWORD} caracteres.")
+        raise ValueError(
+            f"La contraseña no puede superar los {LONGITUD_MAXIMA_PASSWORD} caracteres."
+        )
     if not re.search(r"[A-Z]", valor):
         raise ValueError("La contraseña debe incluir al menos una letra mayúscula.")
     if not re.search(r"\d", valor):
@@ -61,15 +67,15 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class UsuarioOut(BaseModel):
+class UsuarioOut(EsquemaSalida):
     id: int
     nombre: str | None = None
     correo: str
-    rol: str
-    estado: str
+    rol: NombreRol
+    estado: EstadoCuenta
     correo_verificado: bool
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True)
 
     @classmethod
     def de_modelo(cls, usuario: Usuario) -> "UsuarioOut":
@@ -78,7 +84,7 @@ class UsuarioOut(BaseModel):
             id=usuario.id,
             nombre=usuario.nombre,
             correo=usuario.correo,
-            rol=usuario.rol.nombre if usuario.rol else ROL_USUARIO,
+            rol=usuario.rol.nombre if usuario.rol else NombreRol.USUARIO,
             estado=usuario.estado,
             correo_verificado=usuario.correo_verificado,
         )

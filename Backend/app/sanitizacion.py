@@ -33,6 +33,7 @@ función no sustituye el escapado propio de ese destino.
 Las contraseñas no se sanitizan: cualquier cambio alteraría la credencial. Se
 guardan solo como hash y nunca se muestran.
 """
+
 from __future__ import annotations
 
 import re

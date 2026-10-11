@@ -4,15 +4,17 @@ No necesitan base de datos: se llaman los endpoints con un usuario y una
 sesión simulados. Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
+
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from apoyo import SesionFalsa as _SesionFalsa
-from apoyo import usuario_falso
 from app.routers import perfil
 from app.schemas.perfil import CambioNombreRequest, CambioPasswordRequest
 from app.security import obtener_usuario_actual, verificar_password
+
+from apoyo import SesionFalsa as _SesionFalsa
+from apoyo import usuario_falso
 
 ACTUAL = "Actual#2024"
 NUEVA = "Nueva#2025x"
@@ -23,6 +25,7 @@ def _usuario():
 
 
 # --- nombre --------------------------------------------------------------
+
 
 def test_nombre_se_limpia():
     assert CambioNombreRequest(nombre="  Ana   María ").nombre == "Ana María"
@@ -49,6 +52,7 @@ def test_cambiar_nombre_guarda_y_devuelve_el_usuario():
 
 
 # --- contraseña ----------------------------------------------------------
+
 
 @pytest.mark.parametrize("debil", ["corta1!", "sinmayuscula1!", "SinNumero!", "SinSimbolo1"])
 def test_nueva_password_usa_las_reglas_del_registro(debil):
@@ -89,6 +93,7 @@ def test_nueva_igual_a_la_actual_se_rechaza():
 
 
 # --- acceso --------------------------------------------------------------
+
 
 def test_todas_las_rutas_exigen_cuenta():
     # Si alguien quita la dependencia, un visitante anónimo podría llegar aquí.

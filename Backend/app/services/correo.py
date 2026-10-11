@@ -7,10 +7,10 @@ Sin SMTP configurado no se envía nada: el correo se escribe en el log del
 backend (docker compose logs backend), así se puede seguir el enlace mientras
 se desarrolla.
 """
+
 import logging
 import smtplib
 from email.message import EmailMessage
-from typing import Optional
 
 from ..config import SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USUARIO
 
@@ -24,7 +24,7 @@ def smtp_configurado() -> bool:
     return bool(SMTP_USUARIO and SMTP_PASSWORD)
 
 
-def enviar_correo(destino: str, asunto: str, texto: str, html: Optional[str] = None) -> None:
+def enviar_correo(destino: str, asunto: str, texto: str, html: str | None = None) -> None:
     """Envía un correo. Lanza la excepción de smtplib si el envío falla."""
     if not smtp_configurado():
         logger.warning(

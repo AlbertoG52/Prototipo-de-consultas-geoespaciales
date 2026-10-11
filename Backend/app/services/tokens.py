@@ -10,14 +10,15 @@ contraseña.
 - Al emitir uno nuevo se anulan los anteriores del mismo tipo: solo sirve el
   último enlace enviado.
 """
+
 import hashlib
 import secrets
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import timedelta
 
 from sqlalchemy.orm import Session
 
 from ..models import Token
+from ..tiempo import ahora
 
 TIPO_VERIFICACION = "verificacion"
 TIPO_RECUPERACION = "recuperacion"
@@ -44,27 +45,27 @@ def crear_token(db: Session, usuario_id: int, tipo: str, duracion: timedelta) ->
             usuario_id=usuario_id,
             token=_hash(claro),
             tipo=tipo,
-            expira_en=datetime.now(timezone.utc) + duracion,
+            expira_en=ahora() + duracion,
             usado=False,
         )
     )
     return claro
 
 
-def consumir_token(db: Session, claro: str, tipo: str) -> Optional[Token]:
+def consumir_token(db: Session, claro: str, tipo: str) -> Token | None:
     """Valida el token y lo marca como usado.
 
     Devuelve None si no existe, es de otro tipo, ya se usó o venció. No hace
     commit.
     """
     fila = db.query(Token).filter(Token.token == _hash(claro), Token.tipo == tipo).first()
-    if fila is None or fila.usado or fila.expira_en <= datetime.now(timezone.utc):
+    if fila is None or fila.usado or fila.expira_en <= ahora():
         return None
     fila.usado = True
     return fila
 
 
-def segundos_desde_ultimo(db: Session, usuario_id: int, tipo: str) -> Optional[float]:
+def segundos_desde_ultimo(db: Session, usuario_id: int, tipo: str) -> float | None:
     """Segundos desde que se emitió el último token de ese tipo; None si nunca."""
     ultimo = (
         db.query(Token.creado_en)
@@ -74,4 +75,4 @@ def segundos_desde_ultimo(db: Session, usuario_id: int, tipo: str) -> Optional[f
     )
     if ultimo is None or ultimo[0] is None:
         return None
-    return (datetime.now(timezone.utc) - ultimo[0]).total_seconds()
+    return (ahora() - ultimo[0]).total_seconds()

@@ -1,10 +1,13 @@
 """Esquemas de autenticación y de estado de la sesión."""
+
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
+from ..dominio import TipoSesion
+from .base import EsquemaSalida
 from .usuario import UsuarioOut, validar_password
 
 
-class MensajeOut(BaseModel):
+class MensajeOut(EsquemaSalida):
     mensaje: str
 
 
@@ -34,20 +37,20 @@ class RestablecerPasswordRequest(BaseModel):
         return validar_password(v)
 
 
-class TokenOut(BaseModel):
+class TokenOut(EsquemaSalida):
     """Respuesta de /auth/login y /auth/anonimo."""
 
     access_token: str
     token_type: str = "bearer"
-    tipo: str  # "usuario" | "anonimo"
+    tipo: TipoSesion
 
 
-class RegistroOut(BaseModel):
+class RegistroOut(EsquemaSalida):
     mensaje: str
     usuario: UsuarioOut
 
 
-class SesionOut(BaseModel):
+class SesionOut(EsquemaSalida):
     """Estado de la sesión actual, sea de un usuario o de un visitante.
 
     El frontend lo usa para decidir qué mostrar en la barra lateral: un
@@ -55,7 +58,7 @@ class SesionOut(BaseModel):
     (RR_00_11).
     """
 
-    tipo: str
+    tipo: TipoSesion
     usuario: UsuarioOut | None = None
     limite_consultas: int
     consultas_realizadas: int

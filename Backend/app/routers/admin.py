@@ -10,20 +10,22 @@ modificarse a sí mismo, para que no pueda quedarse sin acceso. No se cubre el
 caso de dos supermoderadores que se degradan mutuamente al mismo tiempo; si
 llegara a importar, la protección debe ir en la BD bloqueando filas.
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload
 
 from ..db import get_db
+from ..dominio import NombreRol
 from ..models import Rol, Usuario
 from ..schemas.admin import CambioEstado, CambioRol, RegistroAuditoria
 from ..schemas.usuario import UsuarioOut
-from ..security import ROL_SUPERMODERADOR, obtener_usuario_actual, requiere_rol
+from ..security import obtener_usuario_actual, requiere_rol
 
 router = APIRouter(
     prefix="/admin",
     tags=["admin"],
-    dependencies=[Depends(requiere_rol(ROL_SUPERMODERADOR))],
+    dependencies=[Depends(requiere_rol(NombreRol.SUPERMODERADOR))],
 )
 
 
@@ -52,12 +54,7 @@ def listar_usuarios(db: Session = Depends(get_db)):
     Sin paginación: suficiente para el prototipo. Con muchos usuarios habrá
     que agregar límite y desplazamiento.
     """
-    usuarios = (
-        db.query(Usuario)
-        .options(joinedload(Usuario.rol))
-        .order_by(Usuario.id.asc())
-        .all()
-    )
+    usuarios = db.query(Usuario).options(joinedload(Usuario.rol)).order_by(Usuario.id.asc()).all()
     return [UsuarioOut.de_modelo(u) for u in usuarios]
 
 
