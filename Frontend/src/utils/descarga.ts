@@ -9,6 +9,7 @@
  * SVG; si pasa a ser canvas o teselas (Leaflet, MapLibre), habrá que exportarlo
  * con la API propia de esa librería.
  */
+import { NOMBRE_APP, PREFIJO_ARCHIVOS } from "../config/marca";
 import type { FichaEspecie, RespuestaConsulta } from "../types";
 
 /** Fecha local en formato AAAA-MM-DD, para los nombres de archivo. */
@@ -19,7 +20,7 @@ function fechaCorta(fecha: Date): string {
 
 /** Nombre base común a los archivos de una misma respuesta. */
 export function nombreBase(respuesta: RespuestaConsulta, fecha = new Date()): string {
-  return `florabot-${respuesta.especie.id}-${fechaCorta(fecha)}`;
+  return `${PREFIJO_ARCHIVOS}-${respuesta.especie.id}-${fechaCorta(fecha)}`;
 }
 
 /**
@@ -53,7 +54,7 @@ export function respuestaATexto(
 ): string {
   const { especie } = respuesta;
   const lineas: string[] = [
-    "FloraBot CR — Resultado de consulta",
+    `${NOMBRE_APP} — Resultado de consulta`,
     `Descargado: ${fecha.toLocaleString("es-CR")}`,
     "",
     `Consulta: ${consulta}`,
@@ -89,8 +90,30 @@ export function respuestaATexto(
  * mapa en pantalla, que usa clases de Tailwind que fuera de la página no
  * existen. XMLSerializer agrega el espacio de nombres SVG automáticamente.
  */
+/**
+ * Los colores del mapa son variables del tema (var(--color-…), ver index.css)
+ * y fuera de la página no existen. Antes de descargar se reemplazan por el
+ * color que cada elemento muestra en ese momento, así el archivo se ve igual
+ * que en pantalla (también en modo oscuro).
+ */
+function fijarColores(original: Element, copia: Element): void {
+  const estilo = getComputedStyle(original);
+  const destino = (copia as SVGElement).style;
+  if (destino) {
+    if (original instanceof SVGSVGElement) destino.background = estilo.backgroundColor;
+    else {
+      destino.fill = estilo.fill;
+      destino.stroke = estilo.stroke;
+    }
+  }
+  for (let i = 0; i < original.children.length; i++) {
+    fijarColores(original.children[i], copia.children[i]);
+  }
+}
+
 export function descargarSvg(svg: SVGSVGElement, nombre: string, ancho = 680, alto = 360): void {
   const copia = svg.cloneNode(true) as SVGSVGElement;
+  fijarColores(svg, copia);
   copia.removeAttribute("class");
   copia.setAttribute("width", String(ancho));
   copia.setAttribute("height", String(alto));
@@ -103,7 +126,7 @@ export function descargarSvg(svg: SVGSVGElement, nombre: string, ancho = 680, al
 export function fichaATexto(ficha: FichaEspecie, fecha = new Date()): string {
   const dato = (v: string | null) => v ?? "Sin dato";
   const lineas: string[] = [
-    "FloraBot CR — Ficha de especie",
+    `${NOMBRE_APP} — Ficha de especie`,
     `Descargado: ${fecha.toLocaleString("es-CR")}`,
     "",
     `Nombre común: ${dato(ficha.nombre_comun)}`,

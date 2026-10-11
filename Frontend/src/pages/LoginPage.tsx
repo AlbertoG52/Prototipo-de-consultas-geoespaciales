@@ -43,7 +43,7 @@ export function LoginPage() {
 
   return (
     <PantallaAcceso subtitulo="Consultas geoespaciales sobre flora de Costa Rica">
-      <h2 className="text-lg font-semibold mb-6" style={{ color: "#1e3d2a" }}>
+      <h2 className="text-lg font-semibold mb-6" style={{ color: "var(--color-texto)" }}>
         Iniciar sesión
       </h2>
 
@@ -60,7 +60,7 @@ export function LoginPage() {
               to="/verify-email"
               state={{ correo }}
               className="block font-medium underline mt-1"
-              style={{ color: "#991b1b" }}
+              style={{ color: "var(--color-error-texto)" }}
             >
               Reenviar correo de verificación
             </Link>
@@ -85,7 +85,7 @@ export function LoginPage() {
           onCambiar={setPassword}
           marcador="••••••••"
           accion={
-            <Link to="/forgot-password" className="text-xs" style={{ color: "#2d5a3d" }}>
+            <Link to="/forgot-password" className="text-xs" style={{ color: "var(--color-texto-marca)" }}>
               ¿Olvidaste tu contraseña?
             </Link>
           }
@@ -96,23 +96,23 @@ export function LoginPage() {
       </form>
 
       <div className="flex items-center gap-3 my-5">
-        <div style={{ flex: 1, height: 1, background: "#dde8df" }} />
-        <span className="text-xs" style={{ color: "#8aab92" }}>o</span>
-        <div style={{ flex: 1, height: 1, background: "#dde8df" }} />
+        <div style={{ flex: 1, height: 1, background: "var(--color-borde)" }} />
+        <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>o</span>
+        <div style={{ flex: 1, height: 1, background: "var(--color-borde)" }} />
       </div>
 
       {/* RR_00_11 — se puede usar el agente sin cuenta. */}
       <button
         onClick={() => navigate("/")}
         className="w-full rounded-xl py-3 text-sm font-medium transition-all"
-        style={{ background: "transparent", color: "#2d5a3d", border: "1.5px solid #c5dccb", cursor: "pointer" }}
+        style={{ background: "transparent", color: "var(--color-texto-marca)", border: "1.5px solid var(--color-borde-fuerte)", cursor: "pointer" }}
       >
         Continuar sin cuenta
       </button>
 
-      <p className="text-center text-sm mt-5" style={{ color: "#6b8f74" }}>
+      <p className="text-center text-sm mt-5" style={{ color: "var(--color-texto-secundario)" }}>
         ¿No tienes cuenta?{" "}
-        <Link to="/register" className="font-medium" style={{ color: "#2d5a3d" }}>
+        <Link to="/register" className="font-medium" style={{ color: "var(--color-texto-marca)" }}>
           Regístrate
         </Link>
       </p>

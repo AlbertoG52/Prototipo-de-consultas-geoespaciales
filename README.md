@@ -17,9 +17,17 @@ Al levantar:
 - El backend espera a la BD, aplica las migraciones pendientes y arranca la API.
 - El frontend arranca en modo desarrollo.
 
+Cuando alguien agrega una dependencia al frontend (cambia `package.json`), las
+`node_modules` del contenedor viven en un volumen aparte y no se actualizan
+solas. Con el contenedor levantado:
+```bash
+docker compose exec frontend npm install
+```
+
 ## URLs
 - Frontend: http://localhost:5173
 - API:      http://localhost:8000/health  y  http://localhost:8000/db-check
+- CR-BioLM: http://localhost:8000/mcp-check (lista las herramientas si la conexión MCP funciona)
 - API docs: http://localhost:8000/docs
 - Postgres: localhost:5432 (para inspeccionar con pgAdmin/DBeaver, opcional)
 
@@ -53,15 +61,27 @@ Frontend/src/
   services/api.ts  única puerta de salida hacia el backend
   context/         AuthContext (sesión) y ConsultasContext (conversación)
   pages/           vistas
+  components/      piezas reutilizables (Logo, TarjetaRespuesta, Mapa, Formulario…)
+  config/marca.ts  nombre, subtítulo y logo de la aplicación
+  index.css        paleta de colores (modo claro y oscuro)
   routes.tsx       enrutamiento
+Frontend/public/
+  logo.svg         archivo del logo
 ```
 
-Dos reglas que conviene mantener:
+Tres reglas que conviene mantener:
 
 1. **Ninguna vista llama a `fetch` directamente.** Todo pasa por `services/api.ts`,
    para que el manejo del token y de los errores viva en un solo lugar.
 2. **Los modelos no crean tablas.** `db.py` no llama a `create_all()`. El esquema
    es de las migraciones; los modelos solo lo mapean.
+3. **Ningún componente escribe un color directamente.** Los colores se definen
+   una sola vez en `Frontend/src/index.css` (bloque `@theme`, con su versión
+   oscura en `[data-tema="oscuro"]`) y los componentes usan la variable:
+   `style={{ color: "var(--color-texto)" }}`. El nombre y el logo salen de
+   `config/marca.ts` y `public/logo.svg`. Así, la marca del cliente (logo,
+   nombre, colores) se cambia en esos tres archivos. Los íconos vienen de
+   `lucide-react`.
 
 ### La sesión siempre existe
 
@@ -190,6 +210,64 @@ verifican comportamiento y no datos, así que siguen sirviendo después.
 
 ---
 
+## Conexión con CR-BioLM (MCP)
+
+Por orden del cliente, el backend usa CR-BioLM a través de su servidor MCP
+(`mpcr_rag/mcp/server.py` en el repo de CR-BioLM). La única pieza del backend
+que habla con ese servidor es **`Backend/app/services/mcp_cliente.py`**:
+
+```python
+from app.services import mcp_cliente
+
+sobre = mcp_cliente.llamar("get_species", name="Quercus costaricensis")
+sobre.valor        # los datos (dict)
+sobre.cita         # "Manual de Plantas de Costa Rica, Tomo V, p. 779"  (RR_50)
+sobre.fuente       # "MPCR", "GBIF", "MPCR+GBIF"...                     (RR_51)
+sobre.advertencia  # aviso que se muestra junto al dato, si no está vacío
+sobre.es_suficiente  # False cuando no hay datos suficientes             (RR_53)
+```
+
+Si algo falla lanza una subclase de `mcp_cliente.ErrorMCP`
+(`MCPNoDisponible`, `MCPTiempoAgotado`, `MCPErrorHerramienta`,
+`MCPRespuestaInvalida`), para que el router muestre el error con opción de
+reintentar (RR_05). Detalles en el docstring del módulo.
+
+### Levantar el servidor de CR-BioLM en desarrollo
+
+CR-BioLM corre **fuera de Docker**, en la máquina anfitriona, porque necesita
+los datos que entregó el cliente y que no están en su repositorio: van
+descomprimidos en la raíz del clon de CR-BioLM (`data_raw/` y
+`mpcr_rag/data/`). Desde esa raíz:
+
+```bash
+python -c "from mpcr_rag.mcp.server import server; server.run(transport='streamable-http', host='0.0.0.0', port=8765)"
+```
+
+- `host='0.0.0.0'` es obligatorio: si escucha solo en 127.0.0.1, rechaza las
+  peticiones que llegan desde el contenedor (HTTP 421). Si Windows pregunta por
+  el firewall, permitir solo redes privadas.
+- El backend lo encuentra en `MCP_URL` (por defecto
+  `http://host.docker.internal:8765/mcp`). Para comprobarlo:
+  http://localhost:8000/mcp-check
+- Sin las llaves de OpenRouter, las herramientas L2 (`answer_question`,
+  `semantic_search`) responden con confianza `insufficient` y un aviso, sin error.
+
+### En el deploy
+
+CR-BioLM será un contenedor más en la red de Docker, con los datos del cliente
+montados como volumen (nunca dentro de la imagen ni del repositorio: pesan y
+el texto del Manual tiene derechos de autor). `MCP_URL` pasa a ser algo como
+`http://crbiolm:8765/mcp` y ese servicio no se publica hacia internet.
+
+### Versión del SDK
+
+`requirements.txt` fija `mcp==1.12.4`. La serie 2.x (la que usa CR-BioLM en su
+servidor) exige `pydantic>=2.12` y otras versiones de FastAPI y Uvicorn. El
+cliente 1.12.4 se entiende con el servidor 2.x (el protocolo se negocia al
+conectar); se probó contra el servidor real de CR-BioLM.
+
+---
+
 ## Pruebas
 
 ```bash
@@ -197,7 +275,8 @@ docker compose exec backend python -m pytest tests -q
 ```
 
 Cubren el hash de contraseñas, la validación y sanitización de entradas, los
-roles, la auditoría, el perfil y el historial por conversaciones. Las de
+roles, la auditoría, el perfil, el historial por conversaciones y el adaptador
+MCP (`test_mcp_cliente.py`, con un servidor MCP falso: no necesita CR-BioLM). Las de
 auditoría y conversaciones usan la base de datos del contenedor y borran lo que
 crean al terminar.
 

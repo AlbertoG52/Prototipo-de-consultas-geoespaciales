@@ -56,20 +56,20 @@ export function ResetPasswordPage() {
 
   return (
     <PantallaAcceso>
-      <h2 className="text-lg font-semibold text-center mb-2" style={{ color: "#1e3d2a" }}>
+      <h2 className="text-lg font-semibold text-center mb-2" style={{ color: "var(--color-texto)" }}>
         {listo ? "Contraseña actualizada" : "Elige una contraseña nueva"}
       </h2>
 
       {listo ? (
         <>
-          <p role="status" className="text-sm text-center mb-6" style={{ color: "#6b8f74" }}>
+          <p role="status" className="text-sm text-center mb-6" style={{ color: "var(--color-texto-secundario)" }}>
             {listo}
           </p>
           <BotonPrincipal onClick={() => navigate("/login")}>Iniciar sesión</BotonPrincipal>
         </>
       ) : enlaceInvalido ? (
         <>
-          <p role="alert" className="text-sm text-center mb-6" style={{ color: "#991b1b" }}>
+          <p role="alert" className="text-sm text-center mb-6" style={{ color: "var(--color-error-texto)" }}>
             {error || "Este enlace no es válido. Pide uno nuevo para cambiar tu contraseña."}
           </p>
           <BotonPrincipal onClick={() => navigate("/forgot-password")}>Pedir un enlace nuevo</BotonPrincipal>

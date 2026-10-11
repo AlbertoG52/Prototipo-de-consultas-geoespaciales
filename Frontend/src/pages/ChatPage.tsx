@@ -14,6 +14,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { CircleAlert, PenLine, Send } from "lucide-react";
 import { SelectorDeEspecie } from "../components/SelectorDeEspecie";
 import { TarjetaRespuesta } from "../components/TarjetaRespuesta";
 import { useAuth } from "../context/AuthContext";
@@ -33,17 +34,17 @@ function Cargando() {
     <div className="flex justify-start">
       <div
         className="rounded-2xl px-5 py-4"
-        style={{ background: "#ffffff", border: "1px solid #dde8df", borderTopLeftRadius: 6 }}
+        style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)", borderTopLeftRadius: 6 }}
       >
         <div className="flex items-center gap-2">
           {[0, 1, 2].map((i) => (
             <div
               key={i}
               className="rounded-full"
-              style={{ width: 8, height: 8, background: "#2d5a3d", animation: `rebote 1.2s ${i * 0.2}s infinite`, opacity: 0.7 }}
+              style={{ width: 8, height: 8, background: "var(--color-marca)", animation: `rebote 1.2s ${i * 0.2}s infinite`, opacity: 0.7 }}
             />
           ))}
-          <span className="text-sm ml-1" style={{ color: "#6b8f74" }}>
+          <span className="text-sm ml-1" style={{ color: "var(--color-texto-secundario)" }}>
             Procesando consulta...
           </span>
         </div>
@@ -164,7 +165,7 @@ export function ChatPage() {
           <div key={m.id} className="flex flex-col items-end">
             <div
               className="rounded-2xl px-5 py-3 text-sm font-medium max-w-sm"
-              style={{ background: "#2d5a3d", color: "#ffffff", borderBottomRightRadius: 6 }}
+              style={{ background: "var(--color-marca)", color: "var(--color-sobre-marca)", borderBottomRightRadius: 6 }}
             >
               {m.texto}
             </div>
@@ -175,17 +176,9 @@ export function ChatPage() {
                 aria-label="Editar la última consulta"
                 title="Editar y volver a enviar (↑)"
                 className="flex items-center gap-1 mt-1 px-2 py-1 rounded-md text-xs"
-                style={{ border: "none", background: "transparent", color: "#8aab92", cursor: "pointer" }}
+                style={{ border: "none", background: "transparent", color: "var(--color-texto-tenue)", cursor: "pointer" }}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path
-                    d="M12 20h9M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <PenLine size={12} />
                 Editar
               </button>
             )}
@@ -223,9 +216,9 @@ export function ChatPage() {
           <div key={m.id} className="flex justify-start">
             <div
               className="rounded-2xl px-5 py-4 max-w-md"
-              style={{ background: "#ffffff", border: "1px solid #dde8df", borderTopLeftRadius: 6 }}
+              style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)", borderTopLeftRadius: 6 }}
             >
-              <p className="text-sm" style={{ color: "#6b8f74" }}>{m.mensaje}</p>
+              <p className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>{m.mensaje}</p>
             </div>
           </div>
         );
@@ -235,23 +228,20 @@ export function ChatPage() {
           <div key={m.id} className="flex justify-start">
             <div
               className="rounded-2xl overflow-hidden max-w-sm"
-              style={{ background: "#fef3f2", border: "1px solid #fca5a5", borderTopLeftRadius: 6 }}
+              style={{ background: "var(--color-error-fondo)", border: "1px solid var(--color-error-borde)", borderTopLeftRadius: 6 }}
             >
               <div className="px-5 py-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" stroke="#dc2626" strokeWidth="2" />
-                    <path d="M12 8v4M12 16h.01" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                  <span className="text-sm font-medium" style={{ color: "#dc2626" }}>
+                  <CircleAlert size={16} style={{ color: "var(--color-error)" }} />
+                  <span className="text-sm font-medium" style={{ color: "var(--color-error)" }}>
                     No se pudo completar la consulta
                   </span>
                 </div>
-                <p className="text-sm" style={{ color: "#991b1b" }}>{m.mensaje}</p>
+                <p className="text-sm" style={{ color: "var(--color-error-texto)" }}>{m.mensaje}</p>
                 <button
                   onClick={() => void mandar(m.textoOriginal)}
                   className="text-xs mt-3 font-medium"
-                  style={{ color: "#dc2626", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
+                  style={{ color: "var(--color-error)", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
                 >
                   Reintentar consulta
                 </button>
@@ -264,23 +254,23 @@ export function ChatPage() {
 
   return (
     <>
-      <div className="px-8 py-5 border-b shrink-0" style={{ background: "#ffffff", borderColor: "#dde8df" }}>
-        <h1 className="text-xl font-semibold" style={{ color: "#1e3d2a" }}>
+      <div className="px-8 py-5 border-b shrink-0" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
+        <h1 className="text-xl font-semibold" style={{ color: "var(--color-texto)" }}>
           Flora de Costa Rica
         </h1>
-        <p className="text-sm" style={{ color: "#6b8f74" }}>
+        <p className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>
           Consulta sobre especies, distribución y ecología vegetal
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-8 py-6" style={{ background: "#f7f8f5" }}>
+      <div className="flex-1 overflow-y-auto px-8 py-6" style={{ background: "var(--color-fondo)" }}>
         <div className="flex flex-col gap-6 max-w-2xl">
           {mensajes.length === 0 && (
-            <div className="rounded-2xl px-6 py-6" style={{ background: "#ffffff", border: "1px solid #dde8df" }}>
-              <h2 className="text-base font-semibold mb-1" style={{ color: "#1e3d2a" }}>
+            <div className="rounded-2xl px-6 py-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
+              <h2 className="text-base font-semibold mb-1" style={{ color: "var(--color-texto)" }}>
                 Pregunta por una planta de Costa Rica
               </h2>
-              <p className="text-sm" style={{ color: "#6b8f74" }}>
+              <p className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>
                 Escribe abajo el nombre común o científico de una especie y te muestro dónde se
                 ha registrado y qué se sabe de ella.
               </p>
@@ -295,7 +285,7 @@ export function ChatPage() {
         </div>
       </div>
 
-      <div className="px-8 py-5 border-t shrink-0" style={{ background: "#ffffff", borderColor: "#dde8df" }}>
+      <div className="px-8 py-5 border-t shrink-0" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
         {/*
           RR_16 — mientras hay sugerencias ocupan el lugar de los ejemplos (RR_02).
           Cada una muestra el nombre común y el científico; al elegirla se
@@ -304,7 +294,7 @@ export function ChatPage() {
         <div className="flex items-center gap-2 flex-wrap mb-3">
           {sugerencias.length > 0 ? (
             <>
-              <span className="text-xs" style={{ color: "#8aab92" }}>Sugerencias:</span>
+              <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>Sugerencias:</span>
               {sugerencias.map((s) => (
                 <button
                   key={s.id}
@@ -314,16 +304,16 @@ export function ChatPage() {
                     areaRef.current?.focus();
                   }}
                   className="text-xs px-3 py-1.5 rounded-full"
-                  style={{ border: "1px solid #2d5a3d", color: "#2d5a3d", background: "#e8f0eb", cursor: "pointer" }}
+                  style={{ border: "1px solid var(--color-borde-marca)", color: "var(--color-texto-marca)", background: "var(--color-superficie-marca)", cursor: "pointer" }}
                 >
                   {s.nombre_comun ?? s.nombre_cientifico}
-                  {s.nombre_comun && <em style={{ color: "#6b8f74" }}> · {s.nombre_cientifico}</em>}
+                  {s.nombre_comun && <em style={{ color: "var(--color-texto-secundario)" }}> · {s.nombre_cientifico}</em>}
                 </button>
               ))}
             </>
           ) : (
           <>
-          <span className="text-xs" style={{ color: "#8aab92" }}>Ejemplos:</span>
+          <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>Ejemplos:</span>
           {CONSULTAS_DE_EJEMPLO.map((ej) => (
             <button
               key={ej}
@@ -332,9 +322,9 @@ export function ChatPage() {
                 areaRef.current?.focus();
               }}
               className="text-xs px-3 py-1.5 rounded-full transition-all"
-              style={{ border: "1px solid #c5dccb", color: "#2d5a3d", background: "transparent", cursor: "pointer" }}
+              style={{ border: "1px solid var(--color-borde-fuerte)", color: "var(--color-texto-marca)", background: "transparent", cursor: "pointer" }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#e8f0eb";
+                e.currentTarget.style.background = "var(--color-superficie-marca)";
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.background = "transparent";
@@ -351,7 +341,7 @@ export function ChatPage() {
           <div
             role="status"
             className="rounded-xl px-4 py-3 mb-3 text-sm"
-            style={{ background: "#f0f5f1", border: "1px solid #dde8df", color: "#6b8f74" }}
+            style={{ background: "var(--color-superficie-suave)", border: "1px solid var(--color-borde)", color: "var(--color-texto-secundario)" }}
           >
             {conectando
               ? "Conectando con el servidor… la consulta se habilita apenas responda."
@@ -362,14 +352,14 @@ export function ChatPage() {
         {sinConsultas && (
           <div
             className="rounded-xl px-4 py-3 mb-3 text-sm"
-            style={{ background: "#fef3f2", border: "1px solid #fca5a5", color: "#991b1b" }}
+            style={{ background: "var(--color-error-fondo)", border: "1px solid var(--color-error-borde)", color: "var(--color-error-texto)" }}
           >
             Agotaste tus consultas de hoy.{" "}
             {sesion?.tipo === "anonimo" && (
               <button
                 onClick={() => navigate("/register")}
                 className="font-medium underline"
-                style={{ color: "#991b1b", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
+                style={{ color: "var(--color-error-texto)", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
               >
                 Crea una cuenta para obtener más.
               </button>
@@ -380,12 +370,12 @@ export function ChatPage() {
         {/* RR_02 — campo de texto libre en español para la consulta. */}
         <div
           className="flex items-end gap-3 rounded-2xl px-4 py-3"
-          style={{ border: "1.5px solid #c5dccb", background: "#f7f8f5" }}
+          style={{ border: "1.5px solid var(--color-borde-fuerte)", background: "var(--color-fondo)" }}
           onFocusCapture={(e) => {
-            e.currentTarget.style.borderColor = "#2d5a3d";
+            e.currentTarget.style.borderColor = "var(--color-borde-marca)";
           }}
           onBlurCapture={(e) => {
-            e.currentTarget.style.borderColor = "#c5dccb";
+            e.currentTarget.style.borderColor = "var(--color-borde-fuerte)";
           }}
         >
           <textarea
@@ -399,32 +389,24 @@ export function ChatPage() {
             placeholder="Escribe tu consulta sobre flora costarricense..."
             rows={1}
             className="flex-1 resize-none bg-transparent text-sm outline-none"
-            style={{ color: "#1e3d2a", lineHeight: "1.5", maxHeight: 120 }}
+            style={{ color: "var(--color-texto)", lineHeight: "1.5", maxHeight: 120 }}
           />
           <button
             onClick={() => void mandar()}
             disabled={!entrada.trim() || enviando || bloqueado}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all shrink-0"
             style={{
-              background: entrada.trim() && !enviando && !bloqueado ? "#2d5a3d" : "#c5dccb",
-              color: entrada.trim() && !enviando && !bloqueado ? "#ffffff" : "#8aab92",
+              background: entrada.trim() && !enviando && !bloqueado ? "var(--color-marca)" : "var(--color-borde-fuerte)",
+              color: entrada.trim() && !enviando && !bloqueado ? "var(--color-sobre-marca)" : "var(--color-texto-tenue)",
               border: "none",
               cursor: entrada.trim() && !enviando && !bloqueado ? "pointer" : "default",
             }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <Send size={14} />
             Enviar
           </button>
         </div>
-        <p className="text-center text-xs mt-2" style={{ color: "#a0b8a8" }}>
+        <p className="text-center text-xs mt-2" style={{ color: "var(--color-texto-tenue)" }}>
           Enter para enviar · Shift+Enter para nueva línea · ↑ para editar la última consulta
         </p>
       </div>

@@ -5,24 +5,11 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { Copy, Download, ExternalLink, MapPin } from "lucide-react";
 import type { RespuestaConsulta } from "../types";
 import { descargarArchivo, descargarSvg, nombreBase, respuestaATexto } from "../utils/descarga";
 import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/elevacion";
 import { DetallePunto, FiltroElevacion, MapaDistribucion } from "./Mapa";
-
-function IconoDescarga() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 export function TarjetaRespuesta({
   consulta,
@@ -83,32 +70,32 @@ export function TarjetaRespuesta({
     <div className="flex justify-start">
       <div
         className="rounded-2xl overflow-hidden w-full"
-        style={{ background: "#ffffff", border: "1px solid #dde8df", maxWidth: 560, borderTopLeftRadius: 6 }}
+        style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)", maxWidth: 560, borderTopLeftRadius: 6 }}
       >
-        <div className="px-6 py-5" style={{ background: "#2d5a3d" }}>
+        <div className="px-6 py-5" style={{ background: "var(--color-marca)" }}>
           <div
             className="text-xs font-medium mb-1"
-            style={{ color: "#a8d4b0", letterSpacing: "0.12em" }}
+            style={{ color: "var(--color-sobre-marca-suave)", letterSpacing: "0.12em" }}
           >
             {respuesta.especie.familia}
           </div>
-          <div className="text-2xl font-bold" style={{ color: "#ffffff", fontFamily: "'Lora', serif" }}>
+          <div className="text-2xl font-bold" style={{ color: "var(--color-sobre-marca)", fontFamily: "'Lora', serif" }}>
             {respuesta.especie.nombre_comun ?? respuesta.especie.nombre_cientifico}
           </div>
-          <div className="text-sm italic mt-0.5" style={{ color: "#c5e8cc" }}>
+          <div className="text-sm italic mt-0.5" style={{ color: "var(--color-sobre-marca-tenue)" }}>
             {respuesta.especie.nombre_cientifico}
           </div>
           <div className="flex items-center gap-4 mt-3 flex-wrap">
             <span
               className="text-xs px-2 py-1 rounded-full"
-              style={{ background: "rgba(255,255,255,0.15)", color: "#e8f0eb" }}
+              style={{ background: "var(--color-etiqueta-sobre-marca)", color: "var(--color-sobre-marca-claro)" }}
             >
               {respuesta.total_registros} registros
             </span>
             {respuesta.elevacion && (
               <span
                 className="text-xs px-2 py-1 rounded-full"
-                style={{ background: "rgba(255,255,255,0.15)", color: "#e8f0eb" }}
+                style={{ background: "var(--color-etiqueta-sobre-marca)", color: "var(--color-sobre-marca-claro)" }}
               >
                 {respuesta.elevacion}
               </span>
@@ -117,7 +104,7 @@ export function TarjetaRespuesta({
         </div>
 
         <div className="px-6 py-5">
-          <p className="text-sm leading-relaxed" style={{ color: "#374a3c" }}>
+          <p className="text-sm leading-relaxed" style={{ color: "var(--color-texto-cuerpo)" }}>
             {respuesta.texto}
           </p>
 
@@ -126,7 +113,7 @@ export function TarjetaRespuesta({
               {/* RR_18 cambiar entre la vista de mapa y la de lista. */}
               <div
                 className="flex gap-1 mt-4 mb-3 p-1 rounded-xl"
-                style={{ background: "#f0f5f1", width: "fit-content" }}
+                style={{ background: "var(--color-superficie-suave)", width: "fit-content" }}
                 role="group"
                 aria-label="Vista de los registros"
               >
@@ -140,8 +127,8 @@ export function TarjetaRespuesta({
                     aria-pressed={vista === v}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                     style={{
-                      background: vista === v ? "#2d5a3d" : "transparent",
-                      color: vista === v ? "#fff" : "#6b8f74",
+                      background: vista === v ? "var(--color-marca)" : "transparent",
+                      color: vista === v ? "var(--color-sobre-marca)" : "var(--color-texto-secundario)",
                       border: "none",
                       cursor: "pointer",
                     }}
@@ -158,20 +145,17 @@ export function TarjetaRespuesta({
               {vista === "mapa" ? (
                 <>
                   <div className="flex items-center gap-1.5 mb-2">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="#2d5a3d" />
-                      <circle cx="12" cy="9" r="2.5" fill="white" />
-                    </svg>
-                    <span className="text-sm font-medium" style={{ color: "#2d5a3d" }}>
+                    <MapPin size={14} style={{ color: "var(--color-marca)" }} />
+                    <span className="text-sm font-medium" style={{ color: "var(--color-texto-marca)" }}>
                       Distribución en Costa Rica
                     </span>
                     {/* RR_15 — descargar el mapa mostrado. */}
                     <button
                       onClick={descargarMapa}
                       className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all"
-                      style={{ background: "transparent", color: "#8aab92", border: "none", cursor: "pointer" }}
+                      style={{ background: "transparent", color: "var(--color-texto-tenue)", border: "none", cursor: "pointer" }}
                     >
-                      <IconoDescarga />
+                      <Download size={12} />
                       Descargar mapa
                     </button>
                   </div>
@@ -184,7 +168,7 @@ export function TarjetaRespuesta({
                     activo={filtro.activo}
                     error={filtro.error}
                   />
-                  <div className="rounded-xl overflow-hidden" style={{ height: 170, border: "1px solid #dde8df" }}>
+                  <div className="rounded-xl overflow-hidden" style={{ height: 170, border: "1px solid var(--color-borde)" }}>
                     <MapaDistribucion
                       ref={mapaRef}
                       registros={respuesta.registros}
@@ -194,24 +178,24 @@ export function TarjetaRespuesta({
                     />
                   </div>
                   {filtro.activo && filtro.indices.length === 0 ? (
-                    <p role="status" className="mt-1.5 text-xs" style={{ color: "#7a5a00" }}>
+                    <p role="status" className="mt-1.5 text-xs" style={{ color: "var(--color-aviso-texto)" }}>
                       Ningún registro está dentro de ese rango de elevación. Ajusta el rango o quita el filtro.
                     </p>
                   ) : seleccionado !== null && respuesta.registros[seleccionado] ? (
                     <DetallePunto registro={respuesta.registros[seleccionado]} onCerrar={cerrarDetalle} />
                   ) : (
-                    <p className="mt-1.5 text-xs" style={{ color: "#8aab92" }}>
+                    <p className="mt-1.5 text-xs" style={{ color: "var(--color-texto-tenue)" }}>
                       Haz clic en un punto para ver el detalle del registro.
                     </p>
                   )}
                 </>
               ) : (
-                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid #dde8df" }}>
+                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-borde)" }}>
                   <table className="w-full text-xs">
-                    <thead style={{ background: "#f0f5f1" }}>
+                    <thead style={{ background: "var(--color-superficie-suave)" }}>
                       <tr>
                         {["Localidad", "Fecha", "Coordenadas", "Elevación"].map((h) => (
-                          <th key={h} className="px-3 py-2 text-left font-medium" style={{ color: "#374a3c" }}>
+                          <th key={h} className="px-3 py-2 text-left font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>
                             {h}
                           </th>
                         ))}
@@ -219,13 +203,13 @@ export function TarjetaRespuesta({
                     </thead>
                     <tbody>
                       {respuesta.registros.map((r, i) => (
-                        <tr key={i} style={{ borderTop: "1px solid #dde8df" }}>
-                          <td className="px-3 py-2" style={{ color: "#374a3c" }}>{r.localidad}</td>
-                          <td className="px-3 py-2" style={{ color: "#6b8f74" }}>{r.fecha}</td>
-                          <td className="px-3 py-2" style={{ color: "#6b8f74", fontFamily: "monospace" }}>
+                        <tr key={i} style={{ borderTop: "1px solid var(--color-borde)" }}>
+                          <td className="px-3 py-2" style={{ color: "var(--color-texto-cuerpo)" }}>{r.localidad}</td>
+                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>{r.fecha}</td>
+                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)", fontFamily: "monospace" }}>
                             {r.latitud.toFixed(4)}, {r.longitud.toFixed(4)}
                           </td>
-                          <td className="px-3 py-2" style={{ color: "#6b8f74" }}>
+                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>
                             {r.elevacion_m !== null ? `${r.elevacion_m} m` : "—"}
                           </td>
                         </tr>
@@ -239,12 +223,12 @@ export function TarjetaRespuesta({
 
           <div className="mt-4 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm" style={{ color: "#6b8f74" }}>Fuentes:</span>
+              <span className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>Fuentes:</span>
               {respuesta.fuentes.map((f) => (
                 <span
                   key={f}
                   className="text-xs px-3 py-1 rounded-full"
-                  style={{ border: "1px solid #c5dccb", color: "#2d5a3d", background: "#f0f5f1", fontWeight: 500 }}
+                  style={{ border: "1px solid var(--color-borde-fuerte)", color: "var(--color-texto-marca)", background: "var(--color-superficie-suave)", fontWeight: 500 }}
                 >
                   {f}
                 </span>
@@ -256,41 +240,30 @@ export function TarjetaRespuesta({
                 onClick={copiar}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
                 style={{
-                  background: copiado ? "#e8f0eb" : "transparent",
-                  color: copiado ? "#2d5a3d" : "#8aab92",
+                  background: copiado ? "var(--color-superficie-marca)" : "transparent",
+                  color: copiado ? "var(--color-texto-marca)" : "var(--color-texto-tenue)",
                   border: "none",
                   cursor: "pointer",
                 }}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" />
-                  <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" stroke="currentColor" strokeWidth="2" />
-                </svg>
+                <Copy size={12} />
                 {copiado ? "Copiado" : "Copiar"}
               </button>
               {/* RR_15 — descargar la respuesta como texto. */}
               <button
                 onClick={descargarRespuesta}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
-                style={{ background: "transparent", color: "#8aab92", border: "none", cursor: "pointer" }}
+                style={{ background: "transparent", color: "var(--color-texto-tenue)", border: "none", cursor: "pointer" }}
               >
-                <IconoDescarga />
+                <Download size={12} />
                 Descargar
               </button>
               <button
                 onClick={() => onVerFicha(respuesta.especie.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
-                style={{ background: "transparent", color: "#8aab92", border: "none", cursor: "pointer" }}
+                style={{ background: "transparent", color: "var(--color-texto-tenue)", border: "none", cursor: "pointer" }}
               >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path
-                    d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                <ExternalLink size={12} />
                 Ficha completa
               </button>
             </div>

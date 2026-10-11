@@ -1,6 +1,162 @@
 @import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,600;1,400&display=swap');
 @import 'tailwindcss';
 
+/*
+  PALETA DE LA APLICACIÓN.
+
+  - Los componentes nunca escriben un color directamente: usan la variable,
+    style={{ color: "var(--color-texto)" }}, o la clase de Tailwind que se
+    genera con el mismo nombre (text-texto, bg-marca, border-borde…).
+
+  `static` hace que todas las variables existan aunque ninguna clase de
+  Tailwind las use, porque la mayoría se usan desde estilos en línea.
+*/
+@theme static {
+  /* Superficies */
+  --color-fondo:                #f7f8f5;  /* Fondo general de la aplicación y de los campos */
+  --color-superficie:           #ffffff;  /* Tarjetas, barra lateral, paneles */
+  --color-superficie-suave:     #f0f5f1;  /* Paneles secundarios, encabezados de tabla, hover */
+  --color-superficie-hover:     #f2f6f3;  /* Fondo al pasar el cursor en la barra lateral */
+  --color-superficie-marca:     #e8f0eb;  /* Elemento seleccionado, etiquetas, avisos de éxito */
+  --color-degradado:            #d4e8da;  /* Extremo del degradado de las pantallas de acceso */
+
+  /* Bordes */
+  --color-borde:                #dde8df;  /* Bordes y separadores */
+  --color-borde-fuerte:         #c5dccb;  /* Bordes destacados, pistas de progreso */
+  --color-borde-marca:          #2d5a3d;  /* Borde de foco y de elemento elegido */
+
+  /* Texto */
+  --color-texto:                #1e3d2a;  /* Títulos y texto principal */
+  --color-texto-cuerpo:         #374a3c;  /* Texto de párrafos y etiquetas */
+  --color-texto-secundario:     #6b8f74;  /* Texto secundario */
+  --color-texto-tenue:          #8aab92;  /* Ayudas, fechas, texto deshabilitado */
+  --color-texto-suave:          #a8d4b0;  /* Texto muy suave (mensajes vacíos, variaciones) */
+  --color-texto-marca:          #2d5a3d;  /* Texto con el color de la marca (enlaces, etiquetas) */
+
+  /* Marca */
+  --color-marca:                #2d5a3d;  /* Color principal: botones, encabezados, burbujas */
+  --color-marca-fuerte:         #1e3d2a;  /* Variante oscura de la marca */
+  --color-marca-deshabilitada:  #a8d4b0;  /* Botón principal deshabilitado */
+  --color-hoja:                 #4a8c5c;  /* Verde secundario (gráficos) */
+  --color-sobre-marca:          #ffffff;  /* Texto sobre fondos de marca */
+  --color-sobre-marca-suave:    #a8d4b0;  /* Texto secundario sobre fondos de marca */
+  --color-sobre-marca-tenue:    #c5e8cc;  /* Nombre científico sobre fondos de marca */
+  --color-sobre-marca-claro:    #e8f0eb;  /* Texto de etiquetas sobre fondos de marca */
+  --color-etiqueta-sobre-marca: rgba(255, 255, 255, 0.15);  /* Fondo de etiquetas sobre fondos de marca */
+
+  /* Estados */
+  --color-error:                #dc2626;  /* Error (iconos, texto breve) */
+  --color-error-texto:          #991b1b;  /* Texto de avisos de error */
+  --color-error-fondo:          #fef3f2;  /* Fondo de avisos de error */
+  --color-error-borde:          #fca5a5;  /* Borde de avisos de error */
+  --color-aviso:                #f59e0b;  /* Advertencia (iconos, barras) */
+  --color-aviso-texto:          #7a5a00;  /* Texto de advertencias */
+  --color-aviso-fondo:          #fff8e6;  /* Fondo de advertencias */
+  --color-aviso-borde:          #f3d58a;  /* Borde de advertencias */
+  --color-exito:                #22c55e;  /* Éxito (indicadores) */
+  --color-neutro:               #9ca3af;  /* Estado inactivo */
+  --color-neutro-fondo:         #f5f5f5;  /* Fondo de estado inactivo */
+
+  /* Gráficos */
+  --color-grafico-1:            #1e3d2a;  /* Gráficos: serie 1 */
+  --color-grafico-2:            #2d5a3d;  /* Gráficos: serie 2 */
+  --color-grafico-3:            #4a8c5c;  /* Gráficos: serie 3 */
+  --color-grafico-4:            #a8d4b0;  /* Gráficos: serie 4 */
+  --color-grafico-5:            #dde8df;  /* Gráficos: serie 5 */
+
+  /* Mapa */
+  --color-mapa-fondo:           #e8f0e8;  /* Fondo del mapa (mar) */
+  --color-mapa-tierra:          #c8dfc0;  /* Territorio de Costa Rica */
+  --color-mapa-contorno:        #9ab89a;  /* Contorno del territorio */
+  --color-mapa-punto:           #5b4fcf;  /* Registros de presencia */
+  --color-mapa-activo:          #e0552b;  /* Registro seleccionado */
+  --color-mapa-texto:           #555555;  /* Leyenda y escala del mapa */
+
+  /* Tipografía */
+  --font-sans: 'Inter', sans-serif;
+  --font-serif: 'Lora', serif;
+}
+
+:root {
+  /* La fuente se elige en Perfil → Preferencias (utils/apariencia.ts). */
+  --fuente-app: 'Inter', sans-serif;
+  --sombra-tarjeta: 0 4px 24px rgba(45, 90, 61, 0.08);
+  --sombra-interruptor: 0 1px 3px rgba(0, 0, 0, 0.2);
+  color-scheme: light;
+}
+
+/*
+  MODO OSCURO (Perfil - Preferencias). 
+*/
+[data-tema="oscuro"] {
+  /* Superficies */
+  --color-fondo:                #0f1712;
+  --color-superficie:           #162019;
+  --color-superficie-suave:     #1c2920;
+  --color-superficie-hover:     #1f2d24;
+  --color-superficie-marca:     #21372a;
+  --color-degradado:            #13281c;
+
+  /* Bordes */
+  --color-borde:                #26362b;
+  --color-borde-fuerte:         #35503e;
+  --color-borde-marca:          #6fb287;
+
+  /* Texto */
+  --color-texto:                #e6efe8;
+  --color-texto-cuerpo:         #c7d4ca;
+  --color-texto-secundario:     #97b19f;
+  --color-texto-tenue:          #6c8573;
+  --color-texto-suave:          #5f7f68;
+  --color-texto-marca:          #8fd0a5;
+
+  /* Marca */
+  --color-marca:                #34704a;
+  --color-marca-fuerte:         #2d5a3d;
+  --color-marca-deshabilitada:  #2b4233;
+  --color-hoja:                 #5fae78;
+  --color-sobre-marca:          #ffffff;
+  --color-sobre-marca-suave:    #c2e3c8;
+  --color-sobre-marca-tenue:    #d9f1df;
+  --color-sobre-marca-claro:    #e8f0eb;
+  --color-etiqueta-sobre-marca: rgba(255, 255, 255, 0.15);
+
+  /* Estados */
+  --color-error:                #f87171;
+  --color-error-texto:          #fca5a5;
+  --color-error-fondo:          #2c1616;
+  --color-error-borde:          #6e2b2b;
+  --color-aviso:                #fbbf24;
+  --color-aviso-texto:          #f3d58a;
+  --color-aviso-fondo:          #2a2310;
+  --color-aviso-borde:          #5e4b18;
+  --color-exito:                #4ade80;
+  --color-neutro:               #7b8580;
+  --color-neutro-fondo:         #1e2420;
+
+  /* Gráficos */
+  --color-grafico-1:            #a6dcb6;
+  --color-grafico-2:            #6dbb86;
+  --color-grafico-3:            #4a9563;
+  --color-grafico-4:            #3b6b4b;
+  --color-grafico-5:            #2f4436;
+
+  /* Mapa */
+  --color-mapa-fondo:           #122019;
+  --color-mapa-tierra:          #2a4632;
+  --color-mapa-contorno:        #5d8468;
+  --color-mapa-punto:           #a59cff;
+  --color-mapa-activo:          #ff8a5c;
+  --color-mapa-texto:           #b3c2b7;
+
+  --sombra-tarjeta: 0 4px 24px rgba(0, 0, 0, 0.45);
+  --sombra-interruptor: 0 1px 3px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+/* Variante dark: de Tailwind ligada al mismo atributo (dark:bg-…). */
+@custom-variant dark (&:where([data-tema="oscuro"], [data-tema="oscuro"] *));
+
 html,
 body,
 #root {
@@ -9,22 +165,9 @@ body,
   padding: 0;
 }
 
-@theme inline {
-  --color-forest: #2d5a3d;
-  --color-forest-light: #3d7a52;
-  --color-forest-dark: #1e3d2a;
-  --color-leaf: #4a8c5c;
-  --color-sage: #e8f0eb;
-  --color-moss: #c5dccb;
-  --color-parchment: #f7f8f5;
-  --color-sand: #f0f2ed;
-  --font-sans: 'Inter', sans-serif;
-  --font-serif: 'Lora', serif;
-}
-
-/* La fuente se elige en Perfil → Preferencias (utils/apariencia.ts). */
-:root {
-  --fuente-app: 'Inter', sans-serif;
+body {
+  background: var(--color-fondo);
+  color: var(--color-texto);
 }
 
 * {
@@ -32,28 +175,8 @@ body,
   box-sizing: border-box;
 }
 
-/*
-  Modo oscuro (Perfil → Preferencias).
-
-  Las vistas usan colores escritos directamente en cada componente, así que en
-  vez de redefinirlos uno por uno se invierte toda la aplicación y se gira el
-  tono 180° para que el verde siga siendo verde. Las imágenes, videos, lienzos
-  y mapas se vuelven a invertir para que conserven sus colores reales.
-
-  Si un elemento nuevo debe verse con sus colores originales (por ejemplo, un
-  mapa hecho con SVG), basta con ponerle el atributo data-sin-invertir.
-*/
-html[data-tema="oscuro"] {
-  background: #000;
-}
-
-html[data-tema="oscuro"] #root {
-  background: #fff;
-  filter: invert(1) hue-rotate(180deg);
-}
-
-html[data-tema="oscuro"] #root :is(img, video, canvas, picture, iframe, [data-sin-invertir]) {
-  filter: invert(1) hue-rotate(180deg);
+[data-tema="oscuro"] ::placeholder {
+  color: var(--color-texto-tenue);
 }
 
 ::-webkit-scrollbar {
@@ -63,6 +186,6 @@ html[data-tema="oscuro"] #root :is(img, video, canvas, picture, iframe, [data-si
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #c5dccb;
+  background: var(--color-borde-fuerte);
   border-radius: 2px;
 }
