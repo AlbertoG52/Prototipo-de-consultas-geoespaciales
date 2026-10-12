@@ -5,9 +5,14 @@ herramientas del servidor de CR-BioLM. Todo es L0/L1: no usa el LLM.
 
     buscar_especies      -> get_species (provisional, ver el método)
     obtener_especie      -> get_species
-    construir_respuesta  -> get_species + get_occurrence_points + get_species_map_image
+    construir_respuesta  -> get_species + get_relevant_passage (si pregunta algo concreto)
+                            + get_occurrence_points + get_species_map_image (si es
+                            geoespacial)
     obtener_ficha        -> get_species + get_occurrence_points + get_species_map_image
-    obtener_mapa         -> el mapa en memoria, o lo mismo que construir_respuesta
+    obtener_mapa         -> el mapa en memoria, o lo mismo que la ficha
+
+Todo se combina en un contexto único por especie (services/contexto_especie.py,
+RR_45), del que salen la respuesta y la ficha.
 
 Mapas: todos vienen de CR-BioLM (el PNG de render_species_map). Si CR-BioLM no
 genera mapa para una especie, la respuesta sale sin mapa; el backend nunca
@@ -24,11 +29,17 @@ Antes de armar la respuesta, los datos de cada fuente se validan
   GBIF_REINTENTOS veces con una espera entre intentos. Si todos fallan, la
   respuesta sale con los datos del Manual, sin registros ni mapa, y lo avisa.
 
+Según la pregunta (services/intencion.py):
+
+- RR_41: GBIF y el mapa solo se piden si la consulta es geoespacial.
+- RR_44: si pregunta algo concreto, el texto es el fragmento del Manual que lo
+  responde (búsqueda semántica en CR-BioLM); si no, el párrafo de distribución.
+
 Se activa con CATALOGO=crbiolm en el .env (ver config.py). Los errores de
 conexión con CR-BioLM y el tiempo agotado no se atrapan aquí: los maneja el
 servicio de consultas (RR_38) y, más adelante, RR_05. Las excepciones son GBIF
-(RR_58, arriba) y el mapa: si la herramienta del mapa falla, la respuesta sale
-igual, sin mapa.
+(RR_58, arriba), el mapa y el fragmento (RR_44): si esas herramientas fallan, la
+respuesta sale igual, sin mapa o con el texto de la ficha.
 """
 
 from __future__ import annotations
@@ -39,7 +50,6 @@ import re
 import threading
 import time
 from collections import OrderedDict
-from dataclasses import dataclass
 from itertools import pairwise
 from typing import Any
 
@@ -47,12 +57,13 @@ from .. import config
 from ..schemas.consulta import (
     EspecieCandidata,
     FichaEspecie,
-    MapaEspecie,
     RegistroPresencia,
     RespuestaConsulta,
 )
 from ..tiempo import alcanza_para_esperar
 from . import mcp_cliente
+from .contexto_especie import ContextoEspecie, Fragmento, MapaGenerado, Ocurrencias
+from .intencion import analizar
 from .mcp_cliente import MCPErrorHerramienta, MCPRespuestaInvalida, Sobre
 from .validacion_datos import alcanza_para_mapa, misma_especie, punto_valido
 
@@ -87,66 +98,11 @@ def a_nombre(especie_id: str) -> str:
 # --- catálogo -------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class _Mapa:
-    png: bytes
-    capas: list[str]
-    puntos: int
-    advertencia: str | None
-
-
-@dataclass(frozen=True)
-class _Ocurrencias:
-    """Los registros de GBIF de una especie, ya validados (RR_60)."""
-
-    sobre: Sobre | None  # None: GBIF no respondió en ningún intento (RR_58)
-    registros: list[RegistroPresencia]
-    # Registros válidos en total. Puede ser mayor que len(registros): CR-BioLM
-    # cuenta todos pero entrega como máximo 500 puntos.
-    total: int
-    intentos: int
-
-
-@dataclass(frozen=True)
-class _Datos:
-    """Todo lo que se sabe de una especie, validado, listo para armar la respuesta."""
-
-    manual: Sobre
-    ocurrencias: _Ocurrencias
-    mapa: _Mapa | None
-    avisos: list[str]
-
-    @property
-    def ficha(self) -> dict[str, Any]:
-        return self.manual.valor
-
-    @property
-    def especie(self) -> str:
-        return str(self.ficha["species"])
-
-    def fuentes(self) -> list[str]:
-        sobres = [self.manual]
-        if self.ocurrencias.sobre is not None:
-            sobres.append(self.ocurrencias.sobre)
-        return _fuentes(*sobres)
-
-    def mapa_especie(self) -> MapaEspecie | None:
-        """Lo que la respuesta dice del mapa; la imagen se pide aparte a `url`."""
-        if self.mapa is None:
-            return None
-        return MapaEspecie(
-            url=f"/especies/{a_id(self.especie)}/mapa",
-            capas=self.mapa.capas,
-            puntos=self.mapa.puntos,
-            advertencia=self.mapa.advertencia,
-        )
-
-
 class CatalogoCRBioLM:
     """Catálogo respaldado por el servidor MCP de CR-BioLM."""
 
     def __init__(self) -> None:
-        self._mapas: OrderedDict[str, _Mapa] = OrderedDict()
+        self._mapas: OrderedDict[str, MapaGenerado] = OrderedDict()
         self._candado = threading.Lock()  # los endpoints corren en varios hilos
 
     def buscar_especies(self, texto: str) -> list[EspecieCandidata]:
@@ -172,39 +128,43 @@ class CatalogoCRBioLM:
         return _candidata(manual.valor) if manual else None
 
     def construir_respuesta(self, especie_id: str, texto_consulta: str) -> RespuestaConsulta | None:
-        """Respuesta con el texto del Manual y los registros de GBIF (RR_18, RR_41)."""
-        datos = self._datos(a_nombre(especie_id))
-        if datos is None:
+        """Respuesta a la consulta, armada desde el contexto de la especie (RR_45)."""
+        contexto = self.contexto(a_nombre(especie_id), texto_consulta)
+        if contexto is None:
             return None
-        ficha = datos.ficha
         return RespuestaConsulta(
-            especie=_candidata(ficha),
-            texto=ficha.get("distribution_paragraph")
-            or "El Manual de Plantas de Costa Rica no describe la distribución de esta especie.",
-            elevacion=_elevacion(ficha),
-            registros=datos.ocurrencias.registros,
-            total_registros=datos.ocurrencias.total,
-            fuentes=datos.fuentes(),
-            mapa=datos.mapa_especie(),
-            avisos=datos.avisos,
+            especie=_candidata(contexto.ficha),
+            texto=contexto.texto(),
+            elevacion=_elevacion(contexto.ficha),
+            registros=contexto.registros,
+            total_registros=contexto.total_registros,
+            fuentes=contexto.fuentes(),
+            mapa=contexto.mapa_especie(_url_del_mapa(contexto.especie)),
+            avisos=contexto.avisos,
+            geoespacial=contexto.geoespacial,
+            procedencia=contexto.procedencia(),
         )
 
     def obtener_ficha(self, especie: str) -> FichaEspecie | None:
-        """RR_20. Acepta el id ('quercus-costaricensis') o el nombre científico."""
-        datos = self._datos(especie if " " in especie.strip() else a_nombre(especie))
-        if datos is None:
+        """RR_20. Acepta el id ('quercus-costaricensis') o el nombre científico.
+
+        La ficha no responde una pregunta: trae todo, incluidos registros y mapa.
+        """
+        contexto = self.contexto(especie if " " in especie.strip() else a_nombre(especie))
+        if contexto is None:
             return None
-        ficha = datos.ficha
+        ficha = contexto.ficha
         return FichaEspecie(
             **_candidata(ficha).model_dump(),
             habitat=", ".join(ficha.get("forest_types") or []) or None,
             elevacion=_elevacion(ficha),
             descripcion=ficha.get("morphology") or ficha.get("distribution_paragraph") or None,
-            registros=datos.ocurrencias.registros,
-            total_registros=datos.ocurrencias.total,
-            fuentes=datos.fuentes(),
-            mapa=datos.mapa_especie(),
-            avisos=datos.avisos,
+            registros=contexto.registros,
+            total_registros=contexto.total_registros,
+            fuentes=contexto.fuentes(),
+            mapa=contexto.mapa_especie(_url_del_mapa(contexto.especie)),
+            avisos=contexto.avisos,
+            procedencia=contexto.procedencia(con_texto=False),
         )
 
     def obtener_mapa(self, especie_id: str) -> bytes | None:
@@ -218,19 +178,29 @@ class CatalogoCRBioLM:
             if especie_id in self._mapas:
                 self._mapas.move_to_end(especie_id)
                 return self._mapas[especie_id].png
-        datos = self._datos(a_nombre(especie_id))
-        return datos.mapa.png if datos and datos.mapa else None
+        contexto = self.contexto(a_nombre(especie_id))
+        return contexto.mapa.png if contexto and contexto.mapa else None
 
-    def _datos(self, nombre: str) -> _Datos | None:
-        """Manual, registros de GBIF y mapa de una especie, ya validados.
+    def contexto(self, nombre: str, pregunta: str = "") -> ContextoEspecie | None:
+        """RR_45: toda la información validada de la especie, como un contexto único.
 
-        None si la especie no está en el catálogo. GBIF y el mapa se piden con
-        el nombre de la ficha ya validada (RR_60).
+        None si la especie no está en el catálogo. Lo que se pide depende de la
+        pregunta (sin pregunta, se pide todo):
+
+        - RR_41: GBIF y el mapa solo si la consulta es geoespacial.
+        - RR_44: el fragmento del Manual solo si pregunta algo concreto.
+
+        Todo se pide con el nombre de la ficha ya validada (RR_60).
         """
         manual = self._manual(nombre)
         if manual is None:
             return None
         especie = str(manual.valor["species"])
+        intencion = analizar(pregunta, especie)
+        fragmento = _fragmento(especie, pregunta) if intencion.pregunta_especifica else None
+        if not intencion.geoespacial:
+            return ContextoEspecie(manual, None, None, fragmento, [])
+
         ocurrencias = _ocurrencias(especie)
         avisos: list[str] = []
         mapa = None
@@ -241,9 +211,9 @@ class CatalogoCRBioLM:
             avisos.append(_aviso_pocos_registros(especie, ocurrencias.total))
         else:
             mapa = self._mapa(a_id(especie), especie)
-        return _Datos(manual, ocurrencias, mapa, avisos)
+        return ContextoEspecie(manual, ocurrencias, mapa, fragmento, avisos)
 
-    def _mapa(self, especie_id: str, nombre: str) -> _Mapa | None:
+    def _mapa(self, especie_id: str, nombre: str) -> MapaGenerado | None:
         with self._candado:
             if especie_id in self._mapas:
                 self._mapas.move_to_end(especie_id)
@@ -275,14 +245,60 @@ class CatalogoCRBioLM:
         return sobre
 
 
+def _url_del_mapa(especie: str) -> str:
+    return f"/especies/{a_id(especie)}/mapa"
+
+
+# --- Manual vectorizado: el fragmento que responde la pregunta (RR_44) ----------
+
+
+def _fragmento(especie: str, pregunta: str) -> Fragmento | None:
+    """El fragmento del Manual de la especie que mejor responde la pregunta.
+
+    Usa la herramienta get_relevant_passage de CR-BioLM: búsqueda semántica
+    (L1, embeddings locales, sin costo) sobre los fragmentos vectorizados del
+    Manual de ESA especie. None si no hay fragmento; entonces la respuesta usa
+    el texto de la ficha, como antes de RR_44. Pasa cuando:
+
+    - la herramienta no existe todavía o falla (p. ej. la base de vectores de
+      CR-BioLM no está levantada),
+    - CR-BioLM no tiene texto vectorizado de la especie,
+    - el fragmento es de otra especie (RR_60, RR_45 criterio 1).
+
+    El tiempo agotado sí se deja pasar: es el límite de la consulta (RR_38).
+    """
+    try:
+        sobre = mcp_cliente.llamar("get_relevant_passage", species=especie, question=pregunta)
+    except (MCPErrorHerramienta, MCPRespuestaInvalida) as error:
+        logger.warning("RR_44: sin fragmento del Manual para %s: %s", especie, error)
+        return None
+    valor = sobre.valor if isinstance(sobre.valor, dict) else None
+    if not valor:
+        logger.info("RR_44: CR-BioLM no dio fragmento de %s: %s", especie, sobre.advertencia)
+        return None
+    if not misma_especie(especie, valor.get("species")):
+        logger.warning(
+            "RR_60: se pidió un fragmento de %s y llegó de %r; se descarta",
+            especie,
+            valor.get("species"),
+        )
+        return None
+    pasajes = valor.get("passages") or []
+    mejor = pasajes[0] if pasajes and isinstance(pasajes[0], dict) else {}
+    texto = str(mejor.get("text") or "").strip()
+    if not texto:
+        return None
+    return Fragmento(texto=texto, seccion=str(mejor.get("section") or ""))
+
+
 # --- GBIF: reintentos (RR_58) y validación de los registros (RR_60) -------------
 
 
-def _ocurrencias(especie: str) -> _Ocurrencias:
+def _ocurrencias(especie: str) -> Ocurrencias:
     """Los registros de GBIF de la especie, sin los puntos inválidos (RR_60)."""
     sobre, intentos = _consultar_gbif(especie)
     if sobre is None:
-        return _Ocurrencias(None, [], 0, intentos)
+        return Ocurrencias(None, [], 0, intentos)
     valor = sobre.valor if isinstance(sobre.valor, dict) else {}
     puntos = valor.get("points") or []
     validos = [p for p in puntos if punto_valido(p)]
@@ -295,7 +311,7 @@ def _ocurrencias(especie: str) -> _Ocurrencias:
             especie,
         )
     total = max(int(valor.get("n") or 0) - descartados, len(validos))
-    return _Ocurrencias(sobre, [_registro(p) for p in validos], total, intentos)
+    return Ocurrencias(sobre, [_registro(p) for p in validos], total, intentos)
 
 
 def _consultar_gbif(especie: str) -> tuple[Sobre | None, int]:
@@ -347,7 +363,7 @@ def _aviso_pocos_registros(especie: str, total: int) -> str:
 # --- conversión de los datos de CR-BioLM a los esquemas del proyecto ------------
 
 
-def _pedir_mapa(nombre: str) -> _Mapa | None:
+def _pedir_mapa(nombre: str) -> MapaGenerado | None:
     """El mapa de CR-BioLM, o None si no lo genera.
 
     Si la herramienta falla, la respuesta sale sin mapa en lugar de fallar
@@ -362,11 +378,12 @@ def _pedir_mapa(nombre: str) -> _Mapa | None:
     if not valor.get("png_base64"):
         return None
     capas = [c.strip() for c in str(valor.get("layer_summary", "")).split("|") if c.strip()]
-    return _Mapa(
+    return MapaGenerado(
         png=base64.b64decode(valor["png_base64"]),
         capas=capas,
         puntos=int(valor.get("n_pts") or 0),
         advertencia=sobre.advertencia or None,
+        cita=sobre.cita,
     )
 
 
@@ -399,9 +416,3 @@ def _registro(punto: dict[str, Any]) -> RegistroPresencia:
         elevacion_m=punto.get("elev_m"),
         fuente=FUENTE_GBIF,
     )
-
-
-def _fuentes(*sobres: Sobre) -> list[str]:
-    """Las citas de cada fuente, sin repetir (trazabilidad, RR_45 y RR_51)."""
-    citas = [s.cita or s.fuente for s in sobres]
-    return list(dict.fromkeys(c for c in citas if c))

@@ -10,8 +10,8 @@
  * con la API propia de esa librería.
  */
 import { NOMBRE_APP, PREFIJO_ARCHIVOS } from "../config/marca";
-import type { FichaEspecie, RespuestaConsulta } from "../types";
-import { CELDA_VACIA, formatearCoordenadas, IDIOMA_FECHAS, SIN_DATO } from "../config/textos";
+import type { FichaEspecie, Procedencia, RespuestaConsulta } from "../types";
+import { CELDA_VACIA, ETIQUETAS_DATO, formatearCoordenadas, IDIOMA_FECHAS, SIN_DATO } from "../config/textos";
 
 /** Fecha local en formato AAAA-MM-DD, para los nombres de archivo. */
 function fechaCorta(fecha: Date): string {
@@ -82,6 +82,7 @@ export function respuestaATexto(
   }
 
   lineas.push(`Fuentes: ${respuesta.fuentes.join(", ")}`);
+  lineas.push(...lineasDeProcedencia(respuesta.procedencia));
 
   // CRLF para que el Bloc de notas de Windows respete los saltos de línea.
   return lineas.join("\r\n");
@@ -151,5 +152,16 @@ export function fichaATexto(ficha: FichaEspecie, fecha = new Date()): string {
     );
   }
   lineas.push("", `Fuentes: ${ficha.fuentes.join(", ")}`);
+  lineas.push(...lineasDeProcedencia(ficha.procedencia));
   return lineas.join("\n");
+}
+
+/** RR_45: "Origen de los datos" en el archivo descargado. */
+function lineasDeProcedencia(procedencia: Procedencia[]): string[] {
+  if (procedencia.length === 0) return [];
+  return [
+    "",
+    "Origen de los datos:",
+    ...procedencia.map((p) => `- ${ETIQUETAS_DATO[p.dato]}: ${p.fuente} — ${p.detalle}`),
+  ];
 }

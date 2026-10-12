@@ -5,7 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..config import LONGITUD_MAXIMA_CONSULTA
-from ..dominio import EstadoConsulta
+from ..dominio import DatoRespuesta, EstadoConsulta
 from ..sanitizacion import sanitizar_texto
 from .base import EsquemaSalida
 
@@ -46,6 +46,18 @@ class MapaEspecie(EsquemaSalida):
     advertencia: str | None = None  # aviso de CR-BioLM sobre el mapa, si lo hay
 
 
+class Procedencia(EsquemaSalida):
+    """RR_45 criterio 3: de dónde sale un dato de la respuesta.
+
+    Ejemplo: dato="texto", fuente="Manual de Plantas de Costa Rica",
+    detalle="Tomo V, p. 779 · descripción · búsqueda semántica".
+    """
+
+    dato: DatoRespuesta
+    fuente: str
+    detalle: str
+
+
 class RespuestaConsulta(EsquemaSalida):
     """Lo que el agente devuelve para una consulta ya resuelta."""
 
@@ -59,6 +71,10 @@ class RespuestaConsulta(EsquemaSalida):
     # Avisos para el usuario sobre los datos de la respuesta, p. ej. que no hay
     # registros suficientes para un mapa (RR_43) o que GBIF no respondió (RR_58).
     avisos: list[str] = Field(default_factory=list)
+    # RR_41: False si la consulta no pide información geográfica; entonces no se
+    # consultan registros de GBIF ni el mapa (registros vacíos, mapa None).
+    geoespacial: bool = True
+    procedencia: list[Procedencia] = Field(default_factory=list)  # RR_45
 
 
 class FichaEspecie(EspecieCandidata):
@@ -76,6 +92,7 @@ class FichaEspecie(EspecieCandidata):
     fuentes: list[str] = Field(default_factory=list)
     mapa: MapaEspecie | None = None
     avisos: list[str] = Field(default_factory=list)  # igual que en RespuestaConsulta
+    procedencia: list[Procedencia] = Field(default_factory=list)  # RR_45
 
 
 class ConsultaRequest(BaseModel):

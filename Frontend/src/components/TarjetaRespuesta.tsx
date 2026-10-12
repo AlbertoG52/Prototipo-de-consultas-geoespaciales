@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Copy, Download, ExternalLink, MapPin } from "lucide-react";
 import { Avisos } from "./Avisos";
+import { OrigenDeLosDatos } from "./OrigenDeLosDatos";
 import type { RespuestaConsulta } from "../types";
 import { descargarArchivo, descargarSvg, nombreBase, respuestaATexto } from "../utils/descarga";
 import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/elevacion";
@@ -90,12 +91,15 @@ export function TarjetaRespuesta({
             </div>
           )}
           <div className="flex items-center gap-4 mt-3 flex-wrap">
-            <span
-              className="text-xs px-2 py-1 rounded-full"
-              style={{ background: "var(--color-etiqueta-sobre-marca)", color: "var(--color-sobre-marca-claro)" }}
-            >
-              {respuesta.total_registros} registros
-            </span>
+            {/* RR_41: en una consulta no geográfica no se piden registros. */}
+            {respuesta.geoespacial && (
+              <span
+                className="text-xs px-2 py-1 rounded-full"
+                style={{ background: "var(--color-etiqueta-sobre-marca)", color: "var(--color-sobre-marca-claro)" }}
+              >
+                {respuesta.total_registros} registros
+              </span>
+            )}
             {respuesta.elevacion && (
               <span
                 className="text-xs px-2 py-1 rounded-full"
@@ -275,6 +279,9 @@ export function TarjetaRespuesta({
               </button>
             </div>
           </div>
+
+          {/* RR_45: de dónde sale cada dato. */}
+          <OrigenDeLosDatos procedencia={respuesta.procedencia} className="mt-3" />
         </div>
       </div>
     </div>

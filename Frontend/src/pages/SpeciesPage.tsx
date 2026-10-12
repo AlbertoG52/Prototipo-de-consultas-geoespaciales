@@ -14,6 +14,7 @@ import { useNavigate, useParams } from "react-router";
 
 import { ArrowLeft, Download } from "lucide-react";
 import { Avisos } from "../components/Avisos";
+import { OrigenDeLosDatos } from "../components/OrigenDeLosDatos";
 import { PREFIJO_ARCHIVOS } from "../config/marca";
 import * as api from "../services/api";
 import type { FichaEspecie } from "../types";
@@ -230,6 +231,8 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
                   </span>
                 ))}
               </div>
+              {/* RR_45: de dónde sale cada dato. */}
+              <OrigenDeLosDatos procedencia={ficha.procedencia} className="mt-4" />
             </div>
           </div>
 

@@ -62,3 +62,13 @@ class ResultadoConsulta(StrEnum):
     LIMITE_ALCANZADO = "limite_alcanzado"  # límite diario de consultas
     RECHAZADA = "rechazada"  # otro error de la solicitud (4xx)
     ERROR = "error"  # error inesperado o CR-BioLM no disponible
+
+
+class DatoRespuesta(StrEnum):
+    """Los datos de una respuesta cuyo origen se indica (RR_45, Procedencia.dato)."""
+
+    ESPECIE = "especie"  # nombre, familia y nombre común
+    TEXTO = "texto"
+    ELEVACION = "elevacion"
+    REGISTROS = "registros"
+    MAPA = "mapa"

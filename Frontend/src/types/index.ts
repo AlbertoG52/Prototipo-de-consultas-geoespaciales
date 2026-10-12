@@ -44,6 +44,14 @@ export type RespuestaConsulta = Esquema<"RespuestaConsulta">;
  */
 export type MapaEspecie = Esquema<"MapaEspecie">;
 
+/**
+ * RR_45 — de dónde sale un dato de la respuesta (`respuesta.procedencia`).
+ * `dato` dice cuál: especie, texto, elevación, registros o mapa.
+ */
+export type Procedencia = Esquema<"Procedencia">;
+
+export type DatoRespuesta = Esquema<"DatoRespuesta">;
+
 /** RR_20 — ficha completa de una especie. Lo que no se conoce llega como null. */
 export type FichaEspecie = Esquema<"FichaEspecie">;
 
