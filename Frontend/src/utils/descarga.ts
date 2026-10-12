@@ -4,10 +4,8 @@
  * Todo se genera en el navegador a partir de la respuesta ya recibida: no hay
  * petición al backend ni se consume una consulta del límite diario.
  *
- * El mapa que se descarga es el SVG provisional de ChatPage. Cuando el mapa
- * real de CR-BioLM lo reemplace, `descargarSvg` sigue sirviendo si el mapa es
- * SVG; si pasa a ser canvas o teselas (Leaflet, MapLibre), habrá que exportarlo
- * con la API propia de esa librería.
+ * El mapa no se genera aquí: "Descargar mapa" (components/Mapa.tsx) baja el
+ * mismo PNG de CR-BioLM que ya se descargó para mostrarlo.
  */
 import { NOMBRE_APP, PREFIJO_ARCHIVOS } from "../config/marca";
 import type { FichaEspecie, Procedencia, RespuestaConsulta } from "../types";
@@ -86,45 +84,6 @@ export function respuestaATexto(
 
   // CRLF para que el Bloc de notas de Windows respete los saltos de línea.
   return lineas.join("\r\n");
-}
-
-/**
- * Serializa un elemento SVG del DOM a un archivo independiente.
- *
- * Se trabaja sobre una copia para fijar un tamaño explícito sin alterar el
- * mapa en pantalla, que usa clases de Tailwind que fuera de la página no
- * existen. XMLSerializer agrega el espacio de nombres SVG automáticamente.
- */
-/**
- * Los colores del mapa son variables del tema (var(--color-…), ver index.css)
- * y fuera de la página no existen. Antes de descargar se reemplazan por el
- * color que cada elemento muestra en ese momento, así el archivo se ve igual
- * que en pantalla (también en modo oscuro).
- */
-function fijarColores(original: Element, copia: Element): void {
-  const estilo = getComputedStyle(original);
-  const destino = (copia as SVGElement).style;
-  if (destino) {
-    if (original instanceof SVGSVGElement) destino.background = estilo.backgroundColor;
-    else {
-      destino.fill = estilo.fill;
-      destino.stroke = estilo.stroke;
-    }
-  }
-  for (let i = 0; i < original.children.length; i++) {
-    fijarColores(original.children[i], copia.children[i]);
-  }
-}
-
-export function descargarSvg(svg: SVGSVGElement, nombre: string, ancho = 680, alto = 360): void {
-  const copia = svg.cloneNode(true) as SVGSVGElement;
-  fijarColores(svg, copia);
-  copia.removeAttribute("class");
-  copia.setAttribute("width", String(ancho));
-  copia.setAttribute("height", String(alto));
-  const contenido =
-    '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(copia);
-  descargarArchivo(nombre, contenido, "image/svg+xml;charset=utf-8");
 }
 
 /** RR_20 — la ficha completa de la especie como texto plano ("Exportar ficha"). */

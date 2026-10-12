@@ -270,6 +270,29 @@ export async function cambiarInactividad(minutos: number): Promise<void> {
 export const obtenerFicha = (especieId: string) =>
   pedir<FichaEspecie>(`/especies/${encodeURIComponent(especieId)}`);
 
+/**
+ * Ruta válida del mapa de una especie, tal como la arma el backend en
+ * `MapaEspecie.url`. Se exige este formato antes de pedirla para que el token
+ * nunca se envíe a otra dirección.
+ */
+const RUTA_MAPA = /^\/especies\/[a-z0-9-]+\/mapa$/;
+
+/**
+ * RR_46 — imagen PNG del mapa de distribución generado por CR-BioLM.
+ *
+ * El endpoint pide sesión, así que un <img src> directo no sirve (no envía el
+ * token): se descarga aquí con el header Authorization y se devuelve como
+ * Blob. Quien la muestre crea la URL con URL.createObjectURL y la libera con
+ * URL.revokeObjectURL al desmontarse. `ruta` es `MapaEspecie.url`.
+ */
+export async function obtenerImagenMapa(ruta: string): Promise<Blob> {
+  if (!RUTA_MAPA.test(ruta)) throw new ErrorApi("La dirección del mapa no es válida.", 400);
+  const res = await fetch(`${API_URL}${ruta}`, { headers: cabeceras() });
+  // Un error se interpreta igual que en las demás peticiones (incluido el 401).
+  if (!res.ok) return manejar<never>(res);
+  return res.blob();
+}
+
 /** RR_16 — especies ya consultadas cuyo nombre coincide con `fragmento` (2+ letras). */
 export const sugerirEspecies = (fragmento: string) =>
   pedir<EspecieCandidata[]>(`/especies?q=${encodeURIComponent(fragmento)}`);

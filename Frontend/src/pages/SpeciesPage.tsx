@@ -8,12 +8,16 @@
  *    ficha mostraba siempre la guaria morada con datos fijos.
  *  - Criterio 3: se llega desde el botón "Ficha completa" de cada respuesta
  *    (ChatPage).
+ *
+ * RR_46 / RR_53: si CR-BioLM generó el mapa de la especie (`ficha.mapa`), se
+ * muestra; si no, no aparece ningún panel de mapa.
  */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
-import { ArrowLeft, Download } from "lucide-react";
+import { ArrowLeft, Download, MapPin } from "lucide-react";
 import { Avisos } from "../components/Avisos";
+import { MapaCRBioLM } from "../components/Mapa";
 import { OrigenDeLosDatos } from "../components/OrigenDeLosDatos";
 import { PREFIJO_ARCHIVOS } from "../config/marca";
 import * as api from "../services/api";
@@ -176,6 +180,20 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
                 {ficha.descripcion ?? "No hay una descripción disponible para esta especie."}
               </p>
             </div>
+
+            {ficha.mapa && (
+              <div className="rounded-2xl p-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
+                <h3 className="font-semibold mb-3 flex items-center gap-1.5" style={{ color: "var(--color-texto)" }}>
+                  <MapPin size={16} style={{ color: "var(--color-marca)" }} />
+                  Distribución en Costa Rica
+                </h3>
+                <MapaCRBioLM
+                  mapa={ficha.mapa}
+                  especie={ficha.nombre_cientifico}
+                  nombreArchivo={`${PREFIJO_ARCHIVOS}-ficha-${ficha.id}-mapa.png`}
+                />
+              </div>
+            )}
 
             <div className="rounded-2xl p-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
               <h3 className="font-semibold mb-3" style={{ color: "var(--color-texto)" }}>

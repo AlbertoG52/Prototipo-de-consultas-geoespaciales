@@ -1,17 +1,21 @@
 /**
  * Tarjeta de una respuesta del agente — RR_07, RR_08, RR_10, RR_14, RR_15,
- * RR_18 y RR_20: texto, mapa o lista de registros, fuentes, copiar, descargar
- * y acceso a la ficha.
+ * RR_18, RR_20 y RR_46: texto, mapa de CR-BioLM o lista de registros, fuentes,
+ * copiar, descargar y acceso a la ficha.
+ *
+ * RR_12 (detalle de un registro) y RR_19 (filtro por elevación) viven en la
+ * lista de registros: el mapa es un PNG de CR-BioLM y no permite seleccionar
+ * ni ocultar puntos.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Copy, Download, ExternalLink, MapPin } from "lucide-react";
 import { Avisos } from "./Avisos";
 import { OrigenDeLosDatos } from "./OrigenDeLosDatos";
 import type { RespuestaConsulta } from "../types";
-import { descargarArchivo, descargarSvg, nombreBase, respuestaATexto } from "../utils/descarga";
+import { descargarArchivo, nombreBase, respuestaATexto } from "../utils/descarga";
 import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/elevacion";
-import { DetallePunto, FiltroElevacion, MapaDistribucion } from "./Mapa";
+import { DetallePunto, FiltroElevacion, MapaCRBioLM } from "./Mapa";
 import { CELDA_VACIA, COLUMNAS_TABLA_REGISTROS, formatearCoordenadas } from "../config/textos";
 
 export function TarjetaRespuesta({
@@ -25,13 +29,17 @@ export function TarjetaRespuesta({
   onVerFicha: (especieId: string) => void;
 }) {
   const [copiado, setCopiado] = useState(false);
-  // RR_18 — el usuario alterna entre las dos vistas de los mismos registros.
-  const [vista, setVista] = useState<"mapa" | "lista">("mapa");
-  const mapaRef = useRef<SVGSVGElement>(null);
-  // RR_12 — punto del mapa cuyo detalle está abierto (índice en respuesta.registros).
+  // RR_53 criterio 3: solo hay mapa si CR-BioLM lo generó (mapa != null).
+  const hayMapa = respuesta.mapa !== null;
+  const hayRegistros = respuesta.registros.length > 0;
+  // RR_18 — el usuario alterna entre el mapa y la lista de registros. Si falta
+  // una de las dos, se muestra la que haya.
+  const [vistaElegida, setVista] = useState<"mapa" | "lista">("mapa");
+  const vista = !hayMapa ? "lista" : !hayRegistros ? "mapa" : vistaElegida;
+  // RR_12 — registro cuyo detalle está abierto (índice en respuesta.registros).
   const [seleccionado, setSeleccionado] = useState<number | null>(null);
   const cerrarDetalle = useCallback(() => setSeleccionado(null), []);
-  // RR_19 — rango de elevación del filtro del mapa ("" = sin límite).
+  // RR_19 — rango de elevación del filtro de la lista ("" = sin límite).
   const [rango, setRango] = useState<RangoElevacion>(RANGO_VACIO);
   const filtro = filtrarPorElevacion(respuesta.registros, rango);
 
@@ -48,14 +56,6 @@ export function TarjetaRespuesta({
       respuestaATexto(consulta, respuesta),
       "text/plain;charset=utf-8",
     );
-  };
-
-  /**
-   * RR_15 — el mapa tal como se muestra. El botón solo existe en la vista de
-   * mapa, así que el SVG siempre está montado cuando se usa.
-   */
-  const descargarMapa = () => {
-    if (mapaRef.current) descargarSvg(mapaRef.current, `${nombreBase(respuesta)}-mapa.svg`);
   };
 
   /** RR_10 — copiar el texto de la respuesta y confirmarlo visualmente. */
@@ -119,58 +119,56 @@ export function TarjetaRespuesta({
           {/* RR_43 y RR_58: por qué falta el mapa o los registros. */}
           <Avisos avisos={respuesta.avisos} className="mt-4" />
 
-          {respuesta.registros.length > 0 && (
+          {(hayMapa || hayRegistros) && (
             <>
-              {/* RR_18 cambiar entre la vista de mapa y la de lista. */}
-              <div
-                className="flex gap-1 mt-4 mb-3 p-1 rounded-xl"
-                style={{ background: "var(--color-superficie-suave)", width: "fit-content" }}
-                role="group"
-                aria-label="Vista de los registros"
-              >
-                {(["mapa", "lista"] as const).map((v) => (
-                  <button
-                    key={v}
-                    onClick={() => {
-                      setVista(v);
-                      setSeleccionado(null);
-                    }}
-                    aria-pressed={vista === v}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                    style={{
-                      background: vista === v ? "var(--color-marca)" : "transparent",
-                      color: vista === v ? "var(--color-sobre-marca)" : "var(--color-texto-secundario)",
-                      border: "none",
-                      cursor: "pointer",
-                    }}
-                  >
-                    {v === "mapa" ? "Mapa" : "Lista de registros"}
-                  </button>
-                ))}
-              </div>
+              {/* RR_18 cambiar entre la vista de mapa y la de lista (si hay las dos). */}
+              {hayMapa && hayRegistros && (
+                <div
+                  className="flex gap-1 mt-4 mb-3 p-1 rounded-xl"
+                  style={{ background: "var(--color-superficie-suave)", width: "fit-content" }}
+                  role="group"
+                  aria-label="Vista de los registros"
+                >
+                  {(["mapa", "lista"] as const).map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => {
+                        setVista(v);
+                        setSeleccionado(null);
+                      }}
+                      aria-pressed={vista === v}
+                      className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                      style={{
+                        background: vista === v ? "var(--color-marca)" : "transparent",
+                        color: vista === v ? "var(--color-sobre-marca)" : "var(--color-texto-secundario)",
+                        border: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {v === "mapa" ? "Mapa" : "Lista de registros"}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-              {/*
-                RR_18 ambas vistas muestran la misma especie:
-                las dos leen `respuesta.registros`, no dos fuentes distintas.
-              */}
-              {vista === "mapa" ? (
-                <>
+              {/* RR_18 ambas vistas son de la misma especie de la respuesta. */}
+              {vista === "mapa" && respuesta.mapa ? (
+                <div className={hayRegistros ? "" : "mt-4"}>
                   <div className="flex items-center gap-1.5 mb-2">
                     <MapPin size={14} style={{ color: "var(--color-marca)" }} />
                     <span className="text-sm font-medium" style={{ color: "var(--color-texto-marca)" }}>
                       Distribución en Costa Rica
                     </span>
-                    {/* RR_15 — descargar el mapa mostrado. */}
-                    <button
-                      onClick={descargarMapa}
-                      className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all"
-                      style={{ background: "transparent", color: "var(--color-texto-tenue)", border: "none", cursor: "pointer" }}
-                    >
-                      <Download size={12} />
-                      Descargar mapa
-                    </button>
                   </div>
-                  {/* RR_19 — va dentro de la vista de mapa: si el mapa no se muestra, tampoco el filtro. */}
+                  <MapaCRBioLM
+                    mapa={respuesta.mapa}
+                    especie={respuesta.especie.nombre_cientifico}
+                    nombreArchivo={`${nombreBase(respuesta)}-mapa.png`}
+                  />
+                </div>
+              ) : (
+                <div className={hayMapa ? "" : "mt-4"}>
+                  {/* RR_19 — filtrar la lista por rango de elevación. */}
                   <FiltroElevacion
                     rango={rango}
                     onCambiar={setRango}
@@ -179,54 +177,71 @@ export function TarjetaRespuesta({
                     activo={filtro.activo}
                     error={filtro.error}
                   />
-                  <div className="rounded-xl overflow-hidden" style={{ height: 170, border: "1px solid var(--color-borde)" }}>
-                    <MapaDistribucion
-                      ref={mapaRef}
-                      registros={respuesta.registros}
-                      indices={filtro.indices}
-                      seleccionado={seleccionado}
-                      onSeleccionar={setSeleccionado}
-                    />
-                  </div>
                   {filtro.activo && filtro.indices.length === 0 ? (
                     <p role="status" className="mt-1.5 text-xs" style={{ color: "var(--color-aviso-texto)" }}>
                       Ningún registro está dentro de ese rango de elevación. Ajusta el rango o quita el filtro.
                     </p>
-                  ) : seleccionado !== null && respuesta.registros[seleccionado] ? (
+                  ) : (
+                    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-borde)" }}>
+                      <table className="w-full text-xs">
+                        <thead style={{ background: "var(--color-superficie-suave)" }}>
+                          <tr>
+                            {COLUMNAS_TABLA_REGISTROS.map((h) => (
+                              <th key={h} className="px-3 py-2 text-left font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>
+                                {h}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filtro.indices.map((i) => {
+                            const r = respuesta.registros[i];
+                            const activo = i === seleccionado;
+                            const alternar = () => setSeleccionado(activo ? null : i);
+                            return (
+                              <tr
+                                key={i}
+                                // RR_12 criterio 1: al seleccionar un registro se abre su detalle.
+                                onClick={alternar}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter" || e.key === " ") {
+                                    e.preventDefault();
+                                    alternar();
+                                  }
+                                }}
+                                tabIndex={0}
+                                aria-selected={activo}
+                                aria-label={`Registro en ${r.localidad}, ${r.fecha}. Ver detalle.`}
+                                style={{
+                                  borderTop: "1px solid var(--color-borde)",
+                                  background: activo ? "var(--color-superficie-marca)" : "transparent",
+                                  cursor: "pointer",
+                                }}
+                              >
+                                <td className="px-3 py-2" style={{ color: "var(--color-texto-cuerpo)" }}>{r.localidad}</td>
+                                <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>{r.fecha}</td>
+                                <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)", fontFamily: "var(--font-mono)" }}>
+                                  {formatearCoordenadas(r)}
+                                </td>
+                                <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>
+                                  {r.elevacion_m !== null ? `${r.elevacion_m} m` : CELDA_VACIA}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  {seleccionado !== null && respuesta.registros[seleccionado] ? (
                     <DetallePunto registro={respuesta.registros[seleccionado]} onCerrar={cerrarDetalle} />
                   ) : (
-                    <p className="mt-1.5 text-xs" style={{ color: "var(--color-texto-tenue)" }}>
-                      Haz clic en un punto para ver el detalle del registro.
-                    </p>
+                    filtro.indices.length > 0 && (
+                      <p className="mt-1.5 text-xs" style={{ color: "var(--color-texto-tenue)" }}>
+                        Haz clic en un registro para ver su detalle.
+                      </p>
+                    )
                   )}
-                </>
-              ) : (
-                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-borde)" }}>
-                  <table className="w-full text-xs">
-                    <thead style={{ background: "var(--color-superficie-suave)" }}>
-                      <tr>
-                        {COLUMNAS_TABLA_REGISTROS.map((h) => (
-                          <th key={h} className="px-3 py-2 text-left font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {respuesta.registros.map((r, i) => (
-                        <tr key={i} style={{ borderTop: "1px solid var(--color-borde)" }}>
-                          <td className="px-3 py-2" style={{ color: "var(--color-texto-cuerpo)" }}>{r.localidad}</td>
-                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>{r.fecha}</td>
-                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)", fontFamily: "var(--font-mono)" }}>
-                            {formatearCoordenadas(r)}
-                          </td>
-                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>
-                            {r.elevacion_m !== null ? `${r.elevacion_m} m` : CELDA_VACIA}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
                 </div>
               )}
             </>

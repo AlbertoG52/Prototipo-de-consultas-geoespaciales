@@ -1,124 +1,136 @@
 /**
- * Mapa provisional de distribución y sus controles — RR_06, RR_12, RR_18 y RR_19.
+ * Mapa de distribución de CR-BioLM y controles de los registros — RR_46,
+ * RR_52, RR_53, RR_12 y RR_19.
+ *
+ * Todos los mapas vienen de CR-BioLM (PNG). Si la respuesta no trae mapa, no
+ * se muestra ninguno. El detalle de un registro (RR_12) y el filtro por
+ * elevación (RR_19) trabajan sobre la tabla de registros, porque en una imagen
+ * no se puede seleccionar ni ocultar puntos.
  */
-import { useEffect, type Ref } from "react";
+import { useEffect, useState } from "react";
 
-import { X } from "lucide-react";
-import type { RegistroPresencia } from "../types";
+import { Download, X } from "lucide-react";
+import * as api from "../services/api";
+import type { MapaEspecie, RegistroPresencia } from "../types";
 import { RANGO_VACIO, type RangoElevacion } from "../utils/elevacion";
 import { ETIQUETAS_REGISTRO, formatearCoordenadas, SIN_DATO } from "../config/textos";
 
+type EstadoImagen =
+  | { tipo: "cargando" }
+  | { tipo: "error"; mensaje: string }
+  | { tipo: "lista"; url: string };
+
 /**
- * Mapa de distribución.
- *
- * El mapa geoespacial real lo genera CR-BioLM y es parte del módulo 3, que no
- * pertenece a este sprint. Esto dibuja los registros que sí tenemos sobre una
- * silueta del país, proyectando latitud y longitud a coordenadas del SVG, para
- * que la alternancia de RR_18 tenga las dos vistas que compara.
- *
- * - `indices` son los registros visibles; el filtro de RR_19 puede ocultar algunos.
- * - `seleccionado` es el índice del punto cuyo detalle está abierto (RR_12).
- * - `ref` expone el elemento SVG para poder descargarlo (RR_15).
+ * Descarga el PNG del mapa con la sesión y lo convierte en una URL local
+ * (blob:). La URL se libera al desmontar el componente o al cambiar de mapa.
  */
-export function MapaDistribucion({
-  registros,
-  indices,
-  seleccionado,
-  onSeleccionar,
-  ref,
+function useImagenMapa(ruta: string): EstadoImagen {
+  const [estado, setEstado] = useState<EstadoImagen>({ tipo: "cargando" });
+
+  useEffect(() => {
+    let vigente = true;
+    let url: string | null = null;
+    setEstado({ tipo: "cargando" });
+    api
+      .obtenerImagenMapa(ruta)
+      .then((blob) => {
+        url = URL.createObjectURL(blob);
+        // Si el componente ya se desmontó, la URL no llega a usarse.
+        if (vigente) setEstado({ tipo: "lista", url });
+        else URL.revokeObjectURL(url);
+      })
+      .catch((err) => {
+        if (!vigente) return;
+        const mensaje =
+          err instanceof api.ErrorApi && err.status === 404
+            ? "CR-BioLM no tiene un mapa disponible para esta especie."
+            : "No se pudo cargar el mapa. Intenta de nuevo más tarde.";
+        setEstado({ tipo: "error", mensaje });
+      });
+    return () => {
+      vigente = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [ruta]);
+
+  return estado;
+}
+
+/**
+ * RR_46 — mapa de distribución generado por CR-BioLM.
+ *
+ * - Criterio 1: solo se monta cuando la respuesta trae `mapa` (hay datos
+ *   geoespaciales); quien lo usa no lo muestra si `mapa` es null (RR_53).
+ * - Criterio 2: la imagen es la de CR-BioLM, con las zonas de distribución.
+ * - Criterio 3: el texto alternativo y el título nombran la especie.
+ *
+ * RR_15: "Descargar mapa" baja este mismo PNG.
+ */
+export function MapaCRBioLM({
+  mapa,
+  especie,
+  nombreArchivo,
 }: {
-  registros: RegistroPresencia[];
-  indices: number[];
-  seleccionado: number | null;
-  onSeleccionar: (indice: number | null) => void;
-  ref?: Ref<SVGSVGElement>;
+  mapa: MapaEspecie;
+  /** Nombre científico de la especie del mapa. */
+  especie: string;
+  /** Nombre del archivo al descargar el mapa (RR_15). */
+  nombreArchivo: string;
 }) {
-  // Recuadro aproximado de Costa Rica.
-  const LON_MIN = -86.0;
-  const LON_MAX = -82.5;
-  const LAT_MIN = 8.0;
-  const LAT_MAX = 11.3;
-
-  const aX = (lon: number) => 60 + ((lon - LON_MIN) / (LON_MAX - LON_MIN)) * 220;
-  const aY = (lat: number) => 150 - ((lat - LAT_MIN) / (LAT_MAX - LAT_MIN)) * 100;
-
-  // El punto seleccionado se dibuja al final para que quede encima de los demás.
-  const orden = indices.filter((i) => i !== seleccionado);
-  if (seleccionado !== null && indices.includes(seleccionado)) orden.push(seleccionado);
+  const imagen = useImagenMapa(mapa.url);
 
   return (
-    <svg
-      ref={ref}
-      viewBox="0 0 340 180"
-      className="w-full h-full"
-      style={{ background: "var(--color-mapa-fondo)" }}
-      role="group"
-      aria-label="Mapa de distribución en Costa Rica"
-      // RR_12 criterio 3: un clic fuera de los puntos cierra el detalle.
-      onClick={() => onSeleccionar(null)}
-    >
-      <path
-        d="M60,90 Q80,60 120,55 Q160,50 200,60 Q230,65 250,80 Q270,90 260,110 Q250,130 220,140 Q180,150 140,148 Q100,145 75,130 Q50,115 60,90 Z"
-        style={{ fill: "var(--color-mapa-tierra)", stroke: "var(--color-mapa-contorno)" }}
-        strokeWidth="1.5"
-      />
-      {orden.map((i) => {
-        const r = registros[i];
-        const activo = i === seleccionado;
-        const alternar = () => onSeleccionar(activo ? null : i);
-        return (
-          <circle
-            key={i}
-            cx={aX(r.longitud)}
-            cy={aY(r.latitud)}
-            r={activo ? 7 : 4.5}
-            style={{
-              fill: activo ? "var(--color-mapa-activo)" : "var(--color-mapa-punto)",
-              stroke: activo ? "var(--color-sobre-marca)" : "none",
-              cursor: "pointer",
-            }}
-            strokeWidth={activo ? 2 : 0}
-            opacity={activo ? 1 : 0.85}
-            role="button"
-            tabIndex={0}
-            aria-pressed={activo}
-            aria-label={`Registro en ${r.localidad}, ${r.fecha}. Ver detalle.`}
-            // RR_12 criterio 1: al seleccionar un punto se abre su detalle.
-            onClick={(e) => {
-              e.stopPropagation();
-              alternar();
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                alternar();
-              }
-            }}
+    <figure className="m-0">
+      {imagen.tipo === "lista" && (
+        <div className="flex justify-end mb-1">
+          <a
+            href={imagen.url}
+            download={nombreArchivo}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all"
+            style={{ color: "var(--color-texto-tenue)", textDecoration: "none" }}
           >
-            <title>{`${r.localidad} — ${r.fecha}`}</title>
-          </circle>
-        );
-      })}
-      <circle cx="100" cy="160" r="5" style={{ fill: "var(--color-mapa-punto)" }} opacity="0.85" />
-      <text x="110" y="164" fontSize="9" style={{ fill: "var(--color-mapa-texto)" }} fontFamily="Inter, sans-serif">
-        Registros de presencia ({indices.length})
-      </text>
-      <line x1="240" y1="162" x2="290" y2="162" style={{ stroke: "var(--color-mapa-texto)" }} strokeWidth="1.5" />
-      <line x1="240" y1="158" x2="240" y2="162" style={{ stroke: "var(--color-mapa-texto)" }} strokeWidth="1.5" />
-      <line x1="290" y1="158" x2="290" y2="162" style={{ stroke: "var(--color-mapa-texto)" }} strokeWidth="1.5" />
-      <text x="257" y="172" fontSize="8" style={{ fill: "var(--color-mapa-texto)" }} fontFamily="Inter, sans-serif">
-        50 km
-      </text>
-    </svg>
+            <Download size={12} />
+            Descargar mapa
+          </a>
+        </div>
+      )}
+      <div
+        className="rounded-xl overflow-hidden flex items-center justify-center"
+        style={{ border: "1px solid var(--color-borde)", background: "var(--color-superficie-suave)", minHeight: 170 }}
+      >
+        {imagen.tipo === "cargando" && (
+          <p role="status" className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>
+            Cargando el mapa…
+          </p>
+        )}
+        {imagen.tipo === "error" && (
+          <p role="alert" className="text-xs px-4 text-center" style={{ color: "var(--color-texto-secundario)" }}>
+            {imagen.mensaje}
+          </p>
+        )}
+        {imagen.tipo === "lista" && (
+          <img
+            src={imagen.url}
+            alt={`Mapa de distribución de ${especie} en Costa Rica, generado por CR-BioLM.`}
+            className="w-full h-auto block"
+          />
+        )}
+      </div>
+      {/* Aviso de CR-BioLM sobre el mapa, si lo hay. */}
+      {mapa.advertencia && (
+        <figcaption className="mt-1.5 text-xs" style={{ color: "var(--color-aviso-texto)" }}>
+          {mapa.advertencia}
+        </figcaption>
+      )}
+    </figure>
   );
 }
 
 /**
  * RR_12 — detalle del punto seleccionado.
  *
- * Va debajo del mapa (HTML, no dentro del SVG) para que no lo tape ni salga en
- * la descarga del mapa (RR_15). Se cierra con la X, con Escape, con un clic en
- * el fondo del mapa o volviendo a hacer clic en el mismo punto.
+ * Va debajo de la tabla de registros. Se cierra con la X, con Escape o
+ * volviendo a hacer clic en la misma fila.
  */
 export function DetallePunto({ registro, onCerrar }: { registro: RegistroPresencia; onCerrar: () => void }) {
   useEffect(() => {
