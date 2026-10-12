@@ -1074,6 +1074,8 @@ export interface components {
             minutos_inactividad: number | null;
             /** Segundos Maximos Consulta */
             segundos_maximos_consulta: number;
+            /** Longitud Maxima Consulta */
+            longitud_maxima_consulta: number;
         };
         /**
          * TipoSesion

@@ -42,6 +42,16 @@ export function textoRegistros(cantidad: number): string {
   return `${cantidad.toLocaleString(IDIOMA_FECHAS)} ${cantidad === 1 ? "registro" : "registros"}`;
 }
 
+/**
+ * RR_34 — largo de una consulta como lo cuenta el servidor: por caracteres, no
+ * por unidades UTF-16 (un emoji cuenta 1, no 2).
+ */
+export const largoConsulta = (texto: string) => [...texto].length;
+
+/** RR_34 criterio 2 — aviso cuando la consulta pasa el límite. */
+export const textoConsultaLarga = (limite: number) =>
+  `La consulta supera el límite de ${limite.toLocaleString(IDIOMA_FECHAS)} caracteres. Acórtala para enviarla.`;
+
 /** Latitud y longitud con cuatro decimales (unos 11 m de precisión). */
 export function formatearCoordenadas(registro: Pick<RegistroPresencia, "latitud" | "longitud">): string {
   return `${registro.latitud.toFixed(4)}, ${registro.longitud.toFixed(4)}`;

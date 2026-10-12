@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..config import LONGITUD_MAXIMA_CONSULTA
 from ..dominio import DatoRespuesta, EstadoConsulta
-from ..sanitizacion import sanitizar_texto
+from ..sanitizacion import limpiar_consulta, sanitizar_texto
 from .base import EsquemaSalida
 
 # Los estados de una consulta están en dominio.EstadoConsulta.
@@ -95,7 +95,21 @@ class FichaEspecie(EspecieCandidata):
     procedencia: list[Procedencia] = Field(default_factory=list)  # RR_45
 
 
+MENSAJE_CONSULTA_VACIA = "La consulta no puede estar vacía."
+
+
+def mensaje_consulta_larga(largo: int) -> str:
+    """RR_34 criterio 2: el aviso cuando la consulta supera el límite."""
+    return (
+        f"La consulta tiene {largo} caracteres y el máximo es {LONGITUD_MAXIMA_CONSULTA}. "
+        "Acórtala e intenta de nuevo."
+    )
+
+
 class ConsultaRequest(BaseModel):
+    # RR_34: el límite se define una sola vez (config.LONGITUD_MAXIMA_CONSULTA)
+    # y el frontend lo recibe en la sesión. Los límites de Field quedan para la
+    # documentación de la API; los mensajes en español salen de `_largo`.
     texto: str = Field(min_length=1, max_length=LONGITUD_MAXIMA_CONSULTA)
 
     # RR_17: cuando la consulta coincide con varias especies, el frontend
@@ -113,15 +127,29 @@ class ConsultaRequest(BaseModel):
     # 'especie_id'. Se resuelve esa misma fila, así que no se cobra dos veces.
     consulta_id: int | None = Field(default=None, ge=1)
 
+    @field_validator("texto", mode="before")
+    @classmethod
+    def _largo(cls, v: object) -> object:
+        # RR_34 criterio 1: corre antes que los límites de Field para que el
+        # rechazo llegue con un mensaje en español. Se mide lo que escribió el
+        # usuario, igual que el contador del frontend.
+        if isinstance(v, str):
+            if not v:
+                raise ValueError(MENSAJE_CONSULTA_VACIA)
+            if len(v) > LONGITUD_MAXIMA_CONSULTA:
+                raise ValueError(mensaje_consulta_larga(len(v)))
+        return v
+
     @field_validator("texto")
     @classmethod
     def _texto(cls, v: str) -> str:
         # RR_00_08: se sanitiza antes de comprobar si quedó vacía, para que
         # una consulta hecha solo de marcado o caracteres invisibles se
-        # rechace igual que una vacía.
-        limpio = sanitizar_texto(v)
+        # rechace igual que una vacía. RR_21: después se limpia, así que una
+        # hecha solo de emojis o signos también queda vacía.
+        limpio = limpiar_consulta(sanitizar_texto(v))
         if not limpio:
-            raise ValueError("La consulta no puede estar vacía.")
+            raise ValueError(MENSAJE_CONSULTA_VACIA)
         return limpio
 
 
