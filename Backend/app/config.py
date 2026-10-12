@@ -73,6 +73,9 @@ LONGITUD_MINIMA_PASSWORD = 8
 LONGITUD_MAXIMA_PASSWORD = 255
 
 # --- consultas --------------------------------------------------------------
+# RR_34 — máximo de caracteres de una consulta. Una más larga se rechaza con
+# un aviso (schemas/consulta.py) y el campo de texto del chat lo muestra con un
+# contador (lo recibe en GET /auth/sesion).
 LONGITUD_MAXIMA_CONSULTA = 500
 
 # RR_38 — tiempo máximo de procesamiento de UNA consulta, en segundos, desde

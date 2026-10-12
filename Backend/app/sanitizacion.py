@@ -32,6 +32,9 @@ función no sustituye el escapado propio de ese destino.
 
 Las contraseñas no se sanitizan: cualquier cambio alteraría la credencial. Se
 guardan solo como hash y nunca se muestran.
+
+El texto de una consulta pasa además por `limpiar_consulta` (RR_21), que quita
+lo que sobra para interpretarla, y se compara con `normalizar` (RR_35).
 """
 
 from __future__ import annotations
@@ -71,11 +74,62 @@ def sanitizar_texto(valor: str) -> str:
     return texto.strip()
 
 
-def normalizar(texto: str) -> str:
-    """Minúsculas y sin tildes, para comparar nombres: 'Guaría' encuentra 'guaria'.
+# --- RR_21: limpieza del texto de una consulta -----------------------------------
 
-    Solo sirve para comparar; el texto que se guarda o se muestra conserva sus
-    tildes.
+# Símbolos que se conservan aunque Unicode los clasifique como "otro símbolo".
+_SIMBOLOS_CON_SENTIDO = {"°"}  # 9°N, 25 °C
+
+_ESPACIOS = re.compile(r"\s+")
+# Espacio sobrante después de un signo de apertura o antes de uno de cierre:
+# "¿ dónde crece ?" -> "¿dónde crece?".
+_ESPACIO_TRAS_APERTURA = re.compile(r"([¿¡(])\s+")
+_ESPACIO_ANTES_DE_CIERRE = re.compile(r"\s+([?!.,;:)])")
+# Un signo repetido no cambia la pregunta: "¿¿dónde??!!" -> "¿dónde?!".
+_SIGNO_REPETIDO = re.compile(r"([¿?¡!,;:])\1+")
+# Cuatro o más puntos seguidos quedan en puntos suspensivos.
+_PUNTOS = re.compile(r"\.{4,}")
+
+
+def _es_simbolo_decorativo(caracter: str) -> bool:
+    """Emojis, pictogramas y modificadores (🌿, ★, 👍🏽): no forman parte de la pregunta."""
+    if caracter in _SIMBOLOS_CON_SENTIDO:
+        return False
+    if "︀" <= caracter <= "️":  # selectores de variación de los emojis
+        return True
+    return unicodedata.category(caracter) in ("So", "Sk")
+
+
+def limpiar_consulta(texto: str) -> str:
+    """RR_21: el texto de la consulta sin espacios ni caracteres innecesarios.
+
+    Se aplica después de `sanitizar_texto`. Quita:
+
+    - emojis y otros símbolos decorativos (se cambian por un espacio, para no
+      pegar las palabras que separaban),
+    - espacios, tabuladores y saltos de línea repetidos (queda uno),
+    - espacios junto a los signos ("¿ dónde ?" -> "¿dónde?"),
+    - signos repetidos ("??", "!!!", ",,") y más de tres puntos seguidos.
+
+    Conserva el significado (criterio 2): no cambia mayúsculas, tildes, ñ,
+    números ni los signos de comparación ("> 1000 m"). La comparación sin tildes
+    ni mayúsculas es aparte (`normalizar`, RR_35), para que el texto guardado y
+    mostrado siga igual a como se escribió. Aplicarla dos veces no cambia nada.
+    """
+    texto = "".join(" " if _es_simbolo_decorativo(c) else c for c in texto)
+    texto = _ESPACIOS.sub(" ", texto)
+    texto = _ESPACIO_TRAS_APERTURA.sub(r"\1", texto)
+    texto = _ESPACIO_ANTES_DE_CIERRE.sub(r"\1", texto)
+    texto = _SIGNO_REPETIDO.sub(r"\1", texto)
+    texto = _PUNTOS.sub("...", texto)
+    return texto.strip()
+
+
+def normalizar(texto: str) -> str:
+    """RR_35: minúsculas y sin tildes, para comparar: 'Guaría' encuentra 'guaria'.
+
+    Toda búsqueda de especies compara con esta función (catálogo, sugerencias),
+    así que ni las tildes ni las mayúsculas cambian el resultado. Solo sirve
+    para comparar; el texto que se guarda o se muestra conserva sus tildes.
     """
     sin_acentos = unicodedata.normalize("NFD", texto.lower())
     return "".join(c for c in sin_acentos if unicodedata.category(c) != "Mn")

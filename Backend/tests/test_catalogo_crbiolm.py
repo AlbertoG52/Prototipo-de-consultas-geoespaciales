@@ -259,6 +259,15 @@ def test_reconoce_el_nombre_cientifico_dentro_de_la_pregunta(crbiolm):
     assert especie.nombre_comun == "roble negro"
 
 
+@pytest.mark.parametrize(
+    "texto", ["¿Dónde crece QUERCUS COSTARICENSIS?", "¿Dónde crece Quércus costaricénsis?"]
+)
+def test_tildes_y_mayusculas_no_cambian_la_especie_reconocida(crbiolm, texto):
+    # RR_35: los nombres científicos no llevan tildes; se quitan antes de buscar.
+    [especie] = crbiolm.buscar_especies(texto)
+    assert especie.id == "quercus-costaricensis"
+
+
 def test_dos_especies_en_la_pregunta_dan_dos_candidatas(crbiolm):
     especies = crbiolm.buscar_especies("Quercus costaricensis o Quercus oleoides")
     assert {e.nombre_cientifico for e in especies} == {"Quercus costaricensis", "Quercus oleoides"}

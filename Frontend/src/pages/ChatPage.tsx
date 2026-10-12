@@ -5,6 +5,7 @@
  *  - RR_02 campo de texto para la consulta
  *  - RR_13 reformulación de la última consulta
  *  - RR_16 sugerencias de nombres de especie mientras se escribe (lógica en utils/sugerencias.ts)
+ *  - RR_34 límite de caracteres de la consulta (contador y aviso)
  *
  * Lo que muestra cada mensaje vive en components/:
  *  - TarjetaRespuesta: RR_10 copiar, RR_15 descargar, RR_18 mapa o lista, RR_20 ficha,
@@ -22,7 +23,11 @@ import { useAuth } from "../context/AuthContext";
 import { useConsultas, type Mensaje } from "../context/ConsultasContext";
 import * as api from "../services/api";
 import type { EspecieCandidata } from "../types";
+import { largoConsulta, textoConsultaLarga } from "../config/textos";
 import { incorporarNombre, nombreAInsertar, palabraEnCurso } from "../utils/sugerencias";
+
+// RR_34 — el contador de caracteres aparece desde el 80 % del límite.
+const PROPORCION_AVISO_LIMITE = 0.8;
 
 const CONSULTAS_DE_EJEMPLO = [
   "¿Dónde se encuentra la guaria morada?",
@@ -108,9 +113,18 @@ export function ChatPage() {
   const sinConsultas = sesion !== null && sesion.consultas_restantes <= 0;
   const bloqueado = sesion === null || sinConsultas;
 
+  // RR_34 — el límite lo define el servidor. No se corta lo que se escribe o se
+  // pega: se muestra cuánto sobra y no se deja enviar hasta acortarlo.
+  const limite = sesion?.longitud_maxima_consulta;
+  const largo = largoConsulta(entrada);
+  const excede = limite !== undefined && largo > limite;
+  const cercaDelLimite = limite !== undefined && largo >= limite * PROPORCION_AVISO_LIMITE;
+  const puedeEnviar = entrada.trim() !== "" && !excede && !enviando && !bloqueado;
+
   const mandar = async (texto?: string) => {
     const valor = (texto ?? entrada).trim();
     if (!valor || enviando) return;
+    if (limite !== undefined && largoConsulta(valor) > limite) return;
     setEntrada("");
     if (areaRef.current) areaRef.current.style.height = "auto";
     await enviar(valor);
@@ -385,8 +399,9 @@ export function ChatPage() {
             onChange={alCambiar}
             onKeyDown={alTeclear}
             disabled={bloqueado}
-            maxLength={500}
             aria-label="Consulta sobre flora costarricense"
+            aria-invalid={excede}
+            aria-describedby="limite-consulta"
             placeholder="Escribe tu consulta sobre flora costarricense..."
             rows={1}
             className="flex-1 resize-none bg-transparent text-sm outline-none"
@@ -394,18 +409,33 @@ export function ChatPage() {
           />
           <button
             onClick={() => void mandar()}
-            disabled={!entrada.trim() || enviando || bloqueado}
+            disabled={!puedeEnviar}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all shrink-0"
             style={{
-              background: entrada.trim() && !enviando && !bloqueado ? "var(--color-marca)" : "var(--color-borde-fuerte)",
-              color: entrada.trim() && !enviando && !bloqueado ? "var(--color-sobre-marca)" : "var(--color-texto-tenue)",
+              background: puedeEnviar ? "var(--color-marca)" : "var(--color-borde-fuerte)",
+              color: puedeEnviar ? "var(--color-sobre-marca)" : "var(--color-texto-tenue)",
               border: "none",
-              cursor: entrada.trim() && !enviando && !bloqueado ? "pointer" : "default",
+              cursor: puedeEnviar ? "pointer" : "default",
             }}
           >
             <Send size={14} />
             Enviar
           </button>
+        </div>
+        {/* RR_34 criterios 2 y 3 — el contador aparece cerca del límite y avisa al pasarlo. */}
+        <div id="limite-consulta" aria-live="polite">
+          {limite !== undefined && (excede || cercaDelLimite) && (
+            <p
+              className="flex items-center justify-end gap-1.5 text-xs mt-2"
+              style={{ color: excede ? "var(--color-error-texto)" : "var(--color-texto-tenue)" }}
+            >
+              {excede && <CircleAlert size={12} />}
+              {excede && <span>{textoConsultaLarga(limite)}</span>}
+              <span style={{ fontFamily: "var(--font-mono)" }}>
+                {largo}/{limite}
+              </span>
+            </p>
+          )}
         </div>
         <p className="text-center text-xs mt-2" style={{ color: "var(--color-texto-tenue)" }}>
           Enter para enviar · Shift+Enter para nueva línea · ↑ para editar la última consulta

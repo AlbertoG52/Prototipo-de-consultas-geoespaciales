@@ -218,6 +218,30 @@ a la consulta. Si se supera:
 El frontend conoce el límite por `GET /auth/sesion` (`segundos_maximos_consulta`)
 y deja de esperar 10 s después, por si la respuesta del servidor nunca llega.
 
+### El texto de la consulta (RR_21, RR_34, RR_35)
+
+Antes de procesarse, el texto de `POST /consultas` pasa por el esquema
+(`schemas/consulta.py`), en este orden:
+
+1. **RR_34 — largo máximo**: `LONGITUD_MAXIMA_CONSULTA` (500 caracteres, en
+   `config.py`). Una más larga responde **422** con un mensaje en español que
+   dice cuántos caracteres tiene y cuál es el máximo. El chat lo recibe en
+   `GET /auth/sesion` (`longitud_maxima_consulta`): muestra un contador desde el
+   80 % del límite y, si se pasa, un aviso y no deja enviar. No corta lo que se
+   pega.
+2. **RR_00_08 — sanitización** (`sanitizar_texto`).
+3. **RR_21 — limpieza** (`limpiar_consulta` en `sanitizacion.py`): quita
+   emojis y símbolos decorativos, espacios y saltos de línea repetidos, espacios
+   junto a los signos y signos repetidos (`"¿¿ dónde  crece ??"` → `"¿dónde
+   crece?"`). Conserva mayúsculas, tildes, números y signos como `>`. Si no
+   queda nada, la consulta se rechaza como vacía. El texto limpio es el que se
+   guarda y se procesa.
+
+**RR_35 — acentos y mayúsculas**: toda búsqueda de especies compara con
+`normalizar` (minúsculas y sin tildes), sobre una copia: el texto guardado y
+mostrado no cambia. El catálogo de CR-BioLM quita además las tildes de los
+nombres científicos antes de buscarlos (`"Quércus"` encuentra *Quercus*).
+
 ### Tiempo de respuesta (RR_57)
 
 Cada `POST /consultas`, termine bien o con error, deja una fila en

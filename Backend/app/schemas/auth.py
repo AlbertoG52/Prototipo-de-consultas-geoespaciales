@@ -70,3 +70,6 @@ class SesionOut(EsquemaSalida):
     # RR_38: tiempo máximo de una consulta. El frontend deja de esperar un poco
     # después, por si el servidor no llega a responder.
     segundos_maximos_consulta: float
+    # RR_34: máximo de caracteres de una consulta. El campo de texto lo usa
+    # para avisar antes de enviar; el servidor lo vuelve a comprobar.
+    longitud_maxima_consulta: int

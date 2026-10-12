@@ -54,6 +54,7 @@ from itertools import pairwise
 from typing import Any
 
 from .. import config
+from ..sanitizacion import normalizar
 from ..schemas.consulta import (
     EspecieCandidata,
     FichaEspecie,
@@ -117,7 +118,9 @@ class CatalogoCRBioLM:
         palabras = re.findall(r"[^\W\d_][\w-]*", texto)
         encontradas: dict[str, EspecieCandidata] = {}
         for genero, epiteto in pairwise(palabras):
-            manual = self._manual(f"{genero} {epiteto}".capitalize())
+            # RR_35: los nombres científicos no llevan tildes, así que se quitan
+            # antes de buscar ("Quércus" encuentra Quercus).
+            manual = self._manual(normalizar(f"{genero} {epiteto}").capitalize())
             if manual is not None:
                 candidata = _candidata(manual.valor)
                 encontradas.setdefault(candidata.id, candidata)
