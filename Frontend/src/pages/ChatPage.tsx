@@ -7,8 +7,9 @@
  *  - RR_16 sugerencias de nombres de especie mientras se escribe (lógica en utils/sugerencias.ts)
  *
  * Lo que muestra cada mensaje vive en components/:
- *  - TarjetaRespuesta: RR_10 copiar, RR_15 descargar, RR_18 mapa o lista, RR_20 ficha
- *  - Mapa: RR_12 detalle de un punto y RR_19 filtro por elevación
+ *  - TarjetaRespuesta: RR_10 copiar, RR_15 descargar, RR_18 mapa o lista, RR_20 ficha,
+ *    RR_12 detalle de un registro y RR_19 filtro por elevación (en la lista)
+ *  - Mapa: RR_46 mapa de distribución de CR-BioLM (PNG), DetallePunto y FiltroElevacion
  *  - SelectorDeEspecie: RR_17 selección ante varias coincidencias
  */
 import { useEffect, useRef, useState } from "react";
