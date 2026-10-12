@@ -7,10 +7,22 @@ import uuid
 
 import pytest
 
+from app import config
 from app.db import SessionLocal
 from app.routers import auth
 
 from apoyo import sql
+
+
+@pytest.fixture(autouse=True)
+def catalogo_de_demostracion(monkeypatch):
+    """Todas las pruebas usan el catálogo de demostración, diga lo que diga el .env.
+
+    Así no dependen de que CR-BioLM esté levantado ni de sus datos. Las que
+    prueban CR-BioLM (test_catalogo_crbiolm.py) cambian a 'crbiolm' con su
+    propio servidor falso.
+    """
+    monkeypatch.setattr(config, "CATALOGO", "demo")
 
 
 @pytest.fixture

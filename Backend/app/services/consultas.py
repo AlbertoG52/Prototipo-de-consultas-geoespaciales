@@ -19,6 +19,9 @@ guarda nada (RR_00_11).
 RR_38 — cada consulta tiene SEGUNDOS_MAXIMOS_CONSULTA (config.py) para
 completarse. Si se pasa, se cancela con `TiempoAgotado` (HTTP 504) ANTES de
 guardar o cobrar nada, así que reintentarla no le cuesta al usuario.
+
+RR_57 — el tiempo de cada consulta, termine bien o mal, queda registrado
+(services/tiempos.py) para que el equipo técnico encuentre las lentas.
 """
 
 import logging
@@ -34,6 +37,7 @@ from ..security import Identidad
 from ..tiempo import ahora, plazo, verificar_plazo
 from .catalogo import FuenteCatalogo
 from .mcp_cliente import MCPTiempoAgotado
+from .tiempos import medir_consulta
 from .uso import consultas_hoy, limite_de, registrar_consumo_anonimo
 
 logger = logging.getLogger("uvicorn.error")
@@ -62,15 +66,19 @@ def procesar_consulta(
     """Procesa una consulta en lenguaje natural (ver el docstring del módulo).
 
     RR_38: todo el procesamiento corre dentro del tiempo máximo de la consulta.
+    RR_57: y se mide, incluido el caso en que se corta o falla.
     """
     segundos = config.SEGUNDOS_MAXIMOS_CONSULTA
-    try:
-        with plazo(segundos):
-            return _procesar(db, identidad, datos, catalogo)
-    except (TiempoAgotado, MCPTiempoAgotado) as error:
-        # Para el equipo técnico: qué consulta se cortó y en qué paso.
-        logger.warning("Consulta cancelada por superar %g s: %s", segundos, error)
-        raise TiempoAgotado(segundos) from error
+    with medir_consulta(identidad) as medicion:
+        try:
+            with plazo(segundos):
+                salida = _procesar(db, identidad, datos, catalogo)
+        except (TiempoAgotado, MCPTiempoAgotado) as error:
+            # Para el equipo técnico: qué consulta se cortó y en qué paso.
+            logger.warning("Consulta cancelada por superar %g s: %s", segundos, error)
+            raise TiempoAgotado(segundos) from error
+        medicion.terminar(salida)
+        return salida
 
 
 def _procesar(

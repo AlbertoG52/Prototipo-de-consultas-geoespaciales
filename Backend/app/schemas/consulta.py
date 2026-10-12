@@ -56,6 +56,9 @@ class RespuestaConsulta(EsquemaSalida):
     total_registros: int = 0
     fuentes: list[str] = Field(default_factory=list)
     mapa: MapaEspecie | None = None
+    # Avisos para el usuario sobre los datos de la respuesta, p. ej. que no hay
+    # registros suficientes para un mapa (RR_43) o que GBIF no respondió (RR_58).
+    avisos: list[str] = Field(default_factory=list)
 
 
 class FichaEspecie(EspecieCandidata):
@@ -72,6 +75,7 @@ class FichaEspecie(EspecieCandidata):
     total_registros: int = 0
     fuentes: list[str] = Field(default_factory=list)
     mapa: MapaEspecie | None = None
+    avisos: list[str] = Field(default_factory=list)  # igual que en RespuestaConsulta
 
 
 class ConsultaRequest(BaseModel):

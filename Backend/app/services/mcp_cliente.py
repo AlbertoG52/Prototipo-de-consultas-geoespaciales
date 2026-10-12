@@ -26,7 +26,8 @@ Qué hace:
 - Convierte cada fallo en una excepción propia (ver `ErrorMCP`), para que los
   routers muestren un mensaje claro con opción de reintentar (RR_05) sin
   conocer los detalles del protocolo.
-- Registra en el log cuánto tardó cada llamada (base de RR_57).
+- Registra en el log cuánto tardó cada llamada (el tiempo de la consulta
+  completa lo registra RR_57, ver services/tiempos.py).
 
 Qué NO hace, a propósito:
 - No decide qué herramientas llamar: eso es del flujo de consultas.
@@ -52,7 +53,7 @@ from mcp.shared.exceptions import McpError
 from mcp.types import CallToolResult, TextContent
 
 from .. import config
-from ..tiempo import segundos_restantes
+from ..tiempo import alcanza_para_esperar, segundos_restantes
 
 # El logger de uvicorn es el que ya aparece en los logs del contenedor.
 logger = logging.getLogger("uvicorn.error")
@@ -242,7 +243,7 @@ async def _con_reintentos(herramienta: str, operacion, *argumentos):
                 reintentable
                 and not progreso.pedida
                 and intento < intentos
-                and _alcanza_para_reintentar()
+                and alcanza_para_esperar(config.MCP_ESPERA_REINTENTO_SEGUNDOS)
             ):
                 logger.warning(
                     "MCP %s: no se pudo conectar (intento %d de %d), se reintenta",
@@ -264,12 +265,6 @@ def _tiempo_para_la_llamada(herramienta: str) -> float:
     if restantes <= 0:
         raise MCPTiempoAgotado(herramienta, "la consulta ya había agotado su tiempo máximo")
     return min(config.MCP_TIMEOUT_SEGUNDOS, restantes)
-
-
-def _alcanza_para_reintentar() -> bool:
-    """False si, tras la espera entre intentos, a la consulta ya no le quedaría tiempo."""
-    restantes = segundos_restantes()
-    return restantes is None or restantes > config.MCP_ESPERA_REINTENTO_SEGUNDOS
 
 
 def _clasificar(herramienta: str, exc: Exception, limite: float) -> tuple[ErrorMCP, bool]:

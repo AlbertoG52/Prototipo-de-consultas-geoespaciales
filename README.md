@@ -133,7 +133,7 @@ Cada cambio a la base es un archivo SQL numerado en `Backend/migrations/`:
 | `012_conversaciones.sql` | historial por conversaciones y los tres estados de una consulta, para RR_09 y RR_17 |
 | `013_inactividad_sesion.sql` | minutos de inactividad elegidos por cada usuario, para RR_00_04 |
 | `014_verificar_cuentas_existentes.sql` | marca como verificadas las cuentas creadas antes de RR_00_07 |
-| `011_auditoria_actor_inmutable.sql` | quién hizo cada cambio y auditoría no modificable, para RR_00_09 |
+| `015_tiempos_respuesta.sql` | tiempo de respuesta de cada consulta, para RR_57 |
 
 Para agregar un cambio:
 1. Se crea un archivo nuevo, p.ej. `011_....sql`.
@@ -169,6 +169,7 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | PATCH | `/admin/usuarios/{id}/estado` | activar o desactivar (no a sí mismo: 409) | supermoderador |
 | PATCH | `/admin/usuarios/{id}/rol` | cambiar el rol (no a sí mismo: 409) | supermoderador |
 | GET | `/admin/auditoria` | registro de acciones administrativas (RR_00_09) | supermoderador |
+| GET | `/admin/tiempos` | tiempos de respuesta de las consultas; `?solo_lentas=true` filtra las lentas (RR_57) | supermoderador |
 
 ### Control de acceso por rol
 
@@ -217,6 +218,23 @@ a la consulta. Si se supera:
 El frontend conoce el límite por `GET /auth/sesion` (`segundos_maximos_consulta`)
 y deja de esperar 10 s después, por si la respuesta del servidor nunca llega.
 
+### Tiempo de respuesta (RR_57)
+
+Cada `POST /consultas`, termine bien o con error, deja una fila en
+`tiempos_respuesta` (015): cuánto tardó desde que llegó al backend hasta que la
+respuesta quedó lista, cómo terminó (`resuelta`, `ambigua`, `tiempo_agotado`,
+`error`…), el tipo de sesión y la especie. No se guarda el texto ni quién
+consultó. Lo hace `services/tiempos.py`; si guardar falla, la consulta responde
+igual.
+
+- En el log: cada consulta queda con su duración, y las que pasan de
+  `SEGUNDOS_RESPUESTA_LENTA` (30 por defecto, en el `.env`) como **WARNING**
+  `RR_57: consulta lenta`. Cada llamada a CR-BioLM tiene además su propio
+  tiempo, para ver qué parte tardó.
+- En la API: `GET /admin/tiempos` (supermoderador) da el promedio, el p95, el
+  máximo y cuántas fueron lentas en los últimos `dias` (7 por defecto), con las
+  consultas más recientes; `solo_lentas=true` deja solo las lentas.
+
 ---
 
 ## El catálogo de especies
@@ -250,6 +268,27 @@ respuesta trae `mapa` (url, capas, puntos y advertencia) solo cuando CR-BioLM
 genera uno con la herramienta `get_species_map_image` (fork de CR-BioLM); si no
 lo genera, `mapa` es `null` y no se muestra ninguno. El PNG se pide aparte, con
 sesión, a `GET /especies/{id}/mapa`. El catálogo de demostración no tiene mapas.
+
+**Validación de los datos de CR-BioLM** (`services/validacion_datos.py`), antes
+de armar la respuesta:
+
+- **RR_60 — correspondencia exacta de especie**, en todas las fuentes. Una ficha
+  del Manual cuyo nombre científico no es el pedido se descarta. GBIF y el mapa
+  se piden con el nombre ya validado (CR-BioLM lo resuelve en GBIF exigiendo
+  coincidencia exacta), y se descarta cada punto con coordenadas inválidas o
+  fuera de Costa Rica.
+- **RR_43 — volumen mínimo**: con menos de `MINIMO_REGISTROS_MAPA` registros
+  válidos (5 por defecto, el mismo mínimo con el que CR-BioLM dibuja los puntos)
+  no se pide ni se muestra mapa; los registros sí se listan.
+- **RR_58 — reintentos ante fallos de GBIF**: si `get_occurrence_points` falla,
+  se reintenta hasta `GBIF_REINTENTOS` veces (2), esperando
+  `GBIF_ESPERA_REINTENTO_SEGUNDOS` (2 s) entre intentos y sin pasarse del tiempo
+  máximo de la consulta (RR_38). Si todos fallan, la respuesta sale con los datos
+  del Manual, sin registros ni mapa.
+
+En los casos de RR_43 y RR_58 la respuesta y la ficha traen el motivo en
+`avisos`, que el frontend muestra (`components/Avisos.tsx`) y que también va en
+el archivo descargado.
 
 ---
 

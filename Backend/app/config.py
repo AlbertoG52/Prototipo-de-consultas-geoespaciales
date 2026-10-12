@@ -105,6 +105,27 @@ MCP_ESPERA_REINTENTO_SEGUNDOS = max(
     float(os.environ.get("MCP_ESPERA_REINTENTO_SEGUNDOS", "1")), 0.0
 )
 
+# --- registros de GBIF (services/catalogo_crbiolm.py) --------------------------
+# RR_43 — mínimo de registros de presencia válidos (ya filtrados por RR_60) para
+# generar el mapa de una especie. Con menos, la respuesta sale sin mapa y con un
+# aviso al usuario. 5 coincide con el mínimo con el que CR-BioLM dibuja los
+# puntos de GBIF en sus mapas (render_species_map).
+MINIMO_REGISTROS_MAPA = max(int(os.environ.get("MINIMO_REGISTROS_MAPA", "5")), 1)
+
+# RR_58 — reintentos cuando CR-BioLM no logra consultar GBIF (la herramienta
+# get_occurrence_points falla). Es seguro repetirla: es L1, no usa el LLM.
+# Entre intentos se espera GBIF_ESPERA_REINTENTO_SEGUNDOS, salvo que a la
+# consulta ya no le alcance el tiempo (RR_38). Si todos fallan, la respuesta
+# sale con los datos del Manual, sin registros ni mapa, y avisa al usuario.
+GBIF_REINTENTOS = max(int(os.environ.get("GBIF_REINTENTOS", "2")), 0)
+GBIF_ESPERA_REINTENTO_SEGUNDOS = max(
+    float(os.environ.get("GBIF_ESPERA_REINTENTO_SEGUNDOS", "2")), 0.0
+)
+
+# RR_57 — a partir de cuántos segundos una consulta se considera lenta. Las
+# lentas se marcan en el log (WARNING) y en GET /admin/tiempos.
+SEGUNDOS_RESPUESTA_LENTA = max(float(os.environ.get("SEGUNDOS_RESPUESTA_LENTA", "30")), 0.1)
+
 # Qué catálogo de especies usa el backend (services/catalogo.py):
 #   demo     datos de ejemplo en memoria; no necesita CR-BioLM. Lo usan las pruebas.
 #   crbiolm  datos reales del servidor MCP de CR-BioLM (MCP_URL).

@@ -1,4 +1,4 @@
-"""Endpoints de administración — RR_00_10 y RR_00_09.
+"""Endpoints de administración — RR_00_10, RR_00_09 y RR_57.
 
 La dependencia de rol está en el router, no en cada endpoint: todo lo que se
 agregue bajo /admin queda restringido al supermoderador sin tener que
@@ -18,9 +18,10 @@ from sqlalchemy.orm import Session, joinedload
 from ..db import get_db
 from ..dominio import NombreRol
 from ..models import Rol, Usuario
-from ..schemas.admin import CambioEstado, CambioRol, RegistroAuditoria
+from ..schemas.admin import CambioEstado, CambioRol, RegistroAuditoria, ResumenTiempos
 from ..schemas.usuario import UsuarioOut
 from ..security import obtener_usuario_actual, requiere_rol
+from ..services import tiempos
 
 router = APIRouter(
     prefix="/admin",
@@ -109,3 +110,18 @@ def listar_auditoria(limite: int = Query(100, ge=1, le=500), db: Session = Depen
         {"limite": limite},
     ).mappings()
     return [RegistroAuditoria(**f) for f in filas]
+
+
+@router.get("/tiempos", response_model=ResumenTiempos)
+def tiempos_de_respuesta(
+    dias: int = Query(7, ge=1, le=365),
+    solo_lentas: bool = Query(False),
+    limite: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+):
+    """RR_57 — tiempo de respuesta de las consultas, para el equipo técnico.
+
+    Resumen de los últimos `dias` días y las consultas más recientes; con
+    `solo_lentas=true`, solo las que superaron SEGUNDOS_RESPUESTA_LENTA.
+    """
+    return tiempos.resumen(db, dias, solo_lentas, limite)
