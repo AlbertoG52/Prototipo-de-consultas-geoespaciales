@@ -33,10 +33,27 @@ export const COLUMNAS_TABLA_REGISTROS = [
   ETIQUETAS_REGISTRO.elevacion,
 ] as const;
 
+/**
+ * RR_59 — cantidad de registros de presencia, en singular o plural:
+ * "Sin registros", "1 registro", "150 registros".
+ */
+export function textoRegistros(cantidad: number): string {
+  if (cantidad === 0) return "Sin registros";
+  return `${cantidad.toLocaleString(IDIOMA_FECHAS)} ${cantidad === 1 ? "registro" : "registros"}`;
+}
+
 /** Latitud y longitud con cuatro decimales (unos 11 m de precisión). */
 export function formatearCoordenadas(registro: Pick<RegistroPresencia, "latitud" | "longitud">): string {
   return `${registro.latitud.toFixed(4)}, ${registro.longitud.toFixed(4)}`;
 }
+
+/**
+ * RR_51 — nombres de las fuentes tal como los manda el backend en
+ * `procedencia.fuente` (constantes MANUAL y GBIF de
+ * Backend/app/services/contexto_especie.py). Si cambian allá, cambiarlos aquí.
+ */
+export const FUENTE_MANUAL = "Manual de Plantas de Costa Rica";
+export const FUENTE_GBIF = "GBIF";
 
 /** RR_45 — nombre de cada dato en "Origen de los datos" (campo `procedencia`). */
 export const ETIQUETAS_DATO: Record<DatoRespuesta, string> = {

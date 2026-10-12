@@ -14,6 +14,7 @@ Especies del servidor falso:
     Quercus oleoides       2 puntos: menos que el mínimo para un mapa (RR_43)
     Zamia fairchildiana    sin puntos
     Cedrela odorata        get_species devuelve la ficha de OTRA especie (RR_60)
+    Ocotea insularis       5 puntos; el mapa llega con el nombre de OTRA especie (RR_54)
 
 Fragmentos del Manual (get_relevant_passage, RR_44): Quercus costaricensis tiene
 uno de distribución y uno de descripción (hojas); el de Inga edulis llega con
@@ -63,6 +64,7 @@ MANUAL = {
         "distribution_paragraph": "Bosque seco del Pacífico norte.",
     },
     "Persea americana": {"species": "Persea americana", "family": "Lauraceae"},
+    "Ocotea insularis": {"species": "Ocotea insularis", "family": "Lauraceae"},
     "Zamia fairchildiana": {"species": "Zamia fairchildiana", "family": "Zamiaceae"},
     # RR_60: una ficha que no corresponde al nombre pedido.
     "Cedrela odorata": {"species": "Cedrela fissilis", "family": "Meliaceae"},
@@ -108,6 +110,9 @@ def get_species_map_image(species: str) -> dict:
         return _sobre(valor, "MPCR+GBIF+DEM", "Manual + GBIF + DEM", "estimated")
     if species == "Inga edulis":
         raise ValueError("el renderizador falló")
+    if species == "Ocotea insularis":  # RR_54: llega el mapa de otra especie
+        valor = {"species": "Ocotea tenera", "png_base64": base64.b64encode(PNG).decode()}
+        return _sobre(valor, "MPCR+GBIF+DEM", "Manual + GBIF + DEM", "estimated")
     return _sobre(None, confianza="insufficient", advertencia="no map")
 
 
@@ -157,6 +162,7 @@ PUNTOS = {
     "Quercus costaricensis": [*_puntos(6), {"lat": 8.9, "lon": -79.5, "elev_m": 10}],
     "Inga edulis": _puntos(5),
     "Persea americana": _puntos(5),
+    "Ocotea insularis": _puntos(5),
     "Quercus oleoides": _puntos(2),
 }
 
@@ -393,6 +399,29 @@ def test_los_puntos_fuera_de_costa_rica_se_descartan(crbiolm):
 def test_gbif_y_el_mapa_se_piden_con_el_nombre_validado(crbiolm):
     crbiolm.construir_respuesta("quercus-costaricensis", "")
     assert pedidos_a_gbif == pedidos_de_mapa == ["Quercus costaricensis"]
+
+
+# --- RR_54: el mapa corresponde a la especie ------------------------------------------
+
+
+def test_la_url_del_mapa_es_la_de_la_especie_de_la_respuesta(crbiolm):
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", "")
+    assert respuesta.mapa.url == f"/especies/{respuesta.especie.id}/mapa"
+
+
+def test_un_mapa_de_otra_especie_se_descarta(crbiolm, visitante):
+    # Se pidió el mapa de Ocotea insularis y llegó el de Ocotea tenera.
+    assert crbiolm.construir_respuesta("ocotea-insularis", "").mapa is None
+    assert crbiolm.obtener_ficha("ocotea-insularis").mapa is None
+    assert crbiolm.obtener_mapa("ocotea-insularis") is None
+    assert api.get("/especies/ocotea-insularis/mapa", headers=visitante).status_code == 404
+
+
+def test_un_mapa_que_dice_ser_de_la_especie_pedida_se_acepta():
+    valor = {"species": "Quercus_costaricensis", "png_base64": "x"}
+    assert catalogo_crbiolm._mapa_de_la_especie("Quercus costaricensis", valor)
+    assert catalogo_crbiolm._mapa_de_la_especie("Quercus costaricensis", {"png_base64": "x"})
+    assert not catalogo_crbiolm._mapa_de_la_especie("Quercus costaricensis", {"species": 3})
 
 
 # --- RR_43: volumen mínimo para el mapa -----------------------------------------------

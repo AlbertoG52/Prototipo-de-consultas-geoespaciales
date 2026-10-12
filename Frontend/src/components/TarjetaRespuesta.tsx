@@ -3,6 +3,9 @@
  * RR_18, RR_20 y RR_46: texto, mapa de CR-BioLM o lista de registros, fuentes,
  * copiar, descargar y acceso a la ficha.
  *
+ * RR_50 y RR_51: fuentes de la respuesta, cita de la fuente debajo del texto y
+ * si la información viene del Manual de Plantas (MPCR), de GBIF o de ambas.
+ *
  * RR_12 (detalle de un registro) y RR_19 (filtro por elevación) viven en la
  * lista de registros: el mapa es un PNG de CR-BioLM y no permite seleccionar
  * ni ocultar puntos.
@@ -15,8 +18,10 @@ import { OrigenDeLosDatos } from "./OrigenDeLosDatos";
 import type { RespuestaConsulta } from "../types";
 import { descargarArchivo, nombreBase, respuestaATexto } from "../utils/descarga";
 import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/elevacion";
+import { origenDeLaInformacion, procedenciaDe } from "../utils/fuentes";
+import { mapaDeLaEspecie } from "../utils/mapa";
 import { DetallePunto, FiltroElevacion, MapaCRBioLM } from "./Mapa";
-import { CELDA_VACIA, COLUMNAS_TABLA_REGISTROS, formatearCoordenadas } from "../config/textos";
+import { CELDA_VACIA, COLUMNAS_TABLA_REGISTROS, formatearCoordenadas, IDIOMA_FECHAS, textoRegistros } from "../config/textos";
 
 export function TarjetaRespuesta({
   consulta,
@@ -30,7 +35,9 @@ export function TarjetaRespuesta({
 }) {
   const [copiado, setCopiado] = useState(false);
   // RR_53 criterio 3: solo hay mapa si CR-BioLM lo generó (mapa != null).
-  const hayMapa = respuesta.mapa !== null;
+  // RR_54: y solo si es el de la especie de esta respuesta.
+  const mapa = mapaDeLaEspecie(respuesta.mapa, respuesta.especie.id) ? respuesta.mapa : null;
+  const hayMapa = mapa !== null;
   const hayRegistros = respuesta.registros.length > 0;
   // RR_18 — el usuario alterna entre el mapa y la lista de registros. Si falta
   // una de las dos, se muestra la que haya.
@@ -42,6 +49,10 @@ export function TarjetaRespuesta({
   // RR_19 — rango de elevación del filtro de la lista ("" = sin límite).
   const [rango, setRango] = useState<RangoElevacion>(RANGO_VACIO);
   const filtro = filtrarPorElevacion(respuesta.registros, rango);
+  // RR_51 — de dónde sale el texto, los registros y la respuesta en general.
+  const citaTexto = procedenciaDe(respuesta.procedencia, "texto");
+  const fuenteRegistros = procedenciaDe(respuesta.procedencia, "registros");
+  const origen = origenDeLaInformacion(respuesta.procedencia);
 
   // Si el filtro oculta el punto cuyo detalle está abierto, el detalle se cierra
   // (RR_12 criterio 2: el detalle siempre corresponde a un punto visible).
@@ -91,13 +102,14 @@ export function TarjetaRespuesta({
             </div>
           )}
           <div className="flex items-center gap-4 mt-3 flex-wrap">
-            {/* RR_41: en una consulta no geográfica no se piden registros. */}
+            {/* RR_41: en una consulta no geográfica no se piden registros.
+                RR_59: cantidad de registros encontrados ("Sin registros" si no hay). */}
             {respuesta.geoespacial && (
               <span
                 className="text-xs px-2 py-1 rounded-full"
                 style={{ background: "var(--color-etiqueta-sobre-marca)", color: "var(--color-sobre-marca-claro)" }}
               >
-                {respuesta.total_registros} registros
+                {textoRegistros(respuesta.total_registros)}
               </span>
             )}
             {respuesta.elevacion && (
@@ -115,6 +127,12 @@ export function TarjetaRespuesta({
           <p className="text-sm leading-relaxed" style={{ color: "var(--color-texto-cuerpo)" }}>
             {respuesta.texto}
           </p>
+          {/* RR_51 criterio 2: cita específica de la fuente del texto. */}
+          {citaTexto && (
+            <p className="mt-1.5 text-xs" style={{ color: "var(--color-texto-tenue)" }}>
+              — <cite className="not-italic">{citaTexto.fuente}, {citaTexto.detalle}</cite>
+            </p>
+          )}
 
           {/* RR_43 y RR_58: por qué falta el mapa o los registros. */}
           <Avisos avisos={respuesta.avisos} className="mt-4" />
@@ -152,7 +170,7 @@ export function TarjetaRespuesta({
               )}
 
               {/* RR_18 ambas vistas son de la misma especie de la respuesta. */}
-              {vista === "mapa" && respuesta.mapa ? (
+              {vista === "mapa" && mapa ? (
                 <div className={hayRegistros ? "" : "mt-4"}>
                   <div className="flex items-center gap-1.5 mb-2">
                     <MapPin size={14} style={{ color: "var(--color-marca)" }} />
@@ -161,13 +179,25 @@ export function TarjetaRespuesta({
                     </span>
                   </div>
                   <MapaCRBioLM
-                    mapa={respuesta.mapa}
+                    mapa={mapa}
                     especie={respuesta.especie.nombre_cientifico}
                     nombreArchivo={`${nombreBase(respuesta)}-mapa.png`}
                   />
                 </div>
               ) : (
                 <div className={hayMapa ? "" : "mt-4"}>
+                  {/* RR_59: CR-BioLM entrega como máximo 500 puntos; si hay más, se aclara. */}
+                  {respuesta.registros.length < respuesta.total_registros && (
+                    <p className="mb-2 text-xs" style={{ color: "var(--color-texto-secundario)" }}>
+                      Se muestran {textoRegistros(respuesta.registros.length)} de {respuesta.total_registros.toLocaleString(IDIOMA_FECHAS)}.
+                    </p>
+                  )}
+                  {/* RR_51: la lista dice de qué fuente son los registros. */}
+                  {fuenteRegistros && (
+                    <p className="mb-2 text-xs" style={{ color: "var(--color-texto-secundario)" }}>
+                      Registros de presencia de {fuenteRegistros.fuente}.
+                    </p>
+                  )}
                   {/* RR_19 — filtrar la lista por rango de elevación. */}
                   <FiltroElevacion
                     rango={rango}
@@ -247,7 +277,14 @@ export function TarjetaRespuesta({
             </>
           )}
 
-          <div className="mt-4 flex items-center justify-between flex-wrap gap-2">
+          {/* RR_51 criterio 1: si la información viene del MPCR, de GBIF o de ambas. */}
+          {origen && (
+            <p className="mt-4 text-xs" style={{ color: "var(--color-texto-secundario)" }}>
+              Información de: <span className="font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>{origen}</span>
+            </p>
+          )}
+
+          <div className={`${origen ? "mt-2" : "mt-4"} flex items-center justify-between flex-wrap gap-2`}>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>Fuentes:</span>
               {respuesta.fuentes.map((f) => (
