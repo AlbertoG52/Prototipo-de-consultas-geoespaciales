@@ -66,6 +66,9 @@ export function respuestaATexto(
   if (respuesta.elevacion) lineas.push(`Elevación: ${respuesta.elevacion}`);
 
   lineas.push("", respuesta.texto, "");
+  // RR_43 y RR_58: el archivo también dice por qué falta el mapa o los registros.
+  for (const aviso of respuesta.avisos) lineas.push(`Aviso: ${aviso}`);
+  if (respuesta.avisos.length > 0) lineas.push("");
 
   if (respuesta.registros.length > 0) {
     lineas.push(`Registros de presencia (${respuesta.total_registros}):`);
@@ -138,6 +141,8 @@ export function fichaATexto(ficha: FichaEspecie, fecha = new Date()): string {
     "",
   ];
   if (ficha.descripcion) lineas.push("Descripción:", ficha.descripcion, "");
+  for (const aviso of ficha.avisos) lineas.push(`Aviso: ${aviso}`);
+  if (ficha.avisos.length > 0) lineas.push("");
   lineas.push(`Registros de presencia (${ficha.total_registros}):`);
   for (const r of ficha.registros) {
     const elev = r.elevacion_m !== null ? `${r.elevacion_m} msnm` : "sin elevación";

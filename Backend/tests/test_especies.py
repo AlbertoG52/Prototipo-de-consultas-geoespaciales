@@ -9,11 +9,12 @@ import pytest
 from fastapi import HTTPException
 
 from app.routers import especies
-from app.services.catalogo import obtener_catalogo
+from app.services.catalogo import CatalogoDemo
 
 from apoyo import SESION_INVALIDA, VISITANTE
 
-catalogo = obtener_catalogo()
+# El de demostración, no el que elija el .env: estas pruebas usan sus especies.
+catalogo = CatalogoDemo()
 
 
 def _ficha(especie: str):

@@ -396,6 +396,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/tiempos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Tiempos De Respuesta
+         * @description RR_57 — tiempo de respuesta de las consultas, para el equipo técnico.
+         *
+         *     Resumen de los últimos `dias` días y las consultas más recientes; con
+         *     `solo_lentas=true`, solo las que superaron SEGUNDOS_RESPUESTA_LENTA.
+         */
+        get: operations["tiempos_de_respuesta_admin_tiempos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/perfil": {
         parameters: {
             query?: never;
@@ -808,6 +831,8 @@ export interface components {
             /** Fuentes */
             fuentes: string[];
             mapa: components["schemas"]["MapaEspecie"] | null;
+            /** Avisos */
+            avisos: string[];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -911,6 +936,29 @@ export interface components {
             password: string;
         };
         /**
+         * RegistroTiempo
+         * @description El tiempo de una consulta (tabla 015).
+         */
+        RegistroTiempo: {
+            /** Id */
+            id: number;
+            /**
+             * Registrada En
+             * Format: date-time
+             */
+            registrada_en: string;
+            /** Duracion Ms */
+            duracion_ms: number;
+            resultado: components["schemas"]["ResultadoConsulta"];
+            tipo_sesion: components["schemas"]["TipoSesion"];
+            /** Especie Id */
+            especie_id: string | null;
+            /** Consulta Id */
+            consulta_id: number | null;
+            /** Lenta */
+            lenta: boolean;
+        };
+        /**
          * RespuestaConsulta
          * @description Lo que el agente devuelve para una consulta ya resuelta.
          */
@@ -930,6 +978,8 @@ export interface components {
             /** Fuentes */
             fuentes: string[];
             mapa: components["schemas"]["MapaEspecie"] | null;
+            /** Avisos */
+            avisos: string[];
         };
         /**
          * RestablecerPasswordRequest
@@ -940,6 +990,37 @@ export interface components {
             token: string;
             /** Password */
             password: string;
+        };
+        /**
+         * ResultadoConsulta
+         * @description Columna tiempos_respuesta.resultado (RR_57): cómo terminó una consulta.
+         *
+         *     Los tres primeros son los de EstadoConsulta; los demás, las consultas que
+         *     terminaron en error.
+         * @enum {string}
+         */
+        ResultadoConsulta: "resuelta" | "ambigua" | "sin_coincidencias" | "tiempo_agotado" | "limite_alcanzado" | "rechazada" | "error";
+        /**
+         * ResumenTiempos
+         * @description GET /admin/tiempos: resumen del periodo y las consultas más recientes.
+         */
+        ResumenTiempos: {
+            /** Dias */
+            dias: number;
+            /** Umbral Lenta Ms */
+            umbral_lenta_ms: number;
+            /** Total */
+            total: number;
+            /** Lentas */
+            lentas: number;
+            /** Promedio Ms */
+            promedio_ms: number | null;
+            /** P95 Ms */
+            p95_ms: number | null;
+            /** Maximo Ms */
+            maximo_ms: number | null;
+            /** Registros */
+            registros: components["schemas"]["RegistroTiempo"][];
         };
         /**
          * SesionOut
@@ -1492,6 +1573,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RegistroAuditoria"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    tiempos_de_respuesta_admin_tiempos_get: {
+        parameters: {
+            query?: {
+                dias?: number;
+                solo_lentas?: boolean;
+                limite?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResumenTiempos"];
                 };
             };
             /** @description Validation Error */

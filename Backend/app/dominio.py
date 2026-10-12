@@ -46,3 +46,19 @@ class EstadoConsulta(StrEnum):
     RESUELTA = "resuelta"
     AMBIGUA = "ambigua"
     SIN_COINCIDENCIAS = "sin_coincidencias"
+
+
+class ResultadoConsulta(StrEnum):
+    """Columna tiempos_respuesta.resultado (RR_57): cómo terminó una consulta.
+
+    Los tres primeros son los de EstadoConsulta; los demás, las consultas que
+    terminaron en error.
+    """
+
+    RESUELTA = "resuelta"
+    AMBIGUA = "ambigua"
+    SIN_COINCIDENCIAS = "sin_coincidencias"
+    TIEMPO_AGOTADO = "tiempo_agotado"  # RR_38
+    LIMITE_ALCANZADO = "limite_alcanzado"  # límite diario de consultas
+    RECHAZADA = "rechazada"  # otro error de la solicitud (4xx)
+    ERROR = "error"  # error inesperado o CR-BioLM no disponible

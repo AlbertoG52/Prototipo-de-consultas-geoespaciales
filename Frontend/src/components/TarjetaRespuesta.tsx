@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Copy, Download, ExternalLink, MapPin } from "lucide-react";
+import { Avisos } from "./Avisos";
 import type { RespuestaConsulta } from "../types";
 import { descargarArchivo, descargarSvg, nombreBase, respuestaATexto } from "../utils/descarga";
 import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/elevacion";
@@ -110,6 +111,9 @@ export function TarjetaRespuesta({
           <p className="text-sm leading-relaxed" style={{ color: "var(--color-texto-cuerpo)" }}>
             {respuesta.texto}
           </p>
+
+          {/* RR_43 y RR_58: por qué falta el mapa o los registros. */}
+          <Avisos avisos={respuesta.avisos} className="mt-4" />
 
           {respuesta.registros.length > 0 && (
             <>

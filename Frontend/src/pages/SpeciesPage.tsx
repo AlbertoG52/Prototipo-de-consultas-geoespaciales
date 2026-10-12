@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 import { ArrowLeft, Download } from "lucide-react";
+import { Avisos } from "../components/Avisos";
 import { PREFIJO_ARCHIVOS } from "../config/marca";
 import * as api from "../services/api";
 import type { FichaEspecie } from "../types";
@@ -162,6 +163,8 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
       </div>
 
       <div className="px-8 py-6 max-w-4xl">
+        {/* RR_43 y RR_58: por qué falta el mapa o los registros. */}
+        <Avisos avisos={ficha.avisos} className="mb-6" />
         <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 280px" }}>
           <div className="flex flex-col gap-5">
             <div className="rounded-2xl p-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
