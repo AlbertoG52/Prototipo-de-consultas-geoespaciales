@@ -4,7 +4,7 @@
  * Se escriben una sola vez aquí para que la tabla de registros, el detalle de
  * un punto del mapa, la ficha y las descargas digan lo mismo.
  */
-import type { RegistroPresencia } from "../types";
+import type { DatoRespuesta, RegistroPresencia } from "../types";
 
 /** Idioma y región para mostrar fechas y horas (toLocaleString, toLocaleDateString). */
 export const IDIOMA_FECHAS = "es-CR";
@@ -37,3 +37,12 @@ export const COLUMNAS_TABLA_REGISTROS = [
 export function formatearCoordenadas(registro: Pick<RegistroPresencia, "latitud" | "longitud">): string {
   return `${registro.latitud.toFixed(4)}, ${registro.longitud.toFixed(4)}`;
 }
+
+/** RR_45 — nombre de cada dato en "Origen de los datos" (campo `procedencia`). */
+export const ETIQUETAS_DATO: Record<DatoRespuesta, string> = {
+  especie: "Especie",
+  texto: "Texto",
+  elevacion: "Elevación",
+  registros: "Registros de presencia",
+  mapa: "Mapa",
+};

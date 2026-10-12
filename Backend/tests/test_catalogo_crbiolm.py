@@ -1,8 +1,10 @@
-"""Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py), RR_43, RR_58 y RR_60.
+"""Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_41, RR_43, RR_44,
+RR_45, RR_58 y RR_60.
 
 Levantan un servidor MCP falso con las herramientas de CR-BioLM que usa el
-catálogo (get_species, get_occurrence_points, get_species_map_image), con
-sus mismas respuestas. Las que pasan por la API necesitan la BD.
+catálogo (get_species, get_occurrence_points, get_species_map_image y
+get_relevant_passage), con sus mismas respuestas. Las que pasan por la API
+necesitan la BD.
 
 Especies del servidor falso:
 
@@ -12,6 +14,10 @@ Especies del servidor falso:
     Quercus oleoides       2 puntos: menos que el mínimo para un mapa (RR_43)
     Zamia fairchildiana    sin puntos
     Cedrela odorata        get_species devuelve la ficha de OTRA especie (RR_60)
+
+Fragmentos del Manual (get_relevant_passage, RR_44): Quercus costaricensis tiene
+uno de distribución y uno de descripción (hojas); el de Inga edulis llega con
+el nombre de otra especie; las demás no tienen texto vectorizado.
 """
 
 import base64
@@ -105,6 +111,30 @@ def get_species_map_image(species: str) -> dict:
     return _sobre(None, confianza="insufficient", advertencia="no map")
 
 
+PASAJE_HOJAS = "Hojas coriáceas, elípticas, con el envés pubescente."
+pedidos_de_pasaje: list[str] = []
+pasaje_falla = False
+
+
+@falso.tool()
+def get_relevant_passage(species: str, question: str, top_k: int = 1) -> dict:
+    pedidos_de_pasaje.append(species)
+    if pasaje_falla:
+        raise RuntimeError("la base de vectores no está levantada")
+    cita = "Manual de Plantas de Costa Rica, Tomo V, p. 779 — e5 embeddings"
+    if species == "Quercus costaricensis":
+        if "hoja" in question.lower():
+            pasaje = {"section": "description", "ordinal": 0, "text": PASAJE_HOJAS}
+        else:
+            texto = "Robledales de altura de la Cordillera de Talamanca."
+            pasaje = {"section": "distribution", "ordinal": 0, "text": texto}
+        return _sobre({"species": species, "passages": [pasaje]}, cita=cita, confianza="estimated")
+    if species == "Inga edulis":  # RR_60: llega el fragmento de otra especie
+        pasaje = {"section": "description", "ordinal": 0, "text": "Texto de otra especie."}
+        return _sobre({"species": "Inga spectabilis", "passages": [pasaje]}, cita=cita)
+    return _sobre(None, confianza="insufficient", advertencia="No indexed text")
+
+
 def _puntos(cantidad: int) -> list[dict]:
     """Puntos válidos en Talamanca; el primero con todos sus datos."""
     puntos = [
@@ -181,8 +211,11 @@ def crbiolm(monkeypatch, url_falsa):
     monkeypatch.setattr(config, "MINIMO_REGISTROS_MAPA", 5)
     monkeypatch.setattr(config, "GBIF_REINTENTOS", 2)
     monkeypatch.setattr(config, "GBIF_ESPERA_REINTENTO_SEGUNDOS", 0)
+    global pasaje_falla
+    pasaje_falla = False
     pedidos_de_mapa.clear()
     pedidos_a_gbif.clear()
+    pedidos_de_pasaje.clear()
     fallos_de_gbif.clear()
     return CatalogoCRBioLM()
 
@@ -455,3 +488,144 @@ def test_el_aviso_llega_por_la_api(crbiolm, visitante):
     ).json()
     assert datos["estado"] == "resuelta"
     assert datos["respuesta"]["avisos"][0].startswith("No se pudo consultar GBIF")
+
+
+# --- RR_41: solo se piden GBIF y el mapa si la consulta es geoespacial -------------
+
+HOJAS = "¿Cómo son las hojas de Quercus costaricensis?"
+
+
+def test_una_consulta_descriptiva_no_pide_gbif_ni_mapa(crbiolm):
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", HOJAS)
+    assert respuesta.geoespacial is False
+    assert pedidos_a_gbif == [] and pedidos_de_mapa == []
+    assert respuesta.registros == [] and respuesta.mapa is None
+    assert respuesta.avisos == []  # no es que falten datos: no se pidieron
+
+
+def test_una_consulta_geoespacial_pide_gbif_y_mapa(crbiolm):
+    respuesta = crbiolm.construir_respuesta(
+        "quercus-costaricensis", "¿Dónde crece Quercus costaricensis?"
+    )
+    assert respuesta.geoespacial is True
+    assert pedidos_a_gbif == pedidos_de_mapa == ["Quercus costaricensis"]
+    assert len(respuesta.registros) == 6 and respuesta.mapa is not None
+
+
+def test_solo_el_nombre_trae_todo(crbiolm):
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", "Quercus costaricensis")
+    assert respuesta.geoespacial and respuesta.mapa is not None
+
+
+def test_la_ficha_siempre_trae_registros_y_mapa(crbiolm):
+    ficha = crbiolm.obtener_ficha("quercus-costaricensis")
+    assert ficha.total_registros == 6 and ficha.mapa is not None
+
+
+# --- RR_44: el fragmento del Manual que responde la pregunta -----------------------
+
+
+def test_el_texto_es_el_fragmento_que_responde_la_pregunta(crbiolm):
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", HOJAS)
+    assert respuesta.texto == PASAJE_HOJAS
+    assert pedidos_de_pasaje == ["Quercus costaricensis"]  # filtrado por la especie
+
+
+def test_sin_pregunta_concreta_no_se_busca_fragmento(crbiolm):
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", "Quercus costaricensis")
+    assert pedidos_de_pasaje == []
+    assert respuesta.texto.startswith("Robledales")
+
+
+def test_un_fragmento_de_otra_especie_se_descarta(crbiolm):
+    respuesta = crbiolm.construir_respuesta("inga-edulis", "¿Dónde crece Inga edulis?")
+    assert pedidos_de_pasaje == ["Inga edulis"]
+    assert respuesta.texto == "Cultivada en todo el país."  # el texto de la ficha
+
+
+def test_si_la_herramienta_falla_se_usa_el_texto_de_la_ficha(crbiolm):
+    global pasaje_falla
+    pasaje_falla = True
+    respuesta = crbiolm.construir_respuesta(
+        "quercus-costaricensis", "¿Dónde crece Quercus costaricensis?"
+    )
+    assert respuesta.texto.startswith("Robledales")
+    assert respuesta.mapa is not None  # lo demás sale igual
+
+
+def test_sin_fragmento_una_pregunta_descriptiva_usa_la_morfologia(crbiolm):
+    global pasaje_falla
+    pasaje_falla = True
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", HOJAS)
+    assert respuesta.texto == "Árbol de hasta 30 m."
+
+
+def test_sin_texto_vectorizado_se_usa_la_distribucion(crbiolm):
+    respuesta = crbiolm.construir_respuesta("quercus-oleoides", "¿Cómo son sus flores?")
+    assert pedidos_de_pasaje == ["Quercus oleoides"]
+    assert respuesta.texto == "Bosque seco del Pacífico norte."
+
+
+# --- RR_45: contexto único y procedencia de cada dato -------------------------------
+
+
+def _origen(respuesta) -> dict[str, tuple[str, str]]:
+    return {p.dato: (p.fuente, p.detalle) for p in respuesta.procedencia}
+
+
+def test_cada_dato_dice_de_donde_sale(crbiolm):
+    respuesta = crbiolm.construir_respuesta(
+        "quercus-costaricensis", "¿Dónde crece Quercus costaricensis?"
+    )
+    origen = _origen(respuesta)
+    assert set(origen) == {"especie", "texto", "elevacion", "registros", "mapa"}
+    assert origen["especie"] == (
+        "Manual de Plantas de Costa Rica",
+        "Tomo V, p. 779 · ficha estructurada",
+    )
+    assert origen["texto"] == (
+        "Manual de Plantas de Costa Rica",
+        "Tomo V, p. 779 · párrafo de distribución · búsqueda semántica",
+    )
+    assert origen["registros"][0] == "GBIF"
+    assert origen["registros"][1].startswith("GBIF occurrence API — Costa Rica")
+    assert origen["mapa"] == ("CR-BioLM", "Manual + GBIF + DEM")
+
+
+def test_el_texto_dice_si_salio_de_la_busqueda_semantica_o_de_la_ficha(crbiolm):
+    con_fragmento = crbiolm.construir_respuesta("quercus-costaricensis", HOJAS)
+    assert _origen(con_fragmento)["texto"][1].endswith(
+        "descripción (morfología y discusión) · búsqueda semántica"
+    )
+    sin_fragmento = crbiolm.construir_respuesta("quercus-costaricensis", "Quercus costaricensis")
+    assert _origen(sin_fragmento)["texto"][1] == "Tomo V, p. 779 · párrafo de distribución"
+
+
+def test_sin_gbif_ni_mapa_no_se_indica_su_origen(crbiolm):
+    descriptiva = crbiolm.construir_respuesta("quercus-costaricensis", HOJAS)
+    assert set(_origen(descriptiva)) == {"especie", "texto", "elevacion"}
+
+    fallos_de_gbif["Quercus costaricensis"] = 99
+    sin_gbif = crbiolm.construir_respuesta("quercus-costaricensis", "")
+    assert "registros" not in _origen(sin_gbif) and "mapa" not in _origen(sin_gbif)
+
+
+def test_la_ficha_tambien_trae_la_procedencia(crbiolm):
+    origen = _origen(crbiolm.obtener_ficha("quercus-costaricensis"))
+    assert set(origen) == {"especie", "elevacion", "registros", "mapa"}  # la ficha no tiene texto
+
+
+def test_el_contexto_junta_las_fuentes_de_la_especie(crbiolm):
+    contexto = crbiolm.contexto("Quercus costaricensis", HOJAS)
+    assert contexto.especie == "Quercus costaricensis"
+    assert contexto.fragmento.texto == PASAJE_HOJAS  # fuente vectorizada
+    assert contexto.ficha["family"] == "Fagaceae"  # fuente estructurada
+    assert contexto.ocurrencias is None  # no geoespacial: GBIF no se pidió
+
+
+def test_la_procedencia_llega_por_la_api(crbiolm, visitante):
+    datos = api.post("/consultas", headers=visitante, json={"texto": HOJAS}).json()
+    respuesta = datos["respuesta"]
+    assert respuesta["geoespacial"] is False
+    assert respuesta["texto"] == PASAJE_HOJAS
+    assert {p["dato"] for p in respuesta["procedencia"]} == {"especie", "texto", "elevacion"}

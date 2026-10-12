@@ -770,6 +770,12 @@ export interface components {
             correo: string;
         };
         /**
+         * DatoRespuesta
+         * @description Los datos de una respuesta cuyo origen se indica (RR_45, Procedencia.dato).
+         * @enum {string}
+         */
+        DatoRespuesta: "especie" | "texto" | "elevacion" | "registros" | "mapa";
+        /**
          * EspecieCandidata
          * @description Una de las especies que coinciden con la consulta (RR_17).
          */
@@ -833,6 +839,8 @@ export interface components {
             mapa: components["schemas"]["MapaEspecie"] | null;
             /** Avisos */
             avisos: string[];
+            /** Procedencia */
+            procedencia: components["schemas"]["Procedencia"][];
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -881,6 +889,20 @@ export interface components {
          * @enum {string}
          */
         NombreRol: "usuario" | "moderador" | "supermoderador";
+        /**
+         * Procedencia
+         * @description RR_45 criterio 3: de dónde sale un dato de la respuesta.
+         *
+         *     Ejemplo: dato="texto", fuente="Manual de Plantas de Costa Rica",
+         *     detalle="Tomo V, p. 779 · descripción · búsqueda semántica".
+         */
+        Procedencia: {
+            dato: components["schemas"]["DatoRespuesta"];
+            /** Fuente */
+            fuente: string;
+            /** Detalle */
+            detalle: string;
+        };
         /** RegistroAuditoria */
         RegistroAuditoria: {
             /** Id */
@@ -980,6 +1002,13 @@ export interface components {
             mapa: components["schemas"]["MapaEspecie"] | null;
             /** Avisos */
             avisos: string[];
+            /**
+             * Geoespacial
+             * @default true
+             */
+            geoespacial: boolean;
+            /** Procedencia */
+            procedencia: components["schemas"]["Procedencia"][];
         };
         /**
          * RestablecerPasswordRequest

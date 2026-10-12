@@ -255,8 +255,9 @@ obtener_mapa(especie_id)                -> bytes | None   (PNG)
 - `demo` (por defecto): `CatalogoDemo`, datos de ejemplo en memoria (guaria
   morada, cedro amargo…). No necesita CR-BioLM; lo usan las pruebas.
 - `crbiolm`: `CatalogoCRBioLM` (`services/catalogo_crbiolm.py`), datos reales
-  por MCP. Necesita el servidor de CR-BioLM con las herramientas del fork
-  (`get_occurrence_points`, `get_species_map_image`). Su `buscar_especies` es
+  por MCP. Necesita el servidor de CR-BioLM con las herramientas
+  `get_occurrence_points` y `get_species_map_image`; `get_relevant_passage`
+  (RR_44) es opcional: sin ella el texto sale de la ficha. Su `buscar_especies` es
   **provisional**: solo reconoce nombres científicos; la identificación de
   especies es del módulo de Jesús.
 
@@ -277,6 +278,10 @@ de armar la respuesta:
   se piden con el nombre ya validado (CR-BioLM lo resuelve en GBIF exigiendo
   coincidencia exacta), y se descarta cada punto con coordenadas inválidas o
   fuera de Costa Rica.
+- **RR_42 — consulta a GBIF**: CR-BioLM busca por el nombre científico (con
+  coincidencia exacta en el catálogo de GBIF) y limpia las coordenadas. Pedirle
+  solo registros de **presencia** (`occurrenceStatus=PRESENT`) es un cambio del
+  lado de CR-BioLM, propuesto a José.
 - **RR_43 — volumen mínimo**: con menos de `MINIMO_REGISTROS_MAPA` registros
   válidos (5 por defecto, el mismo mínimo con el que CR-BioLM dibuja los puntos)
   no se pide ni se muestra mapa; los registros sí se listan.
@@ -289,6 +294,27 @@ de armar la respuesta:
 En los casos de RR_43 y RR_58 la respuesta y la ficha traen el motivo en
 `avisos`, que el frontend muestra (`components/Avisos.tsx`) y que también va en
 el archivo descargado.
+
+**Qué se pide según la pregunta** (`services/intencion.py`, provisional, por
+palabras clave):
+
+- **RR_41 — búsqueda geoespacial**: los registros de GBIF y el mapa solo se
+  piden si la consulta es geográfica ("¿dónde crece…?", altitud, provincia,
+  mapa…). Una pregunta solo descriptiva ("¿cómo son las hojas…?", familia, usos)
+  se responde con el Manual, sin GBIF ni mapa, y la respuesta trae
+  `geoespacial: false`. El nombre de la especie solo se trata como geográfico.
+- **RR_44 — búsqueda semántica sobre el Manual**: si la consulta pregunta algo
+  concreto, el texto de la respuesta es el fragmento del Manual de **esa**
+  especie que mejor lo responde, buscado por significado en los datos
+  vectorizados de CR-BioLM (herramienta `get_relevant_passage`, L1, sin costo).
+  Si la herramienta no está o no encuentra nada, se usa el texto de la ficha:
+  la morfología para preguntas descriptivas y, si no, el párrafo de distribución.
+- **RR_45 — combinación de fuentes**: la ficha estructurada, el fragmento
+  vectorizado, GBIF y el mapa se combinan, ya validados como de la misma
+  especie, en un contexto único (`services/contexto_especie.py`), del que salen
+  la respuesta y la ficha. Cada una trae `procedencia`: de dónde sale cada dato
+  (especie, texto, elevación, registros, mapa). El frontend lo muestra en
+  "Origen de los datos" (`components/OrigenDeLosDatos.tsx`) y en la descarga.
 
 ---
 
