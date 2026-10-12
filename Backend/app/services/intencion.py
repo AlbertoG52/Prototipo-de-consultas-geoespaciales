@@ -1,21 +1,29 @@
 """Qué pide la consulta — RR_41 criterio 1. PROVISIONAL.
 
-Decide, a partir del texto, si la consulta requiere información geoespacial
-(registros de GBIF y mapa) y si pregunta algo concreto además del nombre de la
-especie (para RR_44, el fragmento del Manual que lo responde).
+Clasifica la pregunta por su tipo (`TipoPregunta`) y dice si pregunta algo
+concreto además del nombre de la especie (para RR_44, el fragmento del Manual
+que lo responde).
 
 Es un clasificador por palabras clave, a propósito simple: no usa el LLM ni el
 intérprete de CR-BioLM (L2, con costo). Se puede reemplazar por uno mejor sin
 tocar el resto, porque solo se usa a través de `analizar`.
 
-Regla:
-- Geoespacial si menciona algo geográfico (dónde, distribución, altitud,
-  provincia, mapa...).
-- NO geoespacial solo si pregunta por algo descriptivo (hojas, flores, color,
-  familia, usos...) y nada geográfico. Así se evita pedir GBIF y el mapa cuando
-  no aportan, y la respuesta llega antes.
-- Cualquier otro caso, incluido el nombre de la especie solo, es geoespacial:
-  es el caso principal del prototipo y se responde con todo.
+Tipos, en orden de prioridad (la primera lista que coincide gana):
+
+    DISTRIBUCION  algo geográfico: dónde, distribución, altitud, provincia, mapa...
+    HABITAT       en qué ambiente vive (RR_29, lista HABITAT; ver abajo)
+    DESCRIPCION   cómo es la planta: hojas, flores, color, familia, usos...
+    GENERAL       nada de lo anterior, p. ej. solo el nombre de la especie
+
+Qué decide el tipo:
+- El texto de la respuesta (services/contexto_especie.py): distribución,
+  morfología o, cuando esté, el texto de hábitat de RR_29.
+- `geoespacial` (RR_41): si la pregunta pide información geográfica. Solo una
+  pregunta DESCRIPCION no la pide.
+
+Qué NO decide: si se piden los registros de GBIF y el mapa. Se piden siempre
+que existan, porque RR_52 (criterio 3), RR_46 (criterio 1) y RR_59 piden
+mostrar la distribución y la cantidad de registros cuando hay datos.
 
 Las palabras se comparan sin tildes y en minúscula.
 """
@@ -25,6 +33,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from enum import StrEnum
 
 # Palabras que piden información geográfica.
 GEOESPACIALES = frozenset(
@@ -49,6 +58,12 @@ GEOESPACIALES = frozenset(
         "talamanca", "monteverde", "osa", "tilaran",
     }
 )  # fmt: skip
+
+# RR_29 (Cristopher): palabras que preguntan en qué ambiente vive la planta
+# (hábitat, tipo de bosque...). Vacía por ahora: al llenarla, sacar esas
+# palabras de GEOESPACIALES y dar el texto de hábitat en
+# ContextoEspecie._texto. Una pregunta de hábitat sigue trayendo GBIF y mapa.
+HABITAT: frozenset[str] = frozenset()
 
 # Palabras que preguntan cómo es la planta, no dónde está.
 DESCRIPTIVAS = frozenset(
@@ -77,22 +92,43 @@ GENERICAS = frozenset(
 )  # fmt: skip
 
 
+class TipoPregunta(StrEnum):
+    """Qué pregunta la consulta (ver la prioridad al inicio del módulo)."""
+
+    DISTRIBUCION = "distribucion"
+    HABITAT = "habitat"  # RR_29
+    DESCRIPCION = "descripcion"
+    GENERAL = "general"
+
+
+# La primera lista que coincide decide el tipo.
+_PRIORIDAD = (
+    (TipoPregunta.DISTRIBUCION, GEOESPACIALES),
+    (TipoPregunta.HABITAT, HABITAT),
+    (TipoPregunta.DESCRIPCION, DESCRIPTIVAS),
+)
+
+
 @dataclass(frozen=True)
 class Intencion:
-    geoespacial: bool  # RR_41: pedir los registros de GBIF y el mapa
+    tipo: TipoPregunta
     pregunta_especifica: bool  # pregunta algo además del nombre de la especie (RR_44)
+
+    @property
+    def geoespacial(self) -> bool:
+        """RR_41 criterio 1: la pregunta pide información geográfica."""
+        return self.tipo is not TipoPregunta.DESCRIPCION
 
 
 def analizar(texto: str, especie: str = "") -> Intencion:
     """Qué pide `texto` sobre `especie` (ver las reglas al inicio del módulo)."""
     propias = set(palabras(especie))
     resto = [p for p in palabras(texto) if p not in propias and p not in GENERICAS]
-    geografica = any(p in GEOESPACIALES for p in resto)
-    descriptiva = any(p in DESCRIPTIVAS for p in resto)
-    return Intencion(
-        geoespacial=geografica or not descriptiva,
-        pregunta_especifica=bool(resto),
+    tipo = next(
+        (tipo for tipo, lista in _PRIORIDAD if any(p in lista for p in resto)),
+        TipoPregunta.GENERAL,
     )
+    return Intencion(tipo=tipo, pregunta_especifica=bool(resto))
 
 
 def palabras(texto: str) -> list[str]:

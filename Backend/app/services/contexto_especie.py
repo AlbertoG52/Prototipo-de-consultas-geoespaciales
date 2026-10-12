@@ -26,6 +26,7 @@ from typing import Any
 
 from ..dominio import DatoRespuesta
 from ..schemas.consulta import MapaEspecie, Procedencia, RegistroPresencia
+from .intencion import TipoPregunta
 from .mcp_cliente import Sobre
 
 MANUAL = "Manual de Plantas de Costa Rica"
@@ -77,11 +78,11 @@ class ContextoEspecie:
     """Toda la información validada de una especie, combinada (ver el módulo)."""
 
     manual: Sobre  # ficha estructurada del Manual (get_species)
-    # None cuando la consulta no es geoespacial (RR_41): no se pidió GBIF.
-    ocurrencias: Ocurrencias | None
+    ocurrencias: Ocurrencias
     mapa: MapaGenerado | None
     fragmento: Fragmento | None  # None: no hubo pregunta concreta o no se encontró
     avisos: list[str]
+    tipo: TipoPregunta = TipoPregunta.GENERAL  # RR_41: qué pregunta la consulta
 
     @property
     def ficha(self) -> dict[str, Any]:
@@ -93,20 +94,21 @@ class ContextoEspecie:
 
     @property
     def geoespacial(self) -> bool:
-        return self.ocurrencias is not None
+        """RR_41: la pregunta pide información geográfica (no cambia lo que se pide)."""
+        return self.tipo is not TipoPregunta.DESCRIPCION
 
     @property
     def registros(self) -> list[RegistroPresencia]:
-        return self.ocurrencias.registros if self.ocurrencias else []
+        return self.ocurrencias.registros
 
     @property
     def total_registros(self) -> int:
-        return self.ocurrencias.total if self.ocurrencias else 0
+        return self.ocurrencias.total
 
     @property
     def gbif(self) -> Sobre | None:
-        """El sobre de GBIF, o None si no se consultó o no respondió."""
-        return self.ocurrencias.sobre if self.ocurrencias else None
+        """El sobre de GBIF, o None si GBIF no respondió (RR_58)."""
+        return self.ocurrencias.sobre
 
     def texto(self) -> str:
         """El texto de la respuesta del chat."""
@@ -162,13 +164,14 @@ class ContextoEspecie:
         """(texto, de dónde sale). Orden de preferencia:
 
         1. El fragmento que responde la pregunta (RR_44).
-        2. Si la pregunta no es geoespacial, la morfología: describe la planta.
+        2. Según el tipo de pregunta (RR_41): la morfología si pregunta cómo es la
+           planta. RR_29 (Cristopher): aquí va el texto de hábitat para HABITAT.
         3. El párrafo de distribución.
         """
         if self.fragmento is not None:
             seccion = SECCIONES.get(self.fragmento.seccion, self.fragmento.seccion)
             return self.fragmento.texto, f"{seccion} · búsqueda semántica"
-        if not self.geoespacial and self.ficha.get("morphology"):
+        if self.tipo is TipoPregunta.DESCRIPCION and self.ficha.get("morphology"):
             return str(self.ficha["morphology"]), SECCIONES["description"]
         if self.ficha.get("distribution_paragraph"):
             return str(self.ficha["distribution_paragraph"]), SECCIONES["distribution"]

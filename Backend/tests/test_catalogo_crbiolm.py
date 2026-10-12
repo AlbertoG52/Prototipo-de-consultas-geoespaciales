@@ -519,17 +519,17 @@ def test_el_aviso_llega_por_la_api(crbiolm, visitante):
     assert datos["respuesta"]["avisos"][0].startswith("No se pudo consultar GBIF")
 
 
-# --- RR_41: solo se piden GBIF y el mapa si la consulta es geoespacial -------------
+# --- RR_41: el tipo de pregunta elige el texto; GBIF y mapa vienen siempre ----------
 
 HOJAS = "¿Cómo son las hojas de Quercus costaricensis?"
 
 
-def test_una_consulta_descriptiva_no_pide_gbif_ni_mapa(crbiolm):
+def test_una_consulta_descriptiva_tambien_trae_registros_y_mapa(crbiolm):
+    # RR_52 criterio 3, RR_46 criterio 1 y RR_59: si hay datos, se muestran.
     respuesta = crbiolm.construir_respuesta("quercus-costaricensis", HOJAS)
-    assert respuesta.geoespacial is False
-    assert pedidos_a_gbif == [] and pedidos_de_mapa == []
-    assert respuesta.registros == [] and respuesta.mapa is None
-    assert respuesta.avisos == []  # no es que falten datos: no se pidieron
+    assert respuesta.geoespacial is False  # RR_41: la pregunta no es geográfica
+    assert pedidos_a_gbif == pedidos_de_mapa == ["Quercus costaricensis"]
+    assert len(respuesta.registros) == 6 and respuesta.mapa is not None
 
 
 def test_una_consulta_geoespacial_pide_gbif_y_mapa(crbiolm):
@@ -631,9 +631,6 @@ def test_el_texto_dice_si_salio_de_la_busqueda_semantica_o_de_la_ficha(crbiolm):
 
 
 def test_sin_gbif_ni_mapa_no_se_indica_su_origen(crbiolm):
-    descriptiva = crbiolm.construir_respuesta("quercus-costaricensis", HOJAS)
-    assert set(_origen(descriptiva)) == {"especie", "texto", "elevacion"}
-
     fallos_de_gbif["Quercus costaricensis"] = 99
     sin_gbif = crbiolm.construir_respuesta("quercus-costaricensis", "")
     assert "registros" not in _origen(sin_gbif) and "mapa" not in _origen(sin_gbif)
@@ -649,7 +646,8 @@ def test_el_contexto_junta_las_fuentes_de_la_especie(crbiolm):
     assert contexto.especie == "Quercus costaricensis"
     assert contexto.fragmento.texto == PASAJE_HOJAS  # fuente vectorizada
     assert contexto.ficha["family"] == "Fagaceae"  # fuente estructurada
-    assert contexto.ocurrencias is None  # no geoespacial: GBIF no se pidió
+    assert contexto.total_registros == 6  # GBIF
+    assert contexto.tipo == "descripcion" and not contexto.geoespacial
 
 
 def test_la_procedencia_llega_por_la_api(crbiolm, visitante):
@@ -657,4 +655,10 @@ def test_la_procedencia_llega_por_la_api(crbiolm, visitante):
     respuesta = datos["respuesta"]
     assert respuesta["geoespacial"] is False
     assert respuesta["texto"] == PASAJE_HOJAS
-    assert {p["dato"] for p in respuesta["procedencia"]} == {"especie", "texto", "elevacion"}
+    assert {p["dato"] for p in respuesta["procedencia"]} == {
+        "especie",
+        "texto",
+        "elevacion",
+        "registros",
+        "mapa",
+    }

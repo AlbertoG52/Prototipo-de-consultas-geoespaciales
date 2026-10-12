@@ -298,11 +298,14 @@ el archivo descargado.
 **Qué se pide según la pregunta** (`services/intencion.py`, provisional, por
 palabras clave):
 
-- **RR_41 — búsqueda geoespacial**: los registros de GBIF y el mapa solo se
-  piden si la consulta es geográfica ("¿dónde crece…?", altitud, provincia,
-  mapa…). Una pregunta solo descriptiva ("¿cómo son las hojas…?", familia, usos)
-  se responde con el Manual, sin GBIF ni mapa, y la respuesta trae
-  `geoespacial: false`. El nombre de la especie solo se trata como geográfico.
+- **RR_41 — búsqueda geoespacial**: la consulta se clasifica por tipo
+  (`TipoPregunta`): distribución ("¿dónde crece…?", altitud, provincia, mapa…),
+  hábitat (RR_29, lista `HABITAT`), descripción ("¿cómo son las hojas…?",
+  familia, usos) o general (solo el nombre). El tipo elige el texto (la
+  morfología para descripción, el párrafo de distribución si no) y el campo
+  `geoespacial` (false solo para descripción). Los registros de GBIF y el mapa
+  se piden **siempre** que existan, porque RR_52, RR_46 y RR_59 piden mostrar
+  la distribución y la cantidad de registros cuando hay datos.
 - **RR_44 — búsqueda semántica sobre el Manual**: si la consulta pregunta algo
   concreto, el texto de la respuesta es el fragmento del Manual de **esa**
   especie que mejor lo responde, buscado por significado en los datos

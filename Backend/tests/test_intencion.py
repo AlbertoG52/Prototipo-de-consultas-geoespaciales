@@ -2,7 +2,8 @@
 
 import pytest
 
-from app.services.intencion import analizar, palabras
+from app.services import intencion
+from app.services.intencion import TipoPregunta, analizar, palabras
 
 ESPECIE = "Quercus costaricensis"
 
@@ -56,3 +57,36 @@ def test_sin_texto_se_pide_todo():
 
 def test_palabras_sin_tildes_ni_signos():
     assert palabras("¿Dónde CRECE el árbol?") == ["donde", "crece", "el", "arbol"]
+
+
+@pytest.mark.parametrize(
+    ("texto", "tipo"),
+    [
+        ("¿Dónde crece Quercus costaricensis?", TipoPregunta.DISTRIBUCION),
+        ("¿Cómo son las hojas de Quercus costaricensis?", TipoPregunta.DESCRIPCION),
+        ("Quercus costaricensis", TipoPregunta.GENERAL),
+        # geográfica y descriptiva: gana la geográfica
+        ("¿Cómo son las hojas de Quercus costaricensis y dónde crece?", TipoPregunta.DISTRIBUCION),
+    ],
+)
+def test_tipo_de_pregunta(texto, tipo):
+    assert analizar(texto, ESPECIE).tipo == tipo
+
+
+def test_las_palabras_de_habitat_dan_el_tipo_habitat(monkeypatch):
+    # RR_29: la lista HABITAT la llena Cristopher; una pregunta de hábitat sigue
+    # siendo geoespacial (trae GBIF y mapa).
+    habitat = frozenset({"ambiente"})
+    monkeypatch.setattr(intencion, "HABITAT", habitat)
+    monkeypatch.setattr(
+        intencion,
+        "_PRIORIDAD",
+        (
+            (TipoPregunta.DISTRIBUCION, intencion.GEOESPACIALES),
+            (TipoPregunta.HABITAT, habitat),
+            (TipoPregunta.DESCRIPCION, intencion.DESCRIPTIVAS),
+        ),
+    )
+    resultado = analizar("¿En qué ambiente vive Quercus costaricensis?", ESPECIE)
+    assert resultado.tipo == TipoPregunta.HABITAT
+    assert resultado.geoespacial

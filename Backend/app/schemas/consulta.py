@@ -71,8 +71,8 @@ class RespuestaConsulta(EsquemaSalida):
     # Avisos para el usuario sobre los datos de la respuesta, p. ej. que no hay
     # registros suficientes para un mapa (RR_43) o que GBIF no respondió (RR_58).
     avisos: list[str] = Field(default_factory=list)
-    # RR_41: False si la consulta no pide información geográfica; entonces no se
-    # consultan registros de GBIF ni el mapa (registros vacíos, mapa None).
+    # RR_41: False si la consulta no pide información geográfica (pregunta cómo
+    # es la planta). Solo cambia el texto: los registros y el mapa vienen igual.
     geoespacial: bool = True
     procedencia: list[Procedencia] = Field(default_factory=list)  # RR_45
 

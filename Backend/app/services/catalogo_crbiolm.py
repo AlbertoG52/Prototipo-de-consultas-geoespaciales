@@ -5,9 +5,8 @@ herramientas del servidor de CR-BioLM. Todo es L0/L1: no usa el LLM.
 
     buscar_especies      -> get_species (provisional, ver el método)
     obtener_especie      -> get_species
-    construir_respuesta  -> get_species + get_relevant_passage (si pregunta algo concreto)
-                            + get_occurrence_points + get_species_map_image (si es
-                            geoespacial)
+    construir_respuesta  -> get_species + get_occurrence_points + get_species_map_image
+                            + get_relevant_passage (si pregunta algo concreto)
     obtener_ficha        -> get_species + get_occurrence_points + get_species_map_image
     obtener_mapa         -> el mapa en memoria, o lo mismo que la ficha
 
@@ -31,9 +30,10 @@ Antes de armar la respuesta, los datos de cada fuente se validan
 
 Según la pregunta (services/intencion.py):
 
-- RR_41: GBIF y el mapa solo se piden si la consulta es geoespacial.
+- RR_41: el tipo de pregunta (distribución, descripción...) elige el texto.
+  GBIF y el mapa se piden siempre que existan (RR_52, RR_46, RR_59).
 - RR_44: si pregunta algo concreto, el texto es el fragmento del Manual que lo
-  responde (búsqueda semántica en CR-BioLM); si no, el párrafo de distribución.
+  responde (búsqueda semántica en CR-BioLM); si no, el texto de la ficha.
 
 Se activa con CATALOGO=crbiolm en el .env (ver config.py). Los errores de
 conexión con CR-BioLM y el tiempo agotado no se atrapan aquí: los maneja el
@@ -184,11 +184,11 @@ class CatalogoCRBioLM:
     def contexto(self, nombre: str, pregunta: str = "") -> ContextoEspecie | None:
         """RR_45: toda la información validada de la especie, como un contexto único.
 
-        None si la especie no está en el catálogo. Lo que se pide depende de la
-        pregunta (sin pregunta, se pide todo):
+        None si la especie no está en el catálogo. Siempre se piden la ficha, los
+        registros de GBIF y el mapa (RR_52, RR_46, RR_59). La pregunta decide:
 
-        - RR_41: GBIF y el mapa solo si la consulta es geoespacial.
-        - RR_44: el fragmento del Manual solo si pregunta algo concreto.
+        - RR_41: su tipo, que elige el texto (contexto_especie.py).
+        - RR_44: si pregunta algo concreto, se busca el fragmento del Manual.
 
         Todo se pide con el nombre de la ficha ya validada (RR_60).
         """
@@ -198,8 +198,6 @@ class CatalogoCRBioLM:
         especie = str(manual.valor["species"])
         intencion = analizar(pregunta, especie)
         fragmento = _fragmento(especie, pregunta) if intencion.pregunta_especifica else None
-        if not intencion.geoespacial:
-            return ContextoEspecie(manual, None, None, fragmento, [])
 
         ocurrencias = _ocurrencias(especie)
         avisos: list[str] = []
@@ -211,7 +209,7 @@ class CatalogoCRBioLM:
             avisos.append(_aviso_pocos_registros(especie, ocurrencias.total))
         else:
             mapa = self._mapa(a_id(especie), especie)
-        return ContextoEspecie(manual, ocurrencias, mapa, fragmento, avisos)
+        return ContextoEspecie(manual, ocurrencias, mapa, fragmento, avisos, intencion.tipo)
 
     def _mapa(self, especie_id: str, nombre: str) -> MapaGenerado | None:
         with self._candado:

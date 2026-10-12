@@ -102,9 +102,9 @@ export function TarjetaRespuesta({
             </div>
           )}
           <div className="flex items-center gap-4 mt-3 flex-wrap">
-            {/* RR_41: en una consulta no geográfica no se piden registros.
-                RR_59: cantidad de registros encontrados ("Sin registros" si no hay). */}
-            {respuesta.geoespacial && (
+            {/* RR_59: cantidad de registros encontrados ("Sin registros" si no hay).
+                Se omite solo si GBIF no respondió (RR_58): el aviso lo explica. */}
+            {fuenteRegistros && (
               <span
                 className="text-xs px-2 py-1 rounded-full"
                 style={{ background: "var(--color-etiqueta-sobre-marca)", color: "var(--color-sobre-marca-claro)" }}
