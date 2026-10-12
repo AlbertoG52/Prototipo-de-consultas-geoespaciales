@@ -9,8 +9,9 @@
  *  - Criterio 3: se llega desde el botón "Ficha completa" de cada respuesta
  *    (ChatPage).
  *
- * RR_46 / RR_53: si CR-BioLM generó el mapa de la especie (`ficha.mapa`), se
- * muestra; si no, no aparece ningún panel de mapa.
+ * RR_46 / RR_53 / RR_54: si CR-BioLM generó el mapa de la especie
+ * (`ficha.mapa`) y corresponde a esta especie, se muestra; si no, no aparece
+ * ningún panel de mapa.
  */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -23,7 +24,16 @@ import { PREFIJO_ARCHIVOS } from "../config/marca";
 import * as api from "../services/api";
 import type { FichaEspecie } from "../types";
 import { descargarArchivo, fichaATexto } from "../utils/descarga";
-import { CELDA_VACIA, COLUMNAS_TABLA_REGISTROS, ETIQUETAS_REGISTRO, formatearCoordenadas, SIN_DATO } from "../config/textos";
+import { mapaDeLaEspecie } from "../utils/mapa";
+import {
+  CELDA_VACIA,
+  COLUMNAS_TABLA_REGISTROS,
+  ETIQUETAS_REGISTRO,
+  formatearCoordenadas,
+  IDIOMA_FECHAS,
+  SIN_DATO,
+  textoRegistros,
+} from "../config/textos";
 
 type Estado =
   | { tipo: "cargando" }
@@ -119,8 +129,10 @@ export function SpeciesPage() {
 }
 
 function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => void }) {
+  // RR_54: el mapa solo se muestra si es el de esta especie.
+  const mapa = mapaDeLaEspecie(ficha.mapa, ficha.id) ? ficha.mapa : null;
   const etiquetas = [
-    `${ficha.total_registros} registros`,
+    textoRegistros(ficha.total_registros), // RR_59
     ficha.elevacion,
   ].filter((e): e is string => Boolean(e));
 
@@ -131,7 +143,8 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
     ...(ficha.nombre_comun ? [["Nombre común", ficha.nombre_comun] as [string, string]] : []),
     ["Familia", ficha.familia],
     ["Hábitat", ficha.habitat ?? SIN_DATO],
-    [ETIQUETAS_REGISTRO.elevacion, ficha.elevacion ?? SIN_DATO],
+    // RR_55 criterio 3: sin datos de elevación en el Manual, el rango se omite.
+    ...(ficha.elevacion ? [[ETIQUETAS_REGISTRO.elevacion, ficha.elevacion] as [string, string]] : []),
   ];
 
   return (
@@ -181,14 +194,14 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
               </p>
             </div>
 
-            {ficha.mapa && (
+            {mapa && (
               <div className="rounded-2xl p-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
                 <h3 className="font-semibold mb-3 flex items-center gap-1.5" style={{ color: "var(--color-texto)" }}>
                   <MapPin size={16} style={{ color: "var(--color-marca)" }} />
                   Distribución en Costa Rica
                 </h3>
                 <MapaCRBioLM
-                  mapa={ficha.mapa}
+                  mapa={mapa}
                   especie={ficha.nombre_cientifico}
                   nombreArchivo={`${PREFIJO_ARCHIVOS}-ficha-${ficha.id}-mapa.png`}
                 />
@@ -204,6 +217,13 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
                   No hay registros de presencia para esta especie.
                 </p>
               ) : (
+                <>
+                {/* RR_59: CR-BioLM entrega como máximo 500 puntos; si hay más, se aclara. */}
+                {ficha.registros.length < ficha.total_registros && (
+                  <p className="mb-2 text-xs" style={{ color: "var(--color-texto-secundario)" }}>
+                    Se muestran {textoRegistros(ficha.registros.length)} de {ficha.total_registros.toLocaleString(IDIOMA_FECHAS)}.
+                  </p>
+                )}
                 <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-borde)" }}>
                   <table className="w-full text-xs">
                     <thead style={{ background: "var(--color-superficie-suave)" }}>
@@ -231,6 +251,7 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </div>
 

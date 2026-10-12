@@ -13,7 +13,7 @@ import { Download, X } from "lucide-react";
 import * as api from "../services/api";
 import type { MapaEspecie, RegistroPresencia } from "../types";
 import { RANGO_VACIO, type RangoElevacion } from "../utils/elevacion";
-import { ETIQUETAS_REGISTRO, formatearCoordenadas, SIN_DATO } from "../config/textos";
+import { ETIQUETAS_REGISTRO, formatearCoordenadas, SIN_DATO, textoRegistros } from "../config/textos";
 
 type EstadoImagen =
   | { tipo: "cargando" }
@@ -65,6 +65,7 @@ function useImagenMapa(ruta: string): EstadoImagen {
  * - Criterio 3: el texto alternativo y el título nombran la especie.
  *
  * RR_15: "Descargar mapa" baja este mismo PNG.
+ * RR_59: debajo del mapa se indica cuántos registros de GBIF tiene dibujados.
  */
 export function MapaCRBioLM({
   mapa,
@@ -116,12 +117,16 @@ export function MapaCRBioLM({
           />
         )}
       </div>
-      {/* Aviso de CR-BioLM sobre el mapa, si lo hay. */}
-      {mapa.advertencia && (
-        <figcaption className="mt-1.5 text-xs" style={{ color: "var(--color-aviso-texto)" }}>
-          {mapa.advertencia}
-        </figcaption>
-      )}
+      <figcaption className="mt-1.5 text-xs flex flex-col gap-0.5">
+        {/* RR_59 criterio 2: la cantidad de registros junto al mapa. */}
+        {mapa.puntos > 0 && (
+          <span style={{ color: "var(--color-texto-secundario)" }}>
+            {textoRegistros(mapa.puntos)} de presencia de GBIF en el mapa
+          </span>
+        )}
+        {/* Aviso de CR-BioLM sobre el mapa, si lo hay. */}
+        {mapa.advertencia && <span style={{ color: "var(--color-aviso-texto)" }}>{mapa.advertencia}</span>}
+      </figcaption>
     </figure>
   );
 }

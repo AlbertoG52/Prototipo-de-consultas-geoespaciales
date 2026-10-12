@@ -97,7 +97,8 @@ export function fichaATexto(ficha: FichaEspecie, fecha = new Date()): string {
     ...(ficha.nombre_comun ? [`Nombre común: ${ficha.nombre_comun}`] : []),
     `Familia: ${ficha.familia}`,
     `Hábitat: ${dato(ficha.habitat)}`,
-    `Elevación: ${dato(ficha.elevacion)}`,
+    // RR_55 criterio 3: sin datos de elevación, el rango se omite.
+    ...(ficha.elevacion ? [`Elevación: ${ficha.elevacion}`] : []),
     "",
   ];
   if (ficha.descripcion) lineas.push("Descripción:", ficha.descripcion, "");

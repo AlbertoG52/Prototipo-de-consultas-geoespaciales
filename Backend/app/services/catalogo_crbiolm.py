@@ -377,6 +377,8 @@ def _pedir_mapa(nombre: str) -> MapaGenerado | None:
     valor = sobre.valor or {}
     if not valor.get("png_base64"):
         return None
+    if not _mapa_de_la_especie(nombre, valor):
+        return None
     capas = [c.strip() for c in str(valor.get("layer_summary", "")).split("|") if c.strip()]
     return MapaGenerado(
         png=base64.b64decode(valor["png_base64"]),
@@ -385,6 +387,23 @@ def _pedir_mapa(nombre: str) -> MapaGenerado | None:
         advertencia=sobre.advertencia or None,
         cita=sobre.cita,
     )
+
+
+def _mapa_de_la_especie(nombre: str, valor: dict[str, Any]) -> bool:
+    """RR_54 criterios 1 y 2: el mapa que llega es de la especie pedida.
+
+    El mapa se pide con el nombre ya validado (RR_60). Si además CR-BioLM dice
+    de qué especie es (`species`) y no coincide, se descarta: es preferible no
+    mostrar mapa que mostrar el de otra especie. Los guiones bajos se tratan
+    como espacios, porque CR-BioLM los usa en algunos nombres.
+    """
+    recibida = valor.get("species")
+    if recibida is None:
+        return True
+    if isinstance(recibida, str) and misma_especie(nombre, recibida.replace("_", " ")):
+        return True
+    logger.warning("RR_54: se pidió el mapa de %s y llegó el de %r; se descarta", nombre, recibida)
+    return False
 
 
 def _candidata(ficha: dict[str, Any]) -> EspecieCandidata:
