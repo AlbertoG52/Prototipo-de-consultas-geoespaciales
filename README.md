@@ -435,7 +435,8 @@ docker compose exec backend python -m pytest tests -q
 ```
 
 Cubren el hash de contraseñas, la validación y sanitización de entradas, los
-roles, la auditoría, el perfil, el historial por conversaciones y el adaptador
+roles, la administración de usuarios (`test_admin.py`, RR_69 a RR_75), la
+auditoría, el perfil, el historial por conversaciones y el adaptador
 MCP (`test_mcp_cliente.py`, con un servidor MCP falso: no necesita CR-BioLM). Las de
 auditoría y conversaciones usan la base de datos del contenedor y borran lo que
 crean al terminar.
