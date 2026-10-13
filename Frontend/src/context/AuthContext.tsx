@@ -126,11 +126,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         return await api.obtenerSesion();
       } catch (err) {
+        // RR_74: la cuenta fue desactivada (403); la persona sigue sin cuenta.
+        const desactivada = err instanceof api.ErrorApi && err.status === 403;
         // Si solo falló la red (el servidor está arrancando), se conserva el
         // token y el efecto de abajo vuelve a intentar.
-        if (!tokenRechazado(err)) throw err;
+        if (!tokenRechazado(err) && !desactivada) throw err;
         // RR_00_04: el token de usuario venció mientras la página estaba cerrada.
-        if (eraUsuario) setSesionExpirada(true);
+        if (eraUsuario && !desactivada) setSesionExpirada(true);
         api.borrarToken();
       }
     }
