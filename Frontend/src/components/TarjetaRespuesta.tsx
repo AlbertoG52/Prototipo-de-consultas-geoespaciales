@@ -6,6 +6,9 @@
  * RR_50 y RR_51: fuentes de la respuesta, cita de la fuente debajo del texto y
  * si la información viene del Manual de Plantas (MPCR), de GBIF o de ambas.
  *
+ * RR_49: si el texto lo redactó el LLM de CR-BioLM, trae las citas del Manual
+ * dentro (【…】); se muestran como cita, p. ej. "(Tomo V, p.779)".
+ *
  * RR_12 (detalle de un registro) y RR_19 (filtro por elevación) viven en la
  * lista de registros: el mapa es un PNG de CR-BioLM y no permite seleccionar
  * ni ocultar puntos.
@@ -18,7 +21,7 @@ import { OrigenDeLosDatos } from "./OrigenDeLosDatos";
 import type { RespuestaConsulta } from "../types";
 import { descargarArchivo, nombreBase, respuestaATexto } from "../utils/descarga";
 import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/elevacion";
-import { origenDeLaInformacion, procedenciaDe } from "../utils/fuentes";
+import { origenDeLaInformacion, partirCitas, procedenciaDe } from "../utils/fuentes";
 import { mapaDeLaEspecie } from "../utils/mapa";
 import { DetallePunto, FiltroElevacion, MapaCRBioLM } from "./Mapa";
 import { CELDA_VACIA, COLUMNAS_TABLA_REGISTROS, formatearCoordenadas, IDIOMA_FECHAS, textoRegistros } from "../config/textos";
@@ -42,7 +45,8 @@ export function TarjetaRespuesta({
   // RR_18 — el usuario alterna entre el mapa y la lista de registros. Si falta
   // una de las dos, se muestra la que haya.
   const [vistaElegida, setVista] = useState<"mapa" | "lista">("mapa");
-  const vista = !hayMapa ? "lista" : !hayRegistros ? "mapa" : vistaElegida;
+  // Sin mapa no se muestra este bloque (ver abajo), así que solo importa con mapa.
+  const vista = !hayRegistros ? "mapa" : vistaElegida;
   // RR_12 — registro cuyo detalle está abierto (índice en respuesta.registros).
   const [seleccionado, setSeleccionado] = useState<number | null>(null);
   const cerrarDetalle = useCallback(() => setSeleccionado(null), []);
@@ -125,7 +129,16 @@ export function TarjetaRespuesta({
 
         <div className="px-6 py-5">
           <p className="text-sm leading-relaxed" style={{ color: "var(--color-texto-cuerpo)" }}>
-            {respuesta.texto}
+            {/* RR_49 / RR_51: las citas del Manual dentro del texto, con formato de cita. */}
+            {partirCitas(respuesta.texto).map((trozo, i) =>
+              trozo.tipo === "texto" ? (
+                <span key={i}>{trozo.valor}</span>
+              ) : (
+                <cite key={i} title={trozo.completa} className="not-italic text-xs ml-0.5" style={{ color: "var(--color-texto-tenue)" }}>
+                  ({trozo.valor})
+                </cite>
+              ),
+            )}
           </p>
           {/* RR_51 criterio 2: cita específica de la fuente del texto. */}
           {citaTexto && (
@@ -137,7 +150,10 @@ export function TarjetaRespuesta({
           {/* RR_43 y RR_58: por qué falta el mapa o los registros. */}
           <Avisos avisos={respuesta.avisos} className="mt-4" />
 
-          {(hayMapa || hayRegistros) && (
+          {/* Sin mapa, la respuesta queda solo con el texto: no se muestra ni el
+              mapa ni la lista de registros. La cantidad sigue en la etiqueta del
+              encabezado (RR_59) y los registros, en la ficha completa. */}
+          {hayMapa && (
             <>
               {/* RR_18 cambiar entre la vista de mapa y la de lista (si hay las dos). */}
               {hayMapa && hayRegistros && (

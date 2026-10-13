@@ -1,5 +1,5 @@
 /**
- * RR_50 y RR_51 — de qué fuente sale cada parte de una respuesta.
+ * RR_49, RR_50 y RR_51 — de qué fuente sale cada parte de una respuesta.
  *
  * Todo sale del campo `procedencia` que arma el backend (RR_45,
  * services/contexto_especie.py): aquí solo se elige qué mostrar.
@@ -24,4 +24,30 @@ export function origenDeLaInformacion(procedencia: Procedencia[]): string | null
   if (manual) return `${FUENTE_MANUAL} (MPCR)`;
   if (gbif) return FUENTE_GBIF;
   return null;
+}
+
+/** Un trozo del texto de la respuesta: texto corrido o una cita del Manual. */
+export type TrozoDeTexto =
+  | { tipo: "texto"; valor: string }
+  | { tipo: "cita"; valor: string; completa: string };
+
+/**
+ * RR_49 y RR_51 — el texto que redacta el LLM de CR-BioLM trae las citas del
+ * Manual dentro, entre 【 】: "…en Talamanca【Quercus costaricensis (Tomo V, p.779)】."
+ * Se separan para mostrarlas como cita ("Tomo V, p.779"); `completa` conserva la
+ * cita entera. Un texto sin citas (el del Manual) queda en un solo trozo.
+ */
+export function partirCitas(texto: string): TrozoDeTexto[] {
+  const trozos: TrozoDeTexto[] = [];
+  let desde = 0;
+  for (const cita of texto.matchAll(/【([^】]*)】/g)) {
+    const inicio = cita.index ?? 0;
+    if (inicio > desde) trozos.push({ tipo: "texto", valor: texto.slice(desde, inicio) });
+    const completa = cita[1].trim();
+    const ubicacion = /\(([^()]+)\)\s*$/.exec(completa);
+    trozos.push({ tipo: "cita", valor: ubicacion ? ubicacion[1].trim() : completa, completa });
+    desde = inicio + cita[0].length;
+  }
+  if (desde < texto.length) trozos.push({ tipo: "texto", valor: texto.slice(desde) });
+  return trozos;
 }

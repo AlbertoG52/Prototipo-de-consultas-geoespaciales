@@ -1,9 +1,9 @@
 """Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_41, RR_43, RR_44,
-RR_45, RR_58 y RR_60.
+RR_45, RR_49, RR_54, RR_58 y RR_60.
 
 Levantan un servidor MCP falso con las herramientas de CR-BioLM que usa el
-catálogo (get_species, get_occurrence_points, get_species_map_image y
-get_relevant_passage), con sus mismas respuestas. Las que pasan por la API
+catálogo (get_species, get_occurrence_points, get_species_map_image,
+get_relevant_passage y answer_question), con sus mismas respuestas. Las que pasan por la API
 necesitan la BD.
 
 Especies del servidor falso:
@@ -15,10 +15,15 @@ Especies del servidor falso:
     Zamia fairchildiana    sin puntos
     Cedrela odorata        get_species devuelve la ficha de OTRA especie (RR_60)
     Ocotea insularis       5 puntos; el mapa llega con el nombre de OTRA especie (RR_54)
+    Myrsine coriacea       la que responde el LLM (answer_question, RR_49)
 
 Fragmentos del Manual (get_relevant_passage, RR_44): Quercus costaricensis tiene
 uno de distribución y uno de descripción (hojas); el de Inga edulis llega con
 el nombre de otra especie; las demás no tienen texto vectorizado.
+
+answer_question (RR_49) solo responde bien preguntas sobre Myrsine coriacea; con
+ciertas palabras en la pregunta simula los casos que deben usar el Manual (ver
+la herramienta). Las demás preguntas no tienen respuesta del LLM.
 """
 
 import base64
@@ -65,6 +70,12 @@ MANUAL = {
     },
     "Persea americana": {"species": "Persea americana", "family": "Lauraceae"},
     "Ocotea insularis": {"species": "Ocotea insularis", "family": "Lauraceae"},
+    "Myrsine coriacea": {
+        "species": "Myrsine coriacea",
+        "family": "Primulaceae",
+        "common_names": [],
+        "distribution_paragraph": "Bosque muy húmedo y nuboso, 800–3000 m.",
+    },
     "Zamia fairchildiana": {"species": "Zamia fairchildiana", "family": "Zamiaceae"},
     # RR_60: una ficha que no corresponde al nombre pedido.
     "Cedrela odorata": {"species": "Cedrela fissilis", "family": "Meliaceae"},
@@ -138,6 +149,47 @@ def get_relevant_passage(species: str, question: str, top_k: int = 1) -> dict:
         pasaje = {"section": "description", "ordinal": 0, "text": "Texto de otra especie."}
         return _sobre({"species": "Inga spectabilis", "passages": [pasaje]}, cita=cita)
     return _sobre(None, confianza="insufficient", advertencia="No indexed text")
+
+
+# --- RR_49: answer_question (el LLM de CR-BioLM) ------------------------------
+
+TEXTO_IA = (
+    "Myrsine coriacea crece en bosques muy húmedos y nubosos de Costa Rica, entre "
+    "800 y 3000 m de altitud【Myrsine coriacea (Tomo VI, p.44)】."
+)
+CITA_IA = "Manual de Plantas de Costa Rica, Tomo VI, p. 44 (Myrsine coriacea)"
+pedidos_a_ia: list[str] = []
+
+
+def _respuesta_ia(modo: str, citas: list[str]) -> dict:
+    valor = {
+        "text": TEXTO_IA,
+        "mode": modo,
+        "constraints": {},
+        "selector": None,
+        "map_path": None,
+        "n_pts": 0,
+        "citations": citas,
+    }
+    return _sobre(valor, cita="Manual de Plantas de Costa Rica", confianza="estimated")
+
+
+@falso.tool()
+def answer_question(question: str) -> dict:
+    pedidos_a_ia.append(question)
+    if "sin llave" in question:
+        raise ValueError("OPENROUTER_API_KEY not configured")
+    if "lenta" in question:
+        time.sleep(2.5)
+    if "lista" in question:  # respondió con una lista de especies (modo B)
+        return _respuesta_ia("B (lista)", [CITA_IA])
+    if "otra especie" in question:  # citó el Manual de otra especie (RR_60)
+        return _respuesta_ia(
+            "A (especie)", ["Manual de Plantas de Costa Rica, Tomo VI, p. 45 (Myrsine pellucida)"]
+        )
+    if "Myrsine coriacea" in question:
+        return _respuesta_ia("A (especie)", [CITA_IA])
+    return _sobre(None, confianza="insufficient", advertencia="no answer")
 
 
 def _puntos(cantidad: int) -> list[dict]:
@@ -222,6 +274,7 @@ def crbiolm(monkeypatch, url_falsa):
     pedidos_de_mapa.clear()
     pedidos_a_gbif.clear()
     pedidos_de_pasaje.clear()
+    pedidos_a_ia.clear()
     fallos_de_gbif.clear()
     return CatalogoCRBioLM()
 
@@ -671,3 +724,73 @@ def test_la_procedencia_llega_por_la_api(crbiolm, visitante):
         "registros",
         "mapa",
     }
+
+
+# --- RR_49: respuesta redactada por el LLM de CR-BioLM --------------------------
+
+DONDE_MYRSINE = "¿Dónde crece Myrsine coriacea?"
+TEXTO_MANUAL_MYRSINE = "Bosque muy húmedo y nuboso, 800–3000 m."
+
+
+def test_la_respuesta_usa_el_texto_redactado_por_el_llm(crbiolm):
+    respuesta = crbiolm.construir_respuesta("myrsine-coriacea", DONDE_MYRSINE)
+    assert pedidos_a_ia == [DONDE_MYRSINE]
+    assert respuesta.texto == TEXTO_IA
+    assert _origen(respuesta)["texto"] == (
+        "Manual de Plantas de Costa Rica",
+        "Tomo V, p. 779 · respuesta redactada con IA a partir del Manual",
+    )
+    # RR_50: la página que citó el LLM también aparece entre las fuentes.
+    assert "Manual de Plantas de Costa Rica, Tomo VI, p. 44" in respuesta.fuentes
+
+
+def test_sin_pregunta_no_se_le_pide_nada_al_llm(crbiolm):
+    respuesta = crbiolm.construir_respuesta("myrsine-coriacea", "")
+    assert pedidos_a_ia == []
+    assert respuesta.texto == TEXTO_MANUAL_MYRSINE
+
+
+def test_la_ficha_no_usa_el_llm(crbiolm):
+    crbiolm.obtener_ficha("myrsine-coriacea")
+    assert pedidos_a_ia == []
+
+
+@pytest.mark.parametrize(
+    "caso",
+    [
+        "sin llave",  # la herramienta falla (p. ej. sin OPENROUTER_API_KEY)
+        "lista",  # respondió una lista de especies, no sobre la pedida
+        "otra especie",  # sus citas son de otra especie (RR_60)
+    ],
+)
+def test_si_el_llm_no_sirve_se_usa_el_texto_del_manual(crbiolm, caso):
+    respuesta = crbiolm.construir_respuesta("myrsine-coriacea", f"{DONDE_MYRSINE} ({caso})")
+    assert len(pedidos_a_ia) == 1
+    assert respuesta.texto == TEXTO_MANUAL_MYRSINE
+    assert "IA" not in _origen(respuesta)["texto"][1]
+
+
+def test_si_el_llm_tarda_demasiado_se_usa_el_manual_sin_cortar_la_consulta(crbiolm, monkeypatch):
+    monkeypatch.setattr(config, "SEGUNDOS_MAXIMOS_REDACCION_IA", 1)
+    with plazo(60):
+        respuesta = crbiolm.construir_respuesta("myrsine-coriacea", f"{DONDE_MYRSINE} (lenta)")
+    assert respuesta.texto == TEXTO_MANUAL_MYRSINE
+
+
+def test_sin_tiempo_en_la_consulta_no_se_pide_al_llm(crbiolm):
+    with plazo(catalogo_crbiolm.MARGEN_TRAS_REDACCION + 0.5):
+        respuesta = crbiolm.construir_respuesta("myrsine-coriacea", DONDE_MYRSINE)
+    assert pedidos_a_ia == []
+    assert respuesta.texto == TEXTO_MANUAL_MYRSINE
+
+
+def test_otras_especies_siguen_con_el_texto_del_manual(crbiolm):
+    # Para Quercus costaricensis el LLM falso no responde: queda el fragmento (RR_44).
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", HOJAS)
+    assert respuesta.texto == PASAJE_HOJAS
+
+
+def test_la_respuesta_del_llm_llega_por_la_api(crbiolm, visitante):
+    datos = api.post("/consultas", headers=visitante, json={"texto": DONDE_MYRSINE}).json()
+    assert datos["estado"] == "resuelta"
+    assert datos["respuesta"]["texto"] == TEXTO_IA

@@ -108,6 +108,13 @@ MCP_ESPERA_REINTENTO_SEGUNDOS = max(
     float(os.environ.get("MCP_ESPERA_REINTENTO_SEGUNDOS", "1")), 0.0
 )
 
+# RR_49 — tiempo máximo para que el LLM de CR-BioLM (answer_question) redacte la
+# respuesta. Si se pasa, la respuesta sale con el texto del Manual en lugar de
+# cortar la consulta. Los modelos gratuitos de OpenRouter pueden ser lentos.
+SEGUNDOS_MAXIMOS_REDACCION_IA = max(
+    float(os.environ.get("SEGUNDOS_MAXIMOS_REDACCION_IA", "45")), 1.0
+)
+
 # --- registros de GBIF (services/catalogo_crbiolm.py) --------------------------
 # RR_43 — mínimo de registros de presencia válidos (ya filtrados por RR_60) para
 # generar el mapa de una especie. Con menos, la respuesta sale sin mapa y con un

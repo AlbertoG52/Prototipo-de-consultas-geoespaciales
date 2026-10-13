@@ -6,14 +6,15 @@
     fuente vectorizada    el fragmento del Manual que responde la pregunta (RR_44)
     GBIF                  los registros de presencia (RR_42, RR_43, RR_58, RR_60)
     mapa                  el PNG que genera CR-BioLM (RR_41)
+    redacción del LLM     la respuesta en lenguaje natural de answer_question (RR_49)
 
 Criterios de RR_45:
 1. Las fuentes corresponden a la misma especie: services/catalogo_crbiolm.py
    descarta, antes de armar el contexto, todo lo que no sea de la especie pedida
    (RR_60), incluido el fragmento vectorizado.
 2. Se entrega como un contexto único: este objeto. De él salen la respuesta del
-   chat y la ficha, y es lo que recibirá el módulo de respuesta con LLM (L2)
-   cuando se integre.
+   chat y la ficha. La respuesta del chat puede llevar además el texto que
+   redacta el LLM de CR-BioLM (RR_49, `redaccion`).
 3. Trazabilidad: `procedencia()` dice de dónde sale cada dato de la respuesta.
 
 No llama a CR-BioLM: solo combina lo que ya se pidió.
@@ -21,6 +22,7 @@ No llama a CR-BioLM: solo combina lo que ya se pidió.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import Any
 
@@ -34,6 +36,13 @@ GBIF = "GBIF"
 CR_BIOLM = "CR-BioLM"
 
 SIN_TEXTO = "El Manual de Plantas de Costa Rica no describe la distribución de esta especie."
+
+# RR_49: de dónde sale el texto cuando lo redacta el LLM de CR-BioLM.
+REDACTADO_CON_IA = "respuesta redactada con IA a partir del Manual"
+
+# "Manual de Plantas de Costa Rica, Tomo V, p. 779 (Quercus costaricensis)":
+# CR-BioLM termina cada cita del LLM con la especie entre paréntesis.
+_ESPECIE_AL_FINAL = re.compile(r"\s*\(([^()]+)\)\s*$")
 
 # Secciones del Manual en los fragmentos de CR-BioLM (pg_store.chunk_texts).
 SECCIONES = {
@@ -74,6 +83,18 @@ class Fragmento:
 
 
 @dataclass(frozen=True)
+class RedaccionIA:
+    """RR_49: la respuesta que redacta el LLM de CR-BioLM (answer_question), ya validada.
+
+    `texto` trae las citas del Manual dentro, p. ej. "【Quercus costaricensis
+    (Tomo V, p.779)】"; `citas` son las mismas referencias, completas.
+    """
+
+    texto: str
+    citas: list[str]
+
+
+@dataclass(frozen=True)
 class ContextoEspecie:
     """Toda la información validada de una especie, combinada (ver el módulo)."""
 
@@ -83,6 +104,8 @@ class ContextoEspecie:
     fragmento: Fragmento | None  # None: no hubo pregunta concreta o no se encontró
     avisos: list[str]
     tipo: TipoPregunta = TipoPregunta.GENERAL  # RR_41: qué pregunta la consulta
+    # RR_49: solo en la respuesta del chat, y solo si el LLM respondió bien.
+    redaccion: RedaccionIA | None = None
 
     @property
     def ficha(self) -> dict[str, Any]:
@@ -117,6 +140,9 @@ class ContextoEspecie:
     def fuentes(self) -> list[str]:
         """Las citas de cada fuente, sin repetir (RR_51)."""
         citas = [s.cita or s.fuente for s in (self.manual, self.gbif) if s is not None]
+        if self.redaccion is not None:
+            # RR_50: las páginas del Manual que citó el LLM también son fuentes.
+            citas.extend(sin_especie(c) for c in self.redaccion.citas)
         return list(dict.fromkeys(c for c in citas if c))
 
     def mapa_especie(self, url: str) -> MapaEspecie | None:
@@ -163,11 +189,14 @@ class ContextoEspecie:
     def _texto(self) -> tuple[str, str]:
         """(texto, de dónde sale). Orden de preferencia:
 
-        1. El fragmento que responde la pregunta (RR_44).
-        2. Según el tipo de pregunta (RR_41): la morfología si pregunta cómo es la
+        1. La respuesta redactada por el LLM de CR-BioLM (RR_49).
+        2. El fragmento que responde la pregunta (RR_44).
+        3. Según el tipo de pregunta (RR_41): la morfología si pregunta cómo es la
            planta. RR_29 (Cristopher): aquí va el texto de hábitat para HABITAT.
-        3. El párrafo de distribución.
+        4. El párrafo de distribución.
         """
+        if self.redaccion is not None:
+            return self.redaccion.texto, REDACTADO_CON_IA
         if self.fragmento is not None:
             seccion = SECCIONES.get(self.fragmento.seccion, self.fragmento.seccion)
             return self.fragmento.texto, f"{seccion} · búsqueda semántica"
@@ -182,3 +211,14 @@ def _ubicacion_en_el_manual(cita: str) -> str:
     """'Manual de Plantas de Costa Rica, Tomo V, p. 779' -> 'Tomo V, p. 779'."""
     prefijo = f"{MANUAL}, "
     return cita[len(prefijo) :] if cita.startswith(prefijo) else cita
+
+
+def especie_de_la_cita(cita: str) -> str | None:
+    """'..., Tomo V, p. 779 (Quercus costaricensis)' -> 'Quercus costaricensis'."""
+    encontrada = _ESPECIE_AL_FINAL.search(cita)
+    return encontrada.group(1).strip() if encontrada else None
+
+
+def sin_especie(cita: str) -> str:
+    """'..., Tomo V, p. 779 (Quercus costaricensis)' -> '..., Tomo V, p. 779'."""
+    return _ESPECIE_AL_FINAL.sub("", cita).strip()

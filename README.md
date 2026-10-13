@@ -69,6 +69,8 @@ Frontend/src/
   components/      piezas reutilizables (Logo, TarjetaRespuesta, Mapa, Formulario…)
   config/marca.ts  nombre, subtítulo y logo de la aplicación
   config/textos.ts textos y formatos repetidos (idioma de fechas, etiquetas de registros)
+  utils/           lógica sin interfaz: descargas, filtro de elevación, mapa de la
+                   especie (mapa.ts, RR_54) y fuentes y citas (fuentes.ts, RR_49-51)
   index.css        paleta de colores (modo claro y oscuro)
   routes.tsx       enrutamiento
 Frontend/public/
@@ -342,6 +344,14 @@ palabras clave):
   la respuesta y la ficha. Cada una trae `procedencia`: de dónde sale cada dato
   (especie, texto, elevación, registros, mapa). El frontend lo muestra en
   "Origen de los datos" (`components/OrigenDeLosDatos.tsx`) y en la descarga.
+- **RR_49 — respuesta en lenguaje natural**: si la consulta trae una pregunta,
+  el texto lo redacta el LLM de CR-BioLM (herramienta `answer_question`, L2), con
+  las citas del Manual dentro (`【Especie (Tomo V, p.779)】`, que el frontend
+  muestra como "(Tomo V, p.779)"). Solo se usa si respondió sobre **una**
+  especie (modo `A`) y todas sus citas son de la especie identificada (RR_60).
+  Si la herramienta falla (p. ej. sin llave de OpenRouter), tarda más de
+  `SEGUNDOS_MAXIMOS_REDACCION_IA` o responde otra cosa, se usa el texto del
+  Manual de RR_44, sin error para el usuario. La ficha (RR_20) no usa el LLM.
 
 ---
 
@@ -384,8 +394,20 @@ python -c "from mpcr_rag.mcp.server import server; server.run(transport='streama
 - El backend lo encuentra en `MCP_URL` (por defecto
   `http://host.docker.internal:8765/mcp`). Para comprobarlo:
   http://localhost:8000/mcp-check
-- Sin las llaves de OpenRouter, las herramientas L2 (`answer_question`,
-  `semantic_search`) responden con confianza `insufficient` y un aviso, sin error.
+- **Llave del LLM (RR_49).** `answer_question` necesita una llave de OpenRouter
+  en el `.env` **de CR-BioLM** (en la raíz de su clon, no en el de este
+  proyecto). La cuenta y la llave son gratuitas si se usa un modelo `:free`:
+
+  ```
+  OPENROUTER_API_KEY=sk-or-v1-...
+  MPCR_ENRICH_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+  ```
+
+  Los modelos gratuitos cambian; la guía de hosting de CR-BioLM trae el
+  comando para listar los disponibles. Si CR-BioLM no carga el `.env` solo,
+  antes de arrancarlo: `set -a; source .env; set +a`.
+- Sin esa llave, `answer_question` falla o responde `insufficient`; el backend
+  usa entonces el texto del Manual (ver RR_49 arriba).
 
 ### En el deploy
 
