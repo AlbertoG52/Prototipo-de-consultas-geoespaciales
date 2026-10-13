@@ -1,9 +1,10 @@
-"""Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_41, RR_43, RR_44,
-RR_45, RR_49, RR_54, RR_58 y RR_60.
+"""Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_23, RR_41, RR_43,
+RR_44, RR_45, RR_49, RR_54, RR_58 y RR_60.
 
 Levantan un servidor MCP falso con las herramientas de CR-BioLM que usa el
-catálogo (get_species, get_occurrence_points, get_species_map_image,
-get_relevant_passage y answer_question), con sus mismas respuestas. Las que pasan por la API
+catálogo (get_species, search_species, get_occurrence_points,
+get_species_map_image, get_relevant_passage y answer_question), con sus mismas
+respuestas. Las que pasan por la API
 necesitan la BD.
 
 Especies del servidor falso:
@@ -100,6 +101,13 @@ def get_species(name: str) -> dict:
     if ficha is None:
         return _sobre(None, confianza="insufficient", advertencia="not found")
     return _sobre(ficha, cita="Manual de Plantas de Costa Rica, Tomo V, p. 779")
+
+
+@falso.tool()
+def search_species() -> dict:
+    """Sin filtros devuelve todo el catálogo (RR_23)."""
+    especies = [{"species": nombre} for nombre in MANUAL]
+    return _sobre({"count": len(especies), "species": especies})
 
 
 # PNG de 1x1 que hace de mapa.
@@ -805,3 +813,35 @@ def test_la_respuesta_del_llm_llega_por_la_api(crbiolm, visitante):
     datos = api.post("/consultas", headers=visitante, json={"texto": DONDE_MYRSINE}).json()
     assert datos["estado"] == "resuelta"
     assert datos["respuesta"]["texto"] == TEXTO_IA
+
+
+# --- RR_23: corrección de errores ortográficos ------------------------------------
+# La regla está probada en test_correccion.py; aquí, que el catálogo la aplica.
+
+
+@pytest.mark.parametrize(
+    "texto", ["¿Dónde crece Querus costaricensis?", "¿Dónde crece Qercus costarisensis?"]
+)
+def test_un_nombre_mal_escrito_se_reconoce(crbiolm, texto):
+    [especie] = crbiolm.buscar_especies(texto)
+    assert especie.id == "quercus-costaricensis"
+
+
+def test_con_tres_letras_mal_no_se_reconoce(crbiolm):
+    assert crbiolm.buscar_especies("¿Dónde crece Qercus kostarisensis?") == []
+
+
+def test_el_llm_recibe_la_pregunta_con_el_nombre_corregido(crbiolm):
+    """Criterio 3: la corrección se aplica antes de buscar, también para el LLM."""
+    respuesta = crbiolm.construir_respuesta("myrsine-coriacea", "¿Dónde crece Myrsine coriacia?")
+    assert pedidos_a_ia == [DONDE_MYRSINE]
+    assert respuesta.texto == TEXTO_IA
+
+
+def test_la_consulta_conserva_lo_que_escribio_el_usuario(crbiolm, visitante):
+    """Criterio 2: se busca con el nombre corregido, pero el texto no cambia."""
+    texto = "¿Dónde crece Querus costaricensis?"
+    datos = api.post("/consultas", headers=visitante, json={"texto": texto}).json()
+    assert datos["estado"] == "resuelta"
+    assert datos["texto"] == texto
+    assert datos["respuesta"]["especie"]["id"] == "quercus-costaricensis"
