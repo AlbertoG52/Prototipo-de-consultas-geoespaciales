@@ -1,12 +1,14 @@
 """Catálogo de especies con los datos reales de CR-BioLM, por MCP.
 
 Implementa la interfaz `FuenteCatalogo` (services/catalogo.py) con las
-herramientas del servidor de CR-BioLM. Todo es L0/L1: no usa el LLM.
+herramientas del servidor de CR-BioLM. Todo es L0/L1 salvo la redacción de la
+respuesta (RR_49), que usa el LLM de CR-BioLM (answer_question, L2).
 
     buscar_especies      -> get_species (provisional, ver el método)
     obtener_especie      -> get_species
     construir_respuesta  -> get_species + get_occurrence_points + get_species_map_image
                             + get_relevant_passage (si pregunta algo concreto)
+                            + answer_question (RR_49, si hay pregunta)
     obtener_ficha        -> get_species + get_occurrence_points + get_species_map_image
     obtener_mapa         -> el mapa en memoria, o lo mismo que la ficha
 
@@ -34,12 +36,17 @@ Según la pregunta (services/intencion.py):
   GBIF y el mapa se piden siempre que existan (RR_52, RR_46, RR_59).
 - RR_44: si pregunta algo concreto, el texto es el fragmento del Manual que lo
   responde (búsqueda semántica en CR-BioLM); si no, el texto de la ficha.
+- RR_49: si hay pregunta, el texto es la respuesta que redacta el LLM de
+  CR-BioLM, con las citas del Manual dentro. Se usa solo si responde sobre la
+  misma especie (RR_60); si falla, tarda más de SEGUNDOS_MAXIMOS_REDACCION_IA o
+  responde otra cosa, se usa el texto del Manual de los puntos anteriores.
 
 Se activa con CATALOGO=crbiolm en el .env (ver config.py). Los errores de
 conexión con CR-BioLM y el tiempo agotado no se atrapan aquí: los maneja el
 servicio de consultas (RR_38) y, más adelante, RR_05. Las excepciones son GBIF
-(RR_58, arriba), el mapa y el fragmento (RR_44): si esas herramientas fallan, la
-respuesta sale igual, sin mapa o con el texto de la ficha.
+(RR_58, arriba), el mapa, el fragmento (RR_44) y la redacción del LLM (RR_49):
+si esas herramientas fallan, la respuesta sale igual, sin mapa o con el texto
+de la ficha.
 """
 
 from __future__ import annotations
@@ -50,6 +57,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
+from dataclasses import replace
 from itertools import pairwise
 from typing import Any
 
@@ -61,11 +69,18 @@ from ..schemas.consulta import (
     RegistroPresencia,
     RespuestaConsulta,
 )
-from ..tiempo import alcanza_para_esperar
+from ..tiempo import alcanza_para_esperar, plazo, segundos_restantes
 from . import mcp_cliente
-from .contexto_especie import ContextoEspecie, Fragmento, MapaGenerado, Ocurrencias
+from .contexto_especie import (
+    ContextoEspecie,
+    Fragmento,
+    MapaGenerado,
+    Ocurrencias,
+    RedaccionIA,
+    especie_de_la_cita,
+)
 from .intencion import analizar
-from .mcp_cliente import MCPErrorHerramienta, MCPRespuestaInvalida, Sobre
+from .mcp_cliente import MCPErrorHerramienta, MCPRespuestaInvalida, MCPTiempoAgotado, Sobre
 from .validacion_datos import alcanza_para_mapa, misma_especie, punto_valido
 
 logger = logging.getLogger("uvicorn.error")
@@ -76,6 +91,14 @@ FUENTE_GBIF = "GBIF"
 # Mapas que se guardan en memoria para servirlos en GET /especies/{id}/mapa sin
 # volver a pedirlos a CR-BioLM. Cada PNG pesa unos cientos de KB.
 MAPAS_EN_MEMORIA = 64
+
+# RR_49: answer_question responde en modo "A (especie)" cuando habla de una
+# especie concreta; "B" es una lista de especies y "B→A" un superlativo.
+MODO_UNA_ESPECIE = "A"
+
+# RR_49 y RR_38: segundos que se dejan libres después de la redacción del LLM
+# para terminar la consulta (guardarla y responder) dentro de su tiempo máximo.
+MARGEN_TRAS_REDACCION = 5.0
 
 # Rangos infraespecíficos que el id escribe sin punto ("var", no "var.").
 _RANGOS = {"var", "subsp", "f"}
@@ -131,10 +154,14 @@ class CatalogoCRBioLM:
         return _candidata(manual.valor) if manual else None
 
     def construir_respuesta(self, especie_id: str, texto_consulta: str) -> RespuestaConsulta | None:
-        """Respuesta a la consulta, armada desde el contexto de la especie (RR_45)."""
+        """Respuesta a la consulta, armada desde el contexto de la especie (RR_45).
+
+        RR_49: si hay pregunta, el texto lo redacta el LLM de CR-BioLM.
+        """
         contexto = self.contexto(a_nombre(especie_id), texto_consulta)
         if contexto is None:
             return None
+        contexto = _con_redaccion_ia(contexto, texto_consulta)
         return RespuestaConsulta(
             especie=_candidata(contexto.ficha),
             texto=contexto.texto(),
@@ -290,6 +317,80 @@ def _fragmento(especie: str, pregunta: str) -> Fragmento | None:
     if not texto:
         return None
     return Fragmento(texto=texto, seccion=str(mejor.get("section") or ""))
+
+
+# --- RR_49: respuesta redactada por el LLM de CR-BioLM ---------------------------
+
+
+def _con_redaccion_ia(contexto: ContextoEspecie, pregunta: str) -> ContextoEspecie:
+    """El contexto con la respuesta que redacta el LLM, si se pudo obtener (RR_49).
+
+    Sin pregunta no hay nada que redactar: queda el texto del Manual.
+    """
+    if not pregunta.strip():
+        return contexto
+    redaccion = _redaccion_ia(contexto.especie, pregunta)
+    return replace(contexto, redaccion=redaccion) if redaccion else contexto
+
+
+def _redaccion_ia(especie: str, pregunta: str) -> RedaccionIA | None:
+    """La respuesta de answer_question sobre `especie`, o None para usar el Manual.
+
+    Usa el LLM de CR-BioLM (L2): necesita OPENROUTER_API_KEY en el .env de
+    CR-BioLM, no en el de este proyecto. Es None cuando:
+
+    - no queda tiempo en la consulta para esperarlo (RR_38),
+    - la herramienta falla (sin llave, límite de uso del modelo gratuito...),
+    - tarda más de SEGUNDOS_MAXIMOS_REDACCION_IA: a diferencia de las otras
+      herramientas, su tiempo agotado no corta la consulta, solo se descarta,
+    - responde otra cosa que no es la especie pedida (ver `_validar_redaccion`).
+    """
+    segundos = _segundos_para_la_redaccion()
+    if segundos is None:
+        logger.info("RR_49: no queda tiempo para pedir la respuesta al LLM (%s)", especie)
+        return None
+    try:
+        with plazo(segundos):
+            sobre = mcp_cliente.llamar("answer_question", question=pregunta)
+    except (MCPErrorHerramienta, MCPRespuestaInvalida, MCPTiempoAgotado) as error:
+        logger.warning("RR_49: CR-BioLM no redactó la respuesta de %s: %s", especie, error)
+        return None
+    return _validar_redaccion(especie, sobre)
+
+
+def _segundos_para_la_redaccion() -> float | None:
+    """Tiempo para el LLM sin pasarse del de la consulta (RR_38); None si no alcanza."""
+    segundos = config.SEGUNDOS_MAXIMOS_REDACCION_IA
+    restantes = segundos_restantes()
+    if restantes is not None:
+        segundos = min(segundos, restantes - MARGEN_TRAS_REDACCION)
+    return segundos if segundos >= 1 else None
+
+
+def _validar_redaccion(especie: str, sobre: Sobre) -> RedaccionIA | None:
+    """RR_49 y RR_60: solo se acepta una respuesta sobre la especie pedida, con citas.
+
+    answer_question decide por su cuenta de qué habla la pregunta, así que se
+    exige que haya respondido sobre UNA especie (modo A) y que todas sus citas
+    del Manual sean de la especie que identificó el backend.
+    """
+    valor = sobre.valor if isinstance(sobre.valor, dict) else {}
+    texto = str(valor.get("text") or "").strip()
+    if not sobre.es_suficiente or not texto:
+        logger.info("RR_49: el LLM no dio respuesta para %s: %s", especie, sobre.advertencia)
+        return None
+    modo = str(valor.get("mode") or "")
+    if not modo.startswith(MODO_UNA_ESPECIE):
+        logger.info("RR_49: el LLM respondió en modo %r, no sobre %s", modo, especie)
+        return None
+    citas = [str(c).strip() for c in valor.get("citations") or [] if str(c).strip()]
+    citadas = [especie_de_la_cita(c) for c in citas]
+    if not citadas or not all(misma_especie(especie, c) for c in citadas):
+        logger.warning(
+            "RR_60: el LLM respondió sobre %s con citas de %r; se descarta", especie, citadas
+        )
+        return None
+    return RedaccionIA(texto=texto, citas=citas)
 
 
 # --- GBIF: reintentos (RR_58) y validación de los registros (RR_60) -------------
