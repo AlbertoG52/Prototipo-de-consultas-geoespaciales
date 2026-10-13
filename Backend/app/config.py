@@ -86,6 +86,10 @@ LONGITUD_MAXIMA_CONSULTA = 500
 # de una sola llamada). Se configura en el .env.
 SEGUNDOS_MAXIMOS_CONSULTA = max(float(os.environ.get("SEGUNDOS_MAXIMOS_CONSULTA", "120")), 1.0)
 
+# RR_23 — máximo de letras mal escritas (cambiadas, faltantes o sobrantes) en un
+# nombre científico para corregirlo antes de buscar (services/correccion.py).
+LETRAS_MAXIMAS_CORRECCION = 2
+
 # --- CR-BioLM por MCP (services/mcp_cliente.py) -------------------------------
 # Dirección del servidor MCP de CR-BioLM. En desarrollo corre en la máquina
 # anfitriona, fuera de Docker, porque necesita los datos que entregó el cliente

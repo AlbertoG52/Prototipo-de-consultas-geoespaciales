@@ -79,6 +79,7 @@ from .contexto_especie import (
     RedaccionIA,
     especie_de_la_cita,
 )
+from .correccion import corregir_nombres
 from .intencion import analizar
 from .mcp_cliente import MCPErrorHerramienta, MCPRespuestaInvalida, MCPTiempoAgotado, Sobre
 from .validacion_datos import alcanza_para_mapa, misma_especie, punto_valido
@@ -128,6 +129,7 @@ class CatalogoCRBioLM:
     def __init__(self) -> None:
         self._mapas: OrderedDict[str, MapaGenerado] = OrderedDict()
         self._candado = threading.Lock()  # los endpoints corren en varios hilos
+        self._nombres_del_catalogo: dict[str, str] | None = None  # RR_23
 
     def buscar_especies(self, texto: str) -> list[EspecieCandidata]:
         """Especies que menciona la consulta: 0 = ninguna, 2+ = ambigua (RR_17).
@@ -137,6 +139,9 @@ class CatalogoCRBioLM:
         especie es del módulo de identificación de Jesús (RR_24, 26, 31, 39 y, en
         el sprint 3, nombres comunes RR_25, sinónimos RR_27, ambigüedad RR_28 y
         varias especies RR_36). Cuando esté listo, este método solo lo llama.
+
+        RR_23: si no reconoce ninguna, corrige los nombres con hasta
+        LETRAS_MAXIMAS_CORRECCION letras mal escritas y vuelve a buscar.
         """
         palabras = re.findall(r"[^\W\d_][\w-]*", texto)
         encontradas: dict[str, EspecieCandidata] = {}
@@ -147,6 +152,10 @@ class CatalogoCRBioLM:
             if manual is not None:
                 candidata = _candidata(manual.valor)
                 encontradas.setdefault(candidata.id, candidata)
+        if not encontradas:
+            corregido = corregir_nombres(texto, self._nombres())
+            if corregido != texto:
+                return self.buscar_especies(corregido)
         return list(encontradas.values())
 
     def obtener_especie(self, especie_id: str) -> EspecieCandidata | None:
@@ -158,7 +167,11 @@ class CatalogoCRBioLM:
 
         RR_49: si hay pregunta, el texto lo redacta el LLM de CR-BioLM.
         """
-        contexto = self.contexto(a_nombre(especie_id), texto_consulta)
+        nombre = a_nombre(especie_id)
+        if texto_consulta and normalizar(nombre) not in normalizar(texto_consulta):
+            # RR_23: el Manual y el LLM reciben la pregunta con el nombre corregido.
+            texto_consulta = corregir_nombres(texto_consulta, self._nombres())
+        contexto = self.contexto(nombre, texto_consulta)
         if contexto is None:
             return None
         contexto = _con_redaccion_ia(contexto, texto_consulta)
@@ -253,6 +266,23 @@ class CatalogoCRBioLM:
                 while len(self._mapas) > MAPAS_EN_MEMORIA:
                     self._mapas.popitem(last=False)
         return mapa
+
+    def _nombres(self) -> dict[str, str]:
+        """RR_23: los nombres del catálogo (normalizado -> como lo guarda CR-BioLM).
+
+        Se piden una sola vez: search_species sin filtros (L0) devuelve todo el
+        catálogo. Si CR-BioLM no los da, no se corrige y se piden otra vez en la
+        siguiente consulta. Si dos hilos los piden a la vez, no pasa nada.
+        """
+        if self._nombres_del_catalogo is None:
+            try:
+                especies = mcp_cliente.llamar("search_species").valor["species"]
+                nombres = {normalizar(e["species"]): e["species"] for e in especies}
+            except (MCPErrorHerramienta, MCPRespuestaInvalida, KeyError, TypeError):
+                logger.warning("RR_23: CR-BioLM no dio el catálogo de nombres; no se corrige")
+                return {}
+            self._nombres_del_catalogo = nombres
+        return self._nombres_del_catalogo
 
     @staticmethod
     def _manual(nombre: str) -> Sobre | None:

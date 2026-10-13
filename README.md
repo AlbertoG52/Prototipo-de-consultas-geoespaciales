@@ -252,6 +252,14 @@ Antes de procesarse, el texto de `POST /consultas` pasa por el esquema
 mostrado no cambia. El catálogo de CR-BioLM quita además las tildes de los
 nombres científicos antes de buscarlos (`"Quércus"` encuentra *Quercus*).
 
+**RR_23 — errores ortográficos**: si la consulta no trae ningún nombre científico
+exacto, `CatalogoCRBioLM` corrige los que tienen hasta `LETRAS_MAXIMAS_CORRECCION`
+letras mal escritas (2, en `config.py`) contra el catálogo completo de CR-BioLM
+(`search_species`, pedido una sola vez) y vuelve a buscar
+(`services/correccion.py`). Solo corrige si hay un único nombre así de cercano.
+El texto guardado y mostrado no cambia y no se avisa al usuario; el Manual y el
+LLM reciben la pregunta con el nombre corregido.
+
 ### Tiempo de respuesta (RR_57)
 
 Cada `POST /consultas`, termine bien o con error, deja una fila en
