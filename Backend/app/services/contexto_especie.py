@@ -46,9 +46,19 @@ _ESPECIE_AL_FINAL = re.compile(r"\s*\(([^()]+)\)\s*$")
 
 # Secciones del Manual en los fragmentos de CR-BioLM (pg_store.chunk_texts).
 SECCIONES = {
-    "distribution": "párrafo de distribución",
-    "description": "descripción (morfología y discusión)",
+    "distribution": "distribución",
+    "description": "descripción",
 }
+
+# RR_45: cómo se describe el origen de cada dato. Son textos para el usuario: las
+# citas técnicas de CR-BioLM (filtros de GBIF, archivos del mapa) no se muestran.
+FICHA = "ficha de la especie"
+DE_LA_PREGUNTA = "fragmento más relacionado con la pregunta"  # RR_44
+DETALLE_REGISTROS = "registros de presencia en Costa Rica, consultados en vivo"
+DETALLE_MAPA = (
+    "elaborado con el Manual, los registros de GBIF, un modelo de elevación "
+    "y las regiones botánicas"
+)
 
 
 @dataclass(frozen=True)
@@ -59,7 +69,6 @@ class MapaGenerado:
     capas: list[str]
     puntos: int
     advertencia: str | None
-    cita: str = ""
 
 
 @dataclass(frozen=True)
@@ -138,8 +147,10 @@ class ContextoEspecie:
         return self._texto()[0]
 
     def fuentes(self) -> list[str]:
-        """Las citas de cada fuente, sin repetir (RR_51)."""
-        citas = [s.cita or s.fuente for s in (self.manual, self.gbif) if s is not None]
+        """Las fuentes consultadas, sin repetir (RR_51): la cita del Manual y "GBIF"."""
+        citas = [self.manual.cita or MANUAL]
+        if self.gbif is not None:
+            citas.append(GBIF)
         if self.redaccion is not None:
             # RR_50: las páginas del Manual que citó el LLM también son fuentes.
             citas.extend(sin_especie(c) for c in self.redaccion.citas)
@@ -162,7 +173,7 @@ class ContextoEspecie:
         `con_texto=False` para la ficha, que no muestra el texto del chat.
         """
         ubicacion = _ubicacion_en_el_manual(self.manual.cita)
-        ficha = f"{ubicacion} · ficha estructurada" if ubicacion else "ficha estructurada"
+        ficha = ubicacion or FICHA
         origen = [Procedencia(dato=DatoRespuesta.ESPECIE, fuente=MANUAL, detalle=ficha)]
         if con_texto:
             detalle = self._texto()[1]
@@ -172,17 +183,12 @@ class ContextoEspecie:
         if self.ficha.get("elev_min") is not None or self.ficha.get("elev_max") is not None:
             origen.append(Procedencia(dato=DatoRespuesta.ELEVACION, fuente=MANUAL, detalle=ficha))
         if self.gbif is not None:
-            detalle = "consulta en vivo, solo registros válidos en Costa Rica"
-            if self.gbif.cita:
-                detalle = f"{self.gbif.cita} · {detalle}"
-            origen.append(Procedencia(dato=DatoRespuesta.REGISTROS, fuente=GBIF, detalle=detalle))
+            origen.append(
+                Procedencia(dato=DatoRespuesta.REGISTROS, fuente=GBIF, detalle=DETALLE_REGISTROS)
+            )
         if self.mapa is not None:
             origen.append(
-                Procedencia(
-                    dato=DatoRespuesta.MAPA,
-                    fuente=CR_BIOLM,
-                    detalle=self.mapa.cita or "mapa de distribución",
-                )
+                Procedencia(dato=DatoRespuesta.MAPA, fuente=CR_BIOLM, detalle=DETALLE_MAPA)
             )
         return origen
 
@@ -199,7 +205,7 @@ class ContextoEspecie:
             return self.redaccion.texto, REDACTADO_CON_IA
         if self.fragmento is not None:
             seccion = SECCIONES.get(self.fragmento.seccion, self.fragmento.seccion)
-            return self.fragmento.texto, f"{seccion} · búsqueda semántica"
+            return self.fragmento.texto, f"{seccion} · {DE_LA_PREGUNTA}"
         if self.tipo is TipoPregunta.DESCRIPCION and self.ficha.get("morphology"):
             return str(self.ficha["morphology"]), SECCIONES["description"]
         if self.ficha.get("distribution_paragraph"):

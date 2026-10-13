@@ -344,6 +344,9 @@ palabras clave):
   la respuesta y la ficha. Cada una trae `procedencia`: de dónde sale cada dato
   (especie, texto, elevación, registros, mapa). El frontend lo muestra en
   "Origen de los datos" (`components/OrigenDeLosDatos.tsx`) y en la descarga.
+  Son textos para el usuario (p. ej. "GBIF — registros de presencia en Costa
+  Rica, consultados en vivo"): las citas técnicas de CR-BioLM, con los filtros de
+  GBIF o los archivos del mapa, no se muestran.
 - **RR_49 — respuesta en lenguaje natural**: si la consulta trae una pregunta,
   el texto lo redacta el LLM de CR-BioLM (herramienta `answer_question`, L2), con
   las citas del Manual dentro (`【Especie (Tomo V, p.779)】`, que el frontend

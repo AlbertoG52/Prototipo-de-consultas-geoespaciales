@@ -487,7 +487,6 @@ def _pedir_mapa(nombre: str) -> MapaGenerado | None:
         capas=capas,
         puntos=int(valor.get("n_pts") or 0),
         advertencia=sobre.advertencia or None,
-        cita=sobre.cita,
     )
 
 
