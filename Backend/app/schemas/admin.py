@@ -1,11 +1,12 @@
-"""Esquemas de administración — RR_00_09 y RR_57."""
+"""Esquemas de administración — RR_00_09, RR_57 y RR_76."""
 
 from datetime import datetime
 
 from pydantic import BaseModel
 
-from ..dominio import EstadoCuenta, NombreRol, ResultadoConsulta, TipoSesion
+from ..dominio import EstadoConsulta, EstadoCuenta, NombreRol, ResultadoConsulta, TipoSesion
 from .base import EsquemaSalida
+from .usuario import UsuarioOut
 
 
 class CambioEstado(BaseModel):
@@ -53,3 +54,34 @@ class ResumenTiempos(EsquemaSalida):
     p95_ms: int | None  # el 95 % de las consultas tardó esto o menos
     maximo_ms: int | None
     registros: list[RegistroTiempo]
+
+
+# --- RR_76: historial de uso ---------------------------------------------------------
+
+
+class ConsultaDeUsuario(EsquemaSalida):
+    """Una consulta del historial de uso de un usuario (criterios 1 y 2)."""
+
+    id: int
+    # None cuando ADMIN_VE_TEXTO_CONSULTAS está apagado (config.py).
+    texto: str | None
+    estado: EstadoConsulta
+    especie: str | None  # nombre científico, solo si se resolvió
+    realizada_en: datetime
+
+
+class HistorialUso(EsquemaSalida):
+    """GET /admin/usuarios/{id}/consultas: las consultas de una cuenta."""
+
+    usuario: UsuarioOut
+    texto_visible: bool  # ADMIN_VE_TEXTO_CONSULTAS
+    total: int  # todas sus consultas guardadas, para paginar
+    consultas: list[ConsultaDeUsuario]  # de la más reciente a la más antigua
+
+
+class UsoDeRol(EsquemaSalida):
+    """GET /admin/uso-por-rol: el uso del sistema por las cuentas de un rol (criterio 3)."""
+
+    rol: NombreRol
+    usuarios: int  # cuentas que tienen hoy ese rol
+    consultas: int  # consultas guardadas de esas cuentas

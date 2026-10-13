@@ -1,4 +1,4 @@
-"""Endpoints de administración — RR_69 a RR_75, RR_00_10, RR_00_09 y RR_57.
+"""Endpoints de administración — RR_69 a RR_76, RR_00_10, RR_00_09 y RR_57.
 
 La dependencia de rol está en el router, no en cada endpoint: todo lo que se
 agregue bajo /admin queda restringido al supermoderador sin tener que
@@ -15,7 +15,14 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..dominio import NombreRol
 from ..models import Usuario
-from ..schemas.admin import CambioEstado, CambioRol, RegistroAuditoria, ResumenTiempos
+from ..schemas.admin import (
+    CambioEstado,
+    CambioRol,
+    HistorialUso,
+    RegistroAuditoria,
+    ResumenTiempos,
+    UsoDeRol,
+)
 from ..schemas.usuario import UsuarioOut
 from ..security import obtener_usuario_actual, requiere_rol
 from ..services import admin, tiempos
@@ -32,6 +39,28 @@ router = APIRouter(
 def listar_usuarios(db: Session = Depends(get_db)) -> list[UsuarioOut]:
     """RR_71 — usuarios registrados con su correo, rol y estado."""
     return admin.listar_usuarios(db)
+
+
+@router.get("/usuarios/{usuario_id}/consultas", response_model=HistorialUso)
+def historial_de_uso(
+    usuario_id: int,
+    limite: int = Query(20, ge=1, le=100),
+    desplazamiento: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+) -> HistorialUso:
+    """RR_76 criterios 1 y 2 — consultas de una cuenta, de la más reciente a la más antigua.
+
+    El texto de cada consulta viene solo si ADMIN_VE_TEXTO_CONSULTAS está
+    encendido (`texto_visible`).
+    """
+    with errores_http():
+        return admin.historial_de_uso(db, usuario_id, limite, desplazamiento)
+
+
+@router.get("/uso-por-rol", response_model=list[UsoDeRol])
+def uso_por_rol(db: Session = Depends(get_db)) -> list[UsoDeRol]:
+    """RR_76 criterio 3 — cuentas y consultas guardadas de cada rol."""
+    return admin.uso_por_rol(db)
 
 
 @router.patch("/usuarios/{usuario_id}/estado", response_model=UsuarioOut)

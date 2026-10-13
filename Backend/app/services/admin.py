@@ -1,7 +1,8 @@
-"""Administración de usuarios por el supermoderador — RR_69 a RR_75 y RR_00_09.
+"""Administración de usuarios por el supermoderador — RR_69 a RR_76 y RR_00_09.
 
 El router (routers/admin.py) exige el rol de supermoderador para todo /admin
-(RR_69 criterio 1, RR_71 criterio 2) y llama a estas funciones:
+(RR_69 criterio 1, RR_71 criterio 2, RR_73 criterio 1) y llama a estas
+funciones:
 
 - RR_71: `listar_usuarios` — correo, rol y estado de cada cuenta.
 - RR_70: `cambiar_rol` — el rol se lee de la BD en cada petición
@@ -9,6 +10,12 @@ El router (routers/admin.py) exige el rol de supermoderador para todo /admin
   nuevo rol decide los permisos y el límite diario (services/uso.py).
 - RR_74 / RR_75: `cambiar_estado` — una cuenta inactiva recibe 403 en su
   siguiente petición, incluida POST /consultas; al reactivarla conserva su rol.
+  La persona puede seguir usando el agente sin cuenta, como cualquier visitante.
+- RR_76: `historial_de_uso` (criterios 1 y 2) — las consultas de una cuenta.
+  El texto de cada consulta solo se entrega si ADMIN_VE_TEXTO_CONSULTAS está
+  encendido (config.py); si no, se ve cuándo consultó, con qué resultado y de
+  qué especie. `uso_por_rol` (criterio 3) — cuántas consultas hicieron las
+  cuentas de cada rol.
 - RR_00_09: `listar_auditoria` — los cambios de rol y de estado los registra
   el trigger de la BD (003 y 011); aquí solo se indica quién actúa.
 
@@ -23,16 +30,20 @@ debe ir en la BD bloqueando filas.
 
 from __future__ import annotations
 
-from sqlalchemy import text
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session, joinedload
 
-from ..dominio import EstadoCuenta, NombreRol
+from .. import config
+from ..dominio import EstadoConsulta, EstadoCuenta, NombreRol
 from ..errores import Conflicto, NoEncontrado
-from ..models import Rol, Usuario
-from ..schemas.admin import RegistroAuditoria
+from ..models import Consulta, Rol, Usuario
+from ..schemas.admin import ConsultaDeUsuario, HistorialUso, RegistroAuditoria, UsoDeRol
 from ..schemas.usuario import UsuarioOut
 
 MENSAJE_SOBRE_SI_MISMO = "No puedes modificar tu propio rol ni tu estado."
+
+
+# --- RR_69 a RR_75: usuarios, roles y estados ------------------------------------
 
 
 def listar_usuarios(db: Session) -> list[UsuarioOut]:
@@ -109,3 +120,81 @@ def _guardar(db: Session, usuario: Usuario) -> UsuarioOut:
     db.commit()
     db.refresh(usuario)
     return UsuarioOut.de_modelo(usuario)
+
+
+# --- RR_76: historial de uso -------------------------------------------------------
+
+
+def historial_de_uso(
+    db: Session, usuario_id: int, limite: int, desplazamiento: int
+) -> HistorialUso:
+    """RR_76 criterios 1 y 2 — las consultas de una cuenta, de la más reciente a la más antigua.
+
+    Trae `limite` consultas a partir de `desplazamiento`; `total` permite pedir
+    las siguientes.
+    """
+    usuario = db.query(Usuario).options(joinedload(Usuario.rol)).filter_by(id=usuario_id).first()
+    if usuario is None:
+        raise NoEncontrado("El usuario no existe.")
+
+    de_la_cuenta = Consulta.usuario_id == usuario_id
+    total = db.query(func.count(Consulta.id)).filter(de_la_cuenta).scalar() or 0
+    pagina = (
+        db.query(Consulta)
+        .filter(de_la_cuenta)
+        .order_by(Consulta.realizada_en.desc(), Consulta.id.desc())
+        .offset(desplazamiento)
+        .limit(limite)
+        .all()
+    )
+    ver_texto = config.ADMIN_VE_TEXTO_CONSULTAS
+    return HistorialUso(
+        usuario=UsuarioOut.de_modelo(usuario),
+        texto_visible=ver_texto,
+        total=total,
+        consultas=[_consulta_de_usuario(c, ver_texto) for c in pagina],
+    )
+
+
+def uso_por_rol(db: Session) -> list[UsoDeRol]:
+    """RR_76 criterio 3 — cuántas cuentas tiene cada rol y cuántas consultas hicieron.
+
+    Cuenta las consultas guardadas (las mismas que muestra el historial), según
+    el rol que la cuenta tiene hoy: si cambió de rol, todas sus consultas
+    cuentan para el rol nuevo.
+    """
+    cuentas = (
+        db.query(Rol.nombre, func.count(Usuario.id))
+        .outerjoin(Usuario, Usuario.rol_id == Rol.id)
+        .group_by(Rol.nombre)
+        .tuples()
+        .all()
+    )
+    consultas = (
+        db.query(Rol.nombre, func.count(Consulta.id))
+        .join(Usuario, Usuario.rol_id == Rol.id)
+        .join(Consulta, Consulta.usuario_id == Usuario.id)
+        .group_by(Rol.nombre)
+        .tuples()
+        .all()
+    )
+    por_cuentas, por_consultas = dict(cuentas), dict(consultas)
+    return [
+        UsoDeRol(
+            rol=NombreRol(nombre),
+            usuarios=por_cuentas.get(nombre, 0),
+            consultas=por_consultas.get(nombre, 0),
+        )
+        for (nombre,) in db.query(Rol.nombre).order_by(Rol.id).tuples()
+    ]
+
+
+def _consulta_de_usuario(consulta: Consulta, ver_texto: bool) -> ConsultaDeUsuario:
+    especie = (consulta.respuesta or {}).get("especie") or {}
+    return ConsultaDeUsuario(
+        id=consulta.id,
+        texto=consulta.texto if ver_texto else None,
+        estado=EstadoConsulta(consulta.estado),
+        especie=especie.get("nombre_cientifico"),
+        realizada_en=consulta.realizada_en,
+    )

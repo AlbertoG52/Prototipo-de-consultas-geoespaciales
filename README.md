@@ -67,6 +67,7 @@ Frontend/src/
   context/         AuthContext (sesión) y ConsultasContext (conversación)
   pages/           vistas
   components/      piezas reutilizables (Logo, TarjetaRespuesta, Mapa, Formulario…)
+    admin/         usuarios del panel de administración (RR_70 a RR_76)
   config/marca.ts  nombre, subtítulo y logo de la aplicación
   config/textos.ts textos y formatos repetidos (idioma de fechas, etiquetas de registros)
   utils/           lógica sin interfaz: descargas, filtro de elevación, mapa de la
@@ -168,6 +169,8 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | PATCH | `/perfil` | cambiar el nombre de la cuenta | solo cuentas registradas |
 | POST | `/perfil/password` | cambiar la contraseña (pide la actual) | solo cuentas registradas |
 | GET | `/admin/usuarios` | usuarios registrados | supermoderador |
+| GET | `/admin/usuarios/{id}/consultas` | historial de uso de una cuenta, por páginas (RR_76) | supermoderador |
+| GET | `/admin/uso-por-rol` | cuentas y consultas guardadas de cada rol (RR_76) | supermoderador |
 | PATCH | `/admin/usuarios/{id}/estado` | activar o desactivar (no a sí mismo: 409) | supermoderador |
 | PATCH | `/admin/usuarios/{id}/rol` | cambiar el rol (no a sí mismo: 409) | supermoderador |
 | GET | `/admin/auditoria` | registro de acciones administrativas (RR_00_09) | supermoderador |
@@ -184,6 +187,11 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
   de inmediato.
 - En el frontend, `RequiereRol` (`routes.tsx`) solo evita mostrar la vista;
   no es la barrera de seguridad.
+
+El texto de las consultas en el historial de uso (RR_76) se entrega solo si
+`ADMIN_VE_TEXTO_CONSULTAS=true` (por defecto, en el `.env`); con `false` el
+supermoderador ve cuándo consultó cada cuenta, con qué resultado y de qué
+especie, pero no lo que escribió.
 
 El registro siempre crea cuentas con rol `usuario`. Para asignar otro rol:
 

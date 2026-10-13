@@ -11,12 +11,14 @@ import type {
   ConversacionResumen,
   EspecieCandidata,
   FichaEspecie,
+  HistorialUso,
   RegistroAuditoria,
   RegistroRequest,
   Sesion,
   TipoSesion,
   TokenOut,
   Usuario,
+  UsoDeRol,
 } from "../types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
@@ -306,3 +308,12 @@ export const cambiarUsuario = (id: number, campo: "estado" | "rol", valor: strin
   pedir<Usuario>(`/admin/usuarios/${id}/${campo}`, "PATCH", { [campo]: valor });
 
 export const obtenerAuditoria = () => pedir<RegistroAuditoria[]>("/admin/auditoria");
+
+/** RR_76 — una página del historial de uso de una cuenta, de lo más reciente a lo más antiguo. */
+export const obtenerHistorialDeUso = (usuarioId: number, limite: number, desplazamiento: number) =>
+  pedir<HistorialUso>(
+    `/admin/usuarios/${usuarioId}/consultas?limite=${limite}&desplazamiento=${desplazamiento}`,
+  );
+
+/** RR_76 criterio 3 — cuentas y consultas guardadas de cada rol. */
+export const obtenerUsoPorRol = () => pedir<UsoDeRol[]>("/admin/uso-por-rol");
