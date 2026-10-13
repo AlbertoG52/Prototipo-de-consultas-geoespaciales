@@ -82,6 +82,7 @@ from .contexto_especie import (
 from .correccion import corregir_nombres
 from .intencion import analizar
 from .mcp_cliente import MCPErrorHerramienta, MCPRespuestaInvalida, MCPTiempoAgotado, Sobre
+from .regiones import Zona, extraer_zona
 from .validacion_datos import alcanza_para_mapa, misma_especie, punto_valido
 
 logger = logging.getLogger("uvicorn.error")
@@ -130,6 +131,7 @@ class CatalogoCRBioLM:
         self._mapas: OrderedDict[str, MapaGenerado] = OrderedDict()
         self._candado = threading.Lock()  # los endpoints corren en varios hilos
         self._nombres_del_catalogo: dict[str, str] | None = None  # RR_23
+        self._vocabulario_del_catalogo: dict[str, Any] | None = None  # RR_39
 
     def buscar_especies(self, texto: str) -> list[EspecieCandidata]:
         """Especies que menciona la consulta: 0 = ninguna, 2+ = ambigua (RR_17).
@@ -232,6 +234,8 @@ class CatalogoCRBioLM:
 
         - RR_41: su tipo, que elige el texto (contexto_especie.py).
         - RR_44: si pregunta algo concreto, se busca el fragmento del Manual.
+        - RR_39: si menciona una región o vertiente, los registros y su conteo
+          son solo los de esa zona. El mapa sigue siendo el nacional.
 
         Todo se pide con el nombre de la ficha ya validada (RR_60).
         """
@@ -252,6 +256,10 @@ class CatalogoCRBioLM:
             avisos.append(_aviso_pocos_registros(especie, ocurrencias.total))
         else:
             mapa = self._mapa(a_id(especie), especie)
+        # RR_39: después de decidir el mapa, que se decide con el total nacional.
+        zona = extraer_zona(pregunta, self._vocabulario()) if pregunta else None
+        if zona is not None:
+            ocurrencias = _en_zona(ocurrencias, zona, especie)
         return ContextoEspecie(manual, ocurrencias, mapa, fragmento, avisos, intencion.tipo)
 
     def _mapa(self, especie_id: str, nombre: str) -> MapaGenerado | None:
@@ -283,6 +291,21 @@ class CatalogoCRBioLM:
                 return {}
             self._nombres_del_catalogo = nombres
         return self._nombres_del_catalogo
+
+    def _vocabulario(self) -> dict[str, Any] | None:
+        """RR_39: las regiones y vertientes del Manual (get_vocabulary, L0), una sola vez.
+
+        Si CR-BioLM no las da, no se filtra por zona y se piden otra vez después.
+        """
+        if self._vocabulario_del_catalogo is None:
+            try:
+                valor = mcp_cliente.llamar("get_vocabulary").valor
+            except (MCPErrorHerramienta, MCPRespuestaInvalida):
+                logger.warning("RR_39: CR-BioLM no dio el vocabulario; no se filtra por zona")
+                return None
+            if isinstance(valor, dict):
+                self._vocabulario_del_catalogo = valor
+        return self._vocabulario_del_catalogo
 
     @staticmethod
     def _manual(nombre: str) -> Sobre | None:
@@ -444,6 +467,27 @@ def _ocurrencias(especie: str) -> Ocurrencias:
         )
     total = max(int(valor.get("n") or 0) - descartados, len(validos))
     return Ocurrencias(sobre, [_registro(p) for p in validos], total, intentos)
+
+
+def _en_zona(ocurrencias: Ocurrencias, zona: Zona, especie: str) -> Ocurrencias:
+    """RR_39: solo los registros válidos (RR_60) de la zona, con su conteo.
+
+    CR-BioLM entrega a lo sumo 500 puntos por defecto; si cortó, se le piden
+    todos para que el conteo de la zona sea completo.
+    """
+    if ocurrencias.sobre is None or not isinstance(ocurrencias.sobre.valor, dict):
+        return ocurrencias
+    valor = ocurrencias.sobre.valor
+    if valor.get("truncated"):
+        try:
+            completo = mcp_cliente.llamar(
+                "get_occurrence_points", species=especie, limit=int(valor.get("n") or 0)
+            ).valor
+            valor = completo if isinstance(completo, dict) else valor
+        except (MCPErrorHerramienta, MCPRespuestaInvalida):
+            logger.warning("RR_39: no se pudieron pedir todos los puntos de %s", especie)
+    puntos = [p for p in valor.get("points") or [] if punto_valido(p) and zona.incluye(p)]
+    return replace(ocurrencias, registros=[_registro(p) for p in puntos], total=len(puntos))
 
 
 def _consultar_gbif(especie: str) -> tuple[Sobre | None, int]:

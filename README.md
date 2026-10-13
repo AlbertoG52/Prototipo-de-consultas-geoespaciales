@@ -260,6 +260,14 @@ letras mal escritas (2, en `config.py`) contra el catálogo completo de CR-BioLM
 El texto guardado y mostrado no cambia y no se avisa al usuario; el Manual y el
 LLM reciben la pregunta con el nombre corregido.
 
+**RR_39 — región o zona**: si la consulta menciona una región botánica del Manual
+("Cordillera de Talamanca", "Talamanca", "Golfito"…) o una vertiente ("Caribe",
+"Pacífico"), la lista de registros y su conteo son solo los de esa zona
+(`services/regiones.py`, con el vocabulario de `get_vocabulary`, pedido una sola
+vez). Una palabra que está en varias regiones las incluye todas. El mapa sigue
+siendo el nacional (las herramientas de mapas de CR-BioLM no reciben una región)
+y se decide con el total del país. Sin zona, o con una provincia, no se filtra.
+
 ### Tiempo de respuesta (RR_57)
 
 Cada `POST /consultas`, termine bien o con error, deja una fila en
