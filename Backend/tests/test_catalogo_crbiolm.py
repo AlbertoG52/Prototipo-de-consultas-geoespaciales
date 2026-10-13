@@ -1,8 +1,8 @@
 """Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_23, RR_24, RR_26,
-RR_31, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_58 y RR_60.
+RR_31, RR_39, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_58 y RR_60.
 
 Levantan un servidor MCP falso con las herramientas de CR-BioLM que usa el
-catálogo (get_species, search_species, get_occurrence_points,
+catálogo (get_species, search_species, get_vocabulary, get_occurrence_points,
 get_species_map_image, get_relevant_passage y answer_question), con sus mismas
 respuestas. Las que pasan por la API
 necesitan la BD.
@@ -17,6 +17,7 @@ Especies del servidor falso:
     Cedrela odorata        get_species devuelve la ficha de OTRA especie (RR_60)
     Ocotea insularis       5 puntos; el mapa llega con el nombre de OTRA especie (RR_54)
     Myrsine coriacea       la que responde el LLM (answer_question, RR_49)
+    Podocarpus oleifolius  8 puntos en regiones del Manual, y mapa (RR_39)
 
 Fragmentos del Manual (get_relevant_passage, RR_44): Quercus costaricensis tiene
 uno de distribución y uno de descripción (hojas); el de Inga edulis llega con
@@ -79,6 +80,7 @@ MANUAL = {
         "distribution_paragraph": "Bosque muy húmedo y nuboso, 800–3000 m.",
     },
     "Zamia fairchildiana": {"species": "Zamia fairchildiana", "family": "Zamiaceae"},
+    "Podocarpus oleifolius": {"species": "Podocarpus oleifolius", "family": "Podocarpaceae"},
     # RR_60: una ficha que no corresponde al nombre pedido.
     "Cedrela odorata": {"species": "Cedrela fissilis", "family": "Meliaceae"},
 }
@@ -105,6 +107,13 @@ def get_species(name: str) -> dict:
 
 
 @falso.tool()
+def get_vocabulary() -> dict:
+    """Las regiones y vertientes del Manual (RR_39); aquí, unas pocas."""
+    regiones = ["Cordillera de Talamanca", "Baja Talamanca", "Cordillera Central"]
+    return _sobre({"regions": regiones, "vertientes": ["Caribe", "Pacífico"]})
+
+
+@falso.tool()
 def search_species() -> dict:
     """Sin filtros devuelve todo el catálogo (RR_23)."""
     especies = [{"species": nombre} for nombre in MANUAL]
@@ -125,7 +134,7 @@ fallos_de_gbif: dict[str, int] = {}
 @falso.tool()
 def get_species_map_image(species: str) -> dict:
     pedidos_de_mapa.append(species)
-    if species == "Quercus costaricensis":
+    if species in ("Quercus costaricensis", "Podocarpus oleifolius"):
         valor = {"png_base64": base64.b64encode(PNG).decode(), "n_pts": 6, "layer_summary": CAPAS}
         return _sobre(valor, "MPCR+GBIF+DEM", "Manual + GBIF + DEM", "estimated")
     if species == "Inga edulis":
@@ -218,6 +227,13 @@ def _puntos(cantidad: int) -> list[dict]:
     return puntos
 
 
+def _en(region: str | None, vertiente: str | None, i: int) -> dict:
+    """Un punto válido de Costa Rica en esa región (RR_39)."""
+    nombre_vertiente = f"Vertiente del {vertiente}" if vertiente else None
+    lat, lon = 9.6 + i / 100, -83.7
+    return {"lat": lat, "lon": lon, "elev_m": 2000, "region": region, "vertiente": nombre_vertiente}
+
+
 PUNTOS = {
     # El último está en Panamá: RR_60 lo descarta.
     "Quercus costaricensis": [*_puntos(6), {"lat": 8.9, "lon": -79.5, "elev_m": 10}],
@@ -225,7 +241,18 @@ PUNTOS = {
     "Persea americana": _puntos(5),
     "Ocotea insularis": _puntos(5),
     "Quercus oleoides": _puntos(2),
+    # RR_39: 3 en la Cordillera de Talamanca, 2 en Baja Talamanca, 2 en la
+    # Cordillera Central y 1 sin región.
+    "Podocarpus oleifolius": [
+        *[_en("Cordillera de Talamanca", "Pacífico", i) for i in range(3)],
+        *[_en("Baja Talamanca", "Caribe", i) for i in range(2)],
+        *[_en("Cordillera Central", "Caribe", i) for i in range(2)],
+        _en(None, None, 0),
+    ],
 }
+# RR_39: si no es None, CR-BioLM entrega solo estos puntos con el límite por
+# defecto, como cuando una especie tiene más de 500.
+corte_de_puntos: int | None = None
 
 
 @falso.tool()
@@ -238,6 +265,9 @@ def get_occurrence_points(species: str, limit: int = 500) -> dict:
     puntos = PUNTOS.get(species, [])
     if not puntos:
         return _sobre({"n": 0, "truncated": False, "points": []}, "GBIF", cita, "insufficient")
+    if corte_de_puntos is not None and limit == 500:
+        recortados = puntos[:corte_de_puntos]
+        return _sobre({"n": len(puntos), "truncated": True, "points": recortados}, "GBIF", cita)
     return _sobre({"n": len(puntos), "truncated": False, "points": puntos}, "GBIF", cita)
 
 
@@ -278,8 +308,9 @@ def crbiolm(monkeypatch, url_falsa):
     monkeypatch.setattr(config, "MINIMO_REGISTROS_MAPA", 5)
     monkeypatch.setattr(config, "GBIF_REINTENTOS", 2)
     monkeypatch.setattr(config, "GBIF_ESPERA_REINTENTO_SEGUNDOS", 0)
-    global pasaje_falla
+    global pasaje_falla, corte_de_puntos
     pasaje_falla = False
+    corte_de_puntos = None
     pedidos_de_mapa.clear()
     pedidos_a_gbif.clear()
     pedidos_de_pasaje.clear()
@@ -932,3 +963,72 @@ def test_con_un_termino_reconocible_la_consulta_sigue(crbiolm, visitante):
     """Criterio 1."""
     datos = api.post("/consultas", headers=visitante, json={"texto": "Quercus costaricensis"})
     assert datos.json()["estado"] == "resuelta"
+
+
+# --- RR_39: región o zona mencionada ----------------------------------------------
+# Qué zona se reconoce está probado en test_regiones.py; aquí, que filtra.
+
+PODOCARPUS = "podocarpus-oleifolius"
+
+
+def _registros_en(crbiolm, pregunta: str) -> tuple[int, set[str]]:
+    respuesta = crbiolm.construir_respuesta(PODOCARPUS, pregunta)
+    assert respuesta.total_registros == len(respuesta.registros)
+    return respuesta.total_registros, {r.localidad for r in respuesta.registros}
+
+
+@pytest.mark.parametrize(
+    ("donde", "total", "regiones"),
+    [
+        ("en la Cordillera de Talamanca", 3, {"Cordillera de Talamanca"}),
+        ("en Talamanca", 5, {"Cordillera de Talamanca", "Baja Talamanca"}),
+        ("en el Caribe", 4, {"Baja Talamanca", "Cordillera Central"}),
+    ],
+)
+def test_la_zona_filtra_los_registros_y_su_conteo(crbiolm, donde, total, regiones):
+    """Criterios 1 y 2."""
+    pregunta = f"¿Dónde crece Podocarpus oleifolius {donde}?"
+    assert _registros_en(crbiolm, pregunta) == (total, regiones)
+
+
+def test_sin_zona_no_se_filtra(crbiolm):
+    """Criterio 3."""
+    total, _ = _registros_en(crbiolm, "¿Dónde crece Podocarpus oleifolius?")
+    assert total == 8
+
+
+def test_el_mapa_sigue_siendo_el_nacional(crbiolm):
+    # La Cordillera Central tiene 2 registros, menos que el mínimo para un mapa
+    # (RR_43); el mapa se decide con los 8 del país y no hay aviso.
+    respuesta = crbiolm.construir_respuesta(
+        PODOCARPUS, "¿Dónde crece Podocarpus oleifolius en la Cordillera Central?"
+    )
+    assert respuesta.total_registros == 2
+    assert respuesta.mapa is not None
+    assert respuesta.avisos == []
+
+
+def test_si_cr_biolm_corta_los_puntos_se_piden_todos(crbiolm):
+    global corte_de_puntos
+    corte_de_puntos = 4  # con el límite por defecto llegan solo 4 de 8
+    total, _ = _registros_en(crbiolm, "¿Dónde crece Podocarpus oleifolius en el Caribe?")
+    assert total == 4
+    assert pedidos_a_gbif == ["Podocarpus oleifolius", "Podocarpus oleifolius"]
+
+
+def test_la_ficha_no_se_filtra(crbiolm):
+    assert crbiolm.obtener_ficha(PODOCARPUS).total_registros == 8
+
+
+def test_sin_vocabulario_no_se_filtra(crbiolm, monkeypatch):
+    monkeypatch.setattr(crbiolm, "_vocabulario", lambda: None)
+    total, _ = _registros_en(crbiolm, "¿Dónde crece Podocarpus oleifolius en Talamanca?")
+    assert total == 8
+
+
+def test_la_consulta_filtra_por_zona(crbiolm, visitante):
+    texto = "¿Dónde crece Podocarpus oleifolius en la Cordillera de Talamanca?"
+    datos = api.post("/consultas", headers=visitante, json={"texto": texto}).json()
+    assert datos["estado"] == "resuelta"
+    assert datos["texto"] == texto
+    assert datos["respuesta"]["total_registros"] == 3
