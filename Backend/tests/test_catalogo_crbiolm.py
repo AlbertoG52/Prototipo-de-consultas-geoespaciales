@@ -1,5 +1,5 @@
-"""Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_23, RR_41, RR_43,
-RR_44, RR_45, RR_49, RR_54, RR_58 y RR_60.
+"""Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_23, RR_24, RR_26,
+RR_31, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_58 y RR_60.
 
 Levantan un servidor MCP falso con las herramientas de CR-BioLM que usa el
 catálogo (get_species, search_species, get_occurrence_points,
@@ -40,6 +40,7 @@ from app import config
 from app.services import catalogo_crbiolm
 from app.services.catalogo import obtener_catalogo
 from app.services.catalogo_crbiolm import CatalogoCRBioLM, a_id, a_nombre
+from app.services.consultas import MENSAJE_SIN_COINCIDENCIAS
 from app.tiempo import plazo
 
 from apoyo import api
@@ -845,3 +846,89 @@ def test_la_consulta_conserva_lo_que_escribio_el_usuario(crbiolm, visitante):
     assert datos["estado"] == "resuelta"
     assert datos["texto"] == texto
     assert datos["respuesta"]["especie"]["id"] == "quercus-costaricensis"
+
+
+# --- RR_24: interpretación de la consulta -----------------------------------------
+# La interpreta services/intencion.py (tipo de pregunta, también RR_41); aquí se
+# prueba de punta a punta que lo que se entiende decide lo que se busca.
+
+
+def test_una_pregunta_sobre_una_planta_se_interpreta_y_se_responde(crbiolm, visitante):
+    """Criterio 1."""
+    datos = api.post("/consultas", headers=visitante, json={"texto": HOJAS}).json()
+    assert datos["estado"] == "resuelta"
+    assert datos["respuesta"]["especie"]["nombre_cientifico"] == "Quercus costaricensis"
+
+
+@pytest.mark.parametrize(
+    ("pregunta", "texto", "geoespacial"),
+    [
+        (HOJAS, PASAJE_HOJAS, False),  # cómo es: el fragmento de la descripción
+        (
+            "¿Dónde crece Quercus costaricensis?",  # dónde: el de la distribución
+            "Robledales de altura de la Cordillera de Talamanca.",
+            True,
+        ),
+    ],
+)
+def test_lo_que_pide_la_consulta_decide_lo_que_se_busca(crbiolm, pregunta, texto, geoespacial):
+    """Criterios 2 y 3: se identifica qué pide y se busca eso en el Manual de la especie."""
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", pregunta)
+    assert respuesta.geoespacial is geoespacial
+    assert respuesta.texto == texto
+    assert pedidos_de_pasaje == ["Quercus costaricensis"]
+
+
+def test_sin_pregunta_concreta_se_entrega_la_informacion_general(crbiolm):
+    """Criterio 3: si solo nombra la especie, no se busca un fragmento en particular."""
+    respuesta = crbiolm.construir_respuesta(
+        "quercus-costaricensis", "Información sobre Quercus costaricensis"
+    )
+    assert pedidos_de_pasaje == []
+    assert respuesta.texto.startswith("Robledales")
+
+
+# --- RR_26: identificación de nombres científicos --------------------------------
+
+
+def test_el_nombre_cientifico_se_asocia_con_su_especie_del_manual(crbiolm):
+    """Criterios 1 y 3: la especie y sus datos salen del Manual (get_species)."""
+    [especie] = crbiolm.buscar_especies("Información sobre Quercus oleoides")
+    assert especie.id == "quercus-oleoides"
+    assert especie.nombre_cientifico == "Quercus oleoides"
+    assert especie.familia == "Fagaceae"
+
+
+def test_el_mismo_genero_con_otra_especie_es_otra_especie(crbiolm):
+    """Criterio 2: el género solo no basta, cuenta también el epíteto."""
+    [una] = crbiolm.buscar_especies("¿Dónde crece Quercus costaricensis?")
+    [otra] = crbiolm.buscar_especies("¿Dónde crece Quercus oleoides?")
+    assert (una.id, otra.id) == ("quercus-costaricensis", "quercus-oleoides")
+
+
+@pytest.mark.parametrize(
+    "texto",
+    ["¿Dónde crece Quercus?", "¿Dónde crece costaricensis?", "costaricensis Quercus"],
+)
+def test_el_genero_o_la_especie_solos_no_identifican_una_especie(crbiolm, texto):
+    """Criterio 2: el nombre es género y luego especie; uno solo no se confunde con otra."""
+    assert crbiolm.buscar_especies(texto) == []
+
+
+# --- RR_31: validación de contenido reconocible ----------------------------------
+
+
+@pytest.mark.parametrize("texto", ["asdfgh", "¿Qué tal todo por allá?"])
+def test_sin_ningun_termino_reconocible_se_rechaza_con_el_motivo(crbiolm, visitante, texto):
+    datos = api.post("/consultas", headers=visitante, json={"texto": texto}).json()
+    assert datos["estado"] == "sin_coincidencias"  # criterio 2: se rechaza
+    assert datos["respuesta"] is None
+    assert datos["mensaje"] == MENSAJE_SIN_COINCIDENCIAS  # criterio 3: dice por qué
+    assert datos["consultas_restantes"] == config.LIMITE_CONSULTAS_ANONIMO  # no cuesta
+    assert pedidos_a_gbif == pedidos_de_mapa == pedidos_a_ia == []  # no se busca nada
+
+
+def test_con_un_termino_reconocible_la_consulta_sigue(crbiolm, visitante):
+    """Criterio 1."""
+    datos = api.post("/consultas", headers=visitante, json={"texto": "Quercus costaricensis"})
+    assert datos.json()["estado"] == "resuelta"
