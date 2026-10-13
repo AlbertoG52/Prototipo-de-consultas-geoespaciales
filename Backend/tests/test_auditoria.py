@@ -6,19 +6,19 @@ terminar, así que no dejan datos. Se ejecutan con:
 """
 
 import pytest
-from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 
-from app.routers.admin import _usuario_a_modificar
+from app.errores import Conflicto
+from app.services.admin import _usuario_a_modificar
 
 from apoyo import usuario_falso
 
 
 def test_no_puede_modificarse_a_si_mismo():
-    with pytest.raises(HTTPException) as error:
-        _usuario_a_modificar(7, usuario_falso(id=7), db=None)
-    assert error.value.status_code == 409
+    with pytest.raises(Conflicto) as error:
+        _usuario_a_modificar(None, usuario_falso(id=7), 7)
+    assert error.value.estado_http == 409
 
 
 def _crear_usuario(db, correo: str) -> int:

@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import text
 
 from app.db import SessionLocal
-from app.dominio import TipoSesion
+from app.dominio import NombreRol, TipoSesion
 from app.main import app
 from app.security import Identidad, hash_password
 
@@ -34,13 +34,18 @@ def sql(consulta: str, **parametros):
         return resultado
 
 
-def crear_cuenta_verificada(correo: str, password: str) -> None:
-    """Inserta una cuenta activa, verificada y con rol 'usuario'."""
+def crear_cuenta_verificada(correo: str, password: str, rol: str = NombreRol.USUARIO) -> None:
+    """Inserta una cuenta activa y verificada, con rol 'usuario' salvo que se pida otro.
+
+    El rol se asigna al insertar, no con un UPDATE: así no deja registros en
+    'auditoria' y la cuenta se puede borrar al terminar la prueba.
+    """
     sql(
         "INSERT INTO usuarios (correo, password_hash, rol_id, correo_verificado) "
-        "VALUES (:c, :h, (SELECT id FROM roles WHERE nombre = 'usuario'), true)",
+        "VALUES (:c, :h, (SELECT id FROM roles WHERE nombre = :r), true)",
         c=correo,
         h=hash_password(password),
+        r=rol,
     )
 
 
