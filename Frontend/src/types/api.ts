@@ -894,7 +894,7 @@ export interface components {
          * @description RR_45 criterio 3: de dónde sale un dato de la respuesta.
          *
          *     Ejemplo: dato="texto", fuente="Manual de Plantas de Costa Rica",
-         *     detalle="Tomo V, p. 779 · descripción · búsqueda semántica".
+         *     detalle="Tomo V, p. 779 · descripción · fragmento más relacionado con la pregunta".
          */
         Procedencia: {
             dato: components["schemas"]["DatoRespuesta"];

@@ -339,10 +339,8 @@ def test_respuesta_con_manual_y_gbif(crbiolm):
     assert respuesta.registros[0].localidad == "Talamanca"
     assert respuesta.registros[1].elevacion_m is None
     assert respuesta.avisos == []
-    assert respuesta.fuentes == [
-        "Manual de Plantas de Costa Rica, Tomo V, p. 779",
-        "GBIF occurrence API — Costa Rica",
-    ]
+    # Para el usuario: la cita del Manual y "GBIF", sin los filtros técnicos.
+    assert respuesta.fuentes == ["Manual de Plantas de Costa Rica, Tomo V, p. 779", "GBIF"]
 
 
 def test_sin_registros_de_gbif_la_respuesta_sale_sin_mapa(crbiolm):
@@ -670,26 +668,39 @@ def test_cada_dato_dice_de_donde_sale(crbiolm):
     )
     origen = _origen(respuesta)
     assert set(origen) == {"especie", "texto", "elevacion", "registros", "mapa"}
-    assert origen["especie"] == (
-        "Manual de Plantas de Costa Rica",
-        "Tomo V, p. 779 · ficha estructurada",
-    )
+    assert origen["especie"] == ("Manual de Plantas de Costa Rica", "Tomo V, p. 779")
     assert origen["texto"] == (
         "Manual de Plantas de Costa Rica",
-        "Tomo V, p. 779 · párrafo de distribución · búsqueda semántica",
+        "Tomo V, p. 779 · distribución · fragmento más relacionado con la pregunta",
     )
-    assert origen["registros"][0] == "GBIF"
-    assert origen["registros"][1].startswith("GBIF occurrence API — Costa Rica")
-    assert origen["mapa"] == ("CR-BioLM", "Manual + GBIF + DEM")
+    assert origen["elevacion"] == ("Manual de Plantas de Costa Rica", "Tomo V, p. 779")
+    assert origen["registros"] == (
+        "GBIF",
+        "registros de presencia en Costa Rica, consultados en vivo",
+    )
+    assert origen["mapa"] == (
+        "CR-BioLM",
+        "elaborado con el Manual, los registros de GBIF, un modelo de elevación "
+        "y las regiones botánicas",
+    )
+
+
+def test_el_origen_no_muestra_detalles_tecnicos(crbiolm):
+    # Las citas técnicas de CR-BioLM (filtros de GBIF, archivos del mapa) no se
+    # muestran al usuario, ni en la pantalla ni en la descarga.
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", "")
+    textos = [p.detalle for p in respuesta.procedencia] + respuesta.fuentes
+    for tecnico in ("occurrence API", "Manual + GBIF + DEM", "ficha estructurada"):
+        assert not any(tecnico in t for t in textos)
 
 
 def test_el_texto_dice_si_salio_de_la_busqueda_semantica_o_de_la_ficha(crbiolm):
     con_fragmento = crbiolm.construir_respuesta("quercus-costaricensis", HOJAS)
     assert _origen(con_fragmento)["texto"][1].endswith(
-        "descripción (morfología y discusión) · búsqueda semántica"
+        "descripción · fragmento más relacionado con la pregunta"
     )
     sin_fragmento = crbiolm.construir_respuesta("quercus-costaricensis", "Quercus costaricensis")
-    assert _origen(sin_fragmento)["texto"][1] == "Tomo V, p. 779 · párrafo de distribución"
+    assert _origen(sin_fragmento)["texto"][1] == "Tomo V, p. 779 · distribución"
 
 
 def test_sin_gbif_ni_mapa_no_se_indica_su_origen(crbiolm):
