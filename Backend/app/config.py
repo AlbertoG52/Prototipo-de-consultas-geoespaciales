@@ -136,6 +136,15 @@ GBIF_ESPERA_REINTENTO_SEGUNDOS = max(
 # lentas se marcan en el log (WARNING) y en GET /admin/tiempos.
 SEGUNDOS_RESPUESTA_LENTA = max(float(os.environ.get("SEGUNDOS_RESPUESTA_LENTA", "30")), 0.1)
 
+# --- administración (services/admin.py) -----------------------------------------
+# RR_76 — si el supermoderador ve el TEXTO de las consultas en el historial de
+# uso de cada usuario. Con "false" sigue viendo cuántas hizo, cuándo, con qué
+# resultado y de qué especie, pero no lo que escribió. Se configura en el .env.
+_VALORES_SI = ("1", "true", "si", "sí")
+ADMIN_VE_TEXTO_CONSULTAS = (
+    os.environ.get("ADMIN_VE_TEXTO_CONSULTAS", "true").strip().lower() in _VALORES_SI
+)
+
 # Qué catálogo de especies usa el backend (services/catalogo.py):
 #   demo     datos de ejemplo en memoria; no necesita CR-BioLM. Lo usan las pruebas.
 #   crbiolm  datos reales del servidor MCP de CR-BioLM (MCP_URL).

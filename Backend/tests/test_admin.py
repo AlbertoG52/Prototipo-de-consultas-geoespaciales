@@ -1,8 +1,8 @@
-"""Pruebas de RR_69 a RR_75 — administración de usuarios por el supermoderador.
+"""Pruebas de RR_69 a RR_76 — administración de usuarios por el supermoderador.
 
 Dos grupos:
 
-- Las del servicio (services/admin.py) cambian roles y estados. Una cuenta con
+- Las del servicio (services/admin.py) cambian roles y estados o crean consultas. Una cuenta con
   registros en 'auditoria' no se puede borrar (RR_00_09), así que corren en la
   sesión `db`, que se deshace al final, con `commit` reemplazado por `flush`:
   nada queda confirmado.
@@ -13,20 +13,24 @@ Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
 """
 
+from datetime import timedelta
+
 import pytest
 from fastapi import HTTPException
 from sqlalchemy import text
 from sqlalchemy.orm import Session, joinedload
 from starlette.requests import Request
 
+from app import config
 from app.db import SessionLocal
-from app.dominio import EstadoCuenta, NombreRol
+from app.dominio import EstadoConsulta, EstadoCuenta, NombreRol
 from app.errores import Conflicto, NoEncontrado
-from app.models import Rol, Usuario
+from app.models import Consulta, Conversacion, Rol, Usuario
 from app.routers import consultas
 from app.security import crear_token_usuario, obtener_identidad, requiere_rol
 from app.services import admin
 from app.services.uso import limite_de
+from app.tiempo import ahora
 
 from apoyo import api, crear_cuenta_verificada
 
@@ -236,3 +240,138 @@ def test_la_api_traduce_los_errores_del_servicio(correos_de_prueba):
     assert sobre_si.status_code == 409
     assert sobre_si.json()["detail"] == admin.MENSAJE_SOBRE_SI_MISMO
     assert inexistente.status_code == 404
+
+
+# --- RR_76: historial de uso por usuario --------------------------------------------
+
+
+def _consultar(
+    db: Session,
+    usuario: Usuario,
+    texto: str,
+    estado: EstadoConsulta = EstadoConsulta.RESUELTA,
+    dias_atras: int = 0,
+) -> None:
+    """Guarda una consulta de `usuario` como la deja services/consultas.py."""
+    momento = ahora() - timedelta(days=dias_atras)
+    conversacion = Conversacion(usuario_id=usuario.id, titulo=texto)
+    db.add(conversacion)
+    db.flush()
+    resuelta = estado == EstadoConsulta.RESUELTA
+    respuesta = {"especie": {"nombre_cientifico": "Quercus costaricensis"}}
+    db.add(
+        Consulta(
+            usuario_id=usuario.id,
+            conversacion_id=conversacion.id,
+            texto=texto,
+            estado=estado,
+            respuesta=respuesta if resuelta else None,
+            resuelta_en=momento if resuelta else None,
+            realizada_en=momento,
+        )
+    )
+    db.flush()
+
+
+@pytest.fixture
+def con_historial(sesion):
+    """Una cuenta con tres consultas (hoy, ayer y anteayer) y otra con una."""
+    usuario = _crear(sesion, "historial.prueba@example.com")
+    _consultar(sesion, usuario, "dónde crece el roble", EstadoConsulta.RESUELTA)
+    _consultar(sesion, usuario, "cedro", EstadoConsulta.AMBIGUA, dias_atras=1)
+    _consultar(sesion, usuario, "asdf", EstadoConsulta.SIN_COINCIDENCIAS, dias_atras=2)
+    otro = _crear(sesion, "otro.prueba@example.com")
+    _consultar(sesion, otro, "consulta de otra persona")
+    return usuario
+
+
+def test_historial_trae_solo_las_consultas_de_esa_cuenta(sesion, con_historial):
+    historial = admin.historial_de_uso(sesion, con_historial.id, limite=20, desplazamiento=0)
+
+    assert historial.usuario.correo == "historial.prueba@example.com"
+    assert [c.texto for c in historial.consultas] == ["dónde crece el roble", "cedro", "asdf"]
+    assert historial.total == 3
+
+
+def test_historial_trae_estado_y_especie_de_cada_consulta(sesion, con_historial):
+    historial = admin.historial_de_uso(sesion, con_historial.id, limite=20, desplazamiento=0)
+
+    assert [c.estado for c in historial.consultas] == [
+        EstadoConsulta.RESUELTA,
+        EstadoConsulta.AMBIGUA,
+        EstadoConsulta.SIN_COINCIDENCIAS,
+    ]
+    # La especie solo se conoce si la consulta se resolvió.
+    assert [c.especie for c in historial.consultas] == ["Quercus costaricensis", None, None]
+
+
+def test_historial_por_paginas(sesion, con_historial):
+    pagina = admin.historial_de_uso(sesion, con_historial.id, limite=2, desplazamiento=2)
+
+    assert pagina.total == 3
+    assert [c.texto for c in pagina.consultas] == ["asdf"]
+
+
+def test_el_texto_se_oculta_si_la_configuracion_lo_pide(sesion, con_historial, monkeypatch):
+    monkeypatch.setattr(config, "ADMIN_VE_TEXTO_CONSULTAS", False)
+
+    historial = admin.historial_de_uso(sesion, con_historial.id, limite=20, desplazamiento=0)
+
+    assert historial.texto_visible is False
+    assert all(c.texto is None for c in historial.consultas)
+    # Lo demás se sigue viendo: cuándo, con qué resultado y de qué especie.
+    assert historial.consultas[0].estado == EstadoConsulta.RESUELTA
+    assert historial.consultas[0].especie == "Quercus costaricensis"
+
+
+def test_historial_de_usuario_inexistente(sesion):
+    with pytest.raises(NoEncontrado):
+        admin.historial_de_uso(sesion, -1, limite=20, desplazamiento=0)
+
+
+# --- RR_76 criterio 3: uso por rol ----------------------------------------------------
+
+
+def _uso(sesion: Session, rol: NombreRol):
+    return next(u for u in admin.uso_por_rol(sesion) if u.rol == rol)
+
+
+def test_uso_por_rol_suma_cuentas_y_consultas_de_cada_rol(sesion):
+    """La BD de desarrollo ya tiene datos: se compara antes y después."""
+    usuarios_antes = _uso(sesion, NombreRol.USUARIO)
+    moderadores_antes = _uso(sesion, NombreRol.MODERADOR)
+
+    moderador = _crear(sesion, "mod.prueba@example.com", NombreRol.MODERADOR)
+    usuario = _crear(sesion, "usu.prueba@example.com")
+    _crear(sesion, "sin-consultas.prueba@example.com")
+    _consultar(sesion, moderador, "roble")
+    _consultar(sesion, usuario, "cedro amargo")
+    _consultar(sesion, usuario, "asdf", EstadoConsulta.SIN_COINCIDENCIAS)
+
+    usuarios, moderadores = _uso(sesion, NombreRol.USUARIO), _uso(sesion, NombreRol.MODERADOR)
+    assert usuarios.usuarios - usuarios_antes.usuarios == 2
+    assert usuarios.consultas - usuarios_antes.consultas == 2
+    assert moderadores.usuarios - moderadores_antes.usuarios == 1
+    assert moderadores.consultas - moderadores_antes.consultas == 1
+
+
+def test_uso_por_rol_trae_todos_los_roles(sesion):
+    assert {u.rol for u in admin.uso_por_rol(sesion)} == set(NombreRol)
+
+
+def test_la_api_entrega_historial_y_uso_por_rol(correos_de_prueba):
+    correo = correos_de_prueba("super")
+    crear_cuenta_verificada(correo, PASSWORD, NombreRol.SUPERMODERADOR)
+    cabeceras = _cabeceras(correo)
+    with SessionLocal() as db:
+        propio_id = db.query(Usuario.id).filter_by(correo=correo).scalar()
+
+    historial = api.get(f"/admin/usuarios/{propio_id}/consultas", headers=cabeceras)
+    inexistente = api.get("/admin/usuarios/-1/consultas", headers=cabeceras)
+    uso = api.get("/admin/uso-por-rol", headers=cabeceras)
+
+    assert historial.status_code == 200
+    assert historial.json()["total"] == 0
+    assert inexistente.status_code == 404
+    assert uso.status_code == 200
+    assert {u["rol"] for u in uso.json()} == set(NombreRol)

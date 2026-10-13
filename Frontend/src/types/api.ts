@@ -320,12 +320,52 @@ export interface paths {
         };
         /**
          * Listar Usuarios
-         * @description Usuarios registrados, en orden de creación.
-         *
-         *     Sin paginación: suficiente para el prototipo. Con muchos usuarios habrá
-         *     que agregar límite y desplazamiento.
+         * @description RR_71 — usuarios registrados con su correo, rol y estado.
          */
         get: operations["listar_usuarios_admin_usuarios_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/usuarios/{usuario_id}/consultas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Historial De Uso
+         * @description RR_76 criterios 1 y 2 — consultas de una cuenta, de la más reciente a la más antigua.
+         *
+         *     El texto de cada consulta viene solo si ADMIN_VE_TEXTO_CONSULTAS está
+         *     encendido (`texto_visible`).
+         */
+        get: operations["historial_de_uso_admin_usuarios__usuario_id__consultas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/uso-por-rol": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Uso Por Rol
+         * @description RR_76 criterio 3 — cuentas y consultas guardadas de cada rol.
+         */
+        get: operations["uso_por_rol_admin_uso_por_rol_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -349,7 +389,7 @@ export interface paths {
         head?: never;
         /**
          * Cambiar Estado
-         * @description Activa o desactiva una cuenta. La desactivada queda fuera en su siguiente petición.
+         * @description RR_74 y RR_75 — activa o desactiva una cuenta (no la propia: 409).
          */
         patch: operations["cambiar_estado_admin_usuarios__usuario_id__estado_patch"];
         trace?: never;
@@ -369,7 +409,7 @@ export interface paths {
         head?: never;
         /**
          * Cambiar Rol
-         * @description Cambia el rol de una cuenta. Aplica en su siguiente petición.
+         * @description RR_70 — cambia el rol de una cuenta (no la propia: 409).
          */
         patch: operations["cambiar_rol_admin_usuarios__usuario_id__rol_patch"];
         trace?: never;
@@ -384,8 +424,6 @@ export interface paths {
         /**
          * Listar Auditoria
          * @description RR_00_09 — registro de acciones administrativas, del más reciente al más antiguo.
-         *
-         *     Solo lectura: la BD rechaza cualquier modificación de 'auditoria' (011).
          */
         get: operations["listar_auditoria_admin_auditoria_get"];
         put?: never;
@@ -656,6 +694,24 @@ export interface components {
             rol: components["schemas"]["NombreRol"];
         };
         /**
+         * ConsultaDeUsuario
+         * @description Una consulta del historial de uso de un usuario (criterios 1 y 2).
+         */
+        ConsultaDeUsuario: {
+            /** Id */
+            id: number;
+            /** Texto */
+            texto: string | null;
+            estado: components["schemas"]["EstadoConsulta"];
+            /** Especie */
+            especie: string | null;
+            /**
+             * Realizada En
+             * Format: date-time
+             */
+            realizada_en: string;
+        };
+        /**
          * ConsultaGuardada
          * @description Una consulta dentro de una conversación, en cualquiera de sus estados.
          *
@@ -846,6 +902,19 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HistorialUso
+         * @description GET /admin/usuarios/{id}/consultas: las consultas de una cuenta.
+         */
+        HistorialUso: {
+            usuario: components["schemas"]["UsuarioOut"];
+            /** Texto Visible */
+            texto_visible: boolean;
+            /** Total */
+            total: number;
+            /** Consultas */
+            consultas: components["schemas"]["ConsultaDeUsuario"][];
         };
         /** LoginRequest */
         LoginRequest: {
@@ -1096,6 +1165,17 @@ export interface components {
              */
             token_type: string;
             tipo: components["schemas"]["TipoSesion"];
+        };
+        /**
+         * UsoDeRol
+         * @description GET /admin/uso-por-rol: el uso del sistema por las cuentas de un rol (criterio 3).
+         */
+        UsoDeRol: {
+            rol: components["schemas"]["NombreRol"];
+            /** Usuarios */
+            usuarios: number;
+            /** Consultas */
+            consultas: number;
         };
         /** UsuarioOut */
         UsuarioOut: {
@@ -1512,6 +1592,60 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UsuarioOut"][];
+                };
+            };
+        };
+    };
+    historial_de_uso_admin_usuarios__usuario_id__consultas_get: {
+        parameters: {
+            query?: {
+                limite?: number;
+                desplazamiento?: number;
+            };
+            header?: never;
+            path: {
+                usuario_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistorialUso"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    uso_por_rol_admin_uso_por_rol_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsoDeRol"][];
                 };
             };
         };

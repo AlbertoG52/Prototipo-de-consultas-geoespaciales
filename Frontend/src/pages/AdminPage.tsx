@@ -1,17 +1,20 @@
 /**
  * Panel de administración
  *
- * "Usuarios" y "Auditoría" usan datos reales (RR_00_09); la ruta está
- * protegida por rol (RR_00_10). Las tarjetas superiores, "Roles y permisos"
- * y "Estadísticas" son del módulo 4 (RR_69 a RR_78) y siguen con datos de
- * ejemplo.
+ * "Usuarios" (RR_70 a RR_76, en components/admin/) y "Auditoría" (RR_00_09)
+ * usan datos reales; la ruta está protegida por rol (RR_00_10). Las tarjetas
+ * superiores, "Roles y permisos" y "Estadísticas" son de otros requerimientos
+ * del módulo 4 (RR_63, RR_78) y siguen con datos de ejemplo.
  */
 import { useCallback, useEffect, useState } from "react";
 
 import { ClipboardList } from "lucide-react";
+import { HistorialDeUso } from "../components/admin/HistorialDeUso";
+import { TablaUsuarios } from "../components/admin/TablaUsuarios";
+import { UsoPorRol } from "../components/admin/UsoPorRol";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
-import type { RegistroAuditoria, Usuario } from "../types";
+import type { RegistroAuditoria, UsoDeRol, Usuario } from "../types";
 import { IDIOMA_FECHAS } from "../config/textos";
 
 const ACCIONES: Record<string, string> = {
@@ -34,34 +37,23 @@ const STATS = [
   { label: "Tasa de éxito", value: "96.4%", icon: "✅", change: "Estable" },
 ];
 
-const ROLE_COLORS: Record<string, { bg: string; text: string }> = {
-  supermoderador: { bg: "var(--color-marca-fuerte)", text: "var(--color-sobre-marca)" },
-  moderador: { bg: "var(--color-superficie-marca)", text: "var(--color-texto-marca)" },
-  usuario: { bg: "var(--color-superficie-suave)", text: "var(--color-texto-secundario)" },
-};
-
-const STATUS_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
-  activo: { bg: "var(--color-superficie-marca)", text: "var(--color-texto-marca)", dot: "var(--color-marca)" },
-  inactivo: { bg: "var(--color-neutro-fondo)", text: "var(--color-neutro)", dot: "var(--color-neutro)" },
-};
-
 export function AdminPage() {
   const { sesion } = useAuth();
   const miId = sesion?.usuario?.id;
   const [users, setUsers] = useState<Usuario[]>([]);
   const [auditoria, setAuditoria] = useState<RegistroAuditoria[]>([]);
+  const [uso, setUso] = useState<UsoDeRol[]>([]);
+  const [usoDe, setUsoDe] = useState<Usuario | null>(null);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("todos");
   const [activeSection, setActiveSection] = useState("usuarios");
-  const [editingUser, setEditingUser] = useState<number | null>(null);
   const [limitConfig, setLimitConfig] = useState({ usuario: 20, moderador: 100, supermoderador: 1000 });
 
   const cargar = useCallback(async () => {
     try {
-      const [u, a] = await Promise.all([api.listarUsuarios(), api.obtenerAuditoria()]);
+      const [u, a, r] = await Promise.all([api.listarUsuarios(), api.obtenerAuditoria(), api.obtenerUsoPorRol()]);
       setUsers(u);
       setAuditoria(a);
+      setUso(r);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudieron cargar los datos.");
     }
@@ -71,16 +63,8 @@ export function AdminPage() {
     void cargar();
   }, [cargar]);
 
-  const filtered = users.filter((u) => {
-    const texto = search.toLowerCase();
-    const matchSearch = (u.nombre ?? "").toLowerCase().includes(texto) || u.correo.toLowerCase().includes(texto);
-    const matchRole = roleFilter === "todos" || u.rol === roleFilter;
-    return matchSearch && matchRole;
-  });
-
-  /** Aplica el cambio en el servidor y recarga usuarios y auditoría. */
+  /** Aplica el cambio en el servidor y recarga usuarios, uso por rol y auditoría. */
   const cambiar = async (id: number, campo: "estado" | "rol", valor: string) => {
-    setEditingUser(null);
     setError("");
     try {
       await api.cambiarUsuario(id, campo, valor);
@@ -140,86 +124,11 @@ export function AdminPage() {
           </div>
 
           {activeSection === "usuarios" && (
-            <div className="rounded-2xl overflow-hidden" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
-              <div className="px-6 py-4 border-b flex items-center gap-3 flex-wrap" style={{ borderColor: "var(--color-borde)" }}>
-                <h2 className="font-semibold" style={{ color: "var(--color-texto)" }}>Usuarios registrados</h2>
-                <div className="flex-1 min-w-48">
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Buscar por nombre o correo..."
-                    className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                    style={{ border: "1.5px solid var(--color-borde-fuerte)", background: "var(--color-fondo)", color: "var(--color-texto)" }}
-                    onFocus={(e) => { e.currentTarget.style.borderColor = "var(--color-borde-marca)"; }}
-                    onBlur={(e) => { e.currentTarget.style.borderColor = "var(--color-borde-fuerte)"; }}
-                  />
-                </div>
-                <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)} className="rounded-xl px-3 py-2 text-sm outline-none" style={{ border: "1.5px solid var(--color-borde-fuerte)", background: "var(--color-fondo)", color: "var(--color-texto-cuerpo)", cursor: "pointer" }}>
-                  <option value="todos">Todos los roles</option>
-                  <option value="usuario">Usuario</option>
-                  <option value="moderador">Moderador</option>
-                  <option value="supermoderador">Supermoderador</option>
-                </select>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead style={{ background: "var(--color-superficie-suave)" }}>
-                    <tr>
-                      {["Usuario", "Correo", "Rol", "Estado", "Acciones"].map((h) => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map((u) => {
-                      // La propia fila no tiene acciones: el servidor también lo rechaza (409).
-                      const esYo = u.id === miId;
-                      const nombre = u.nombre ?? u.correo;
-                      return (
-                      <tr key={u.id} style={{ borderTop: "1px solid var(--color-superficie-suave)" }}>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="flex items-center justify-center rounded-full text-xs font-bold" style={{ width: 32, height: 32, background: "var(--color-marca)", color: "var(--color-sobre-marca)", flexShrink: 0 }}>
-                              {nombre.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()}
-                            </div>
-                            <span className="font-medium" style={{ color: "var(--color-texto)" }}>{nombre}{esYo && " (tú)"}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-xs" style={{ color: "var(--color-texto-secundario)" }}>{u.correo}</td>
-                        <td className="px-4 py-3">
-                          {editingUser === u.id ? (
-                            <select autoFocus defaultValue={u.rol} onChange={(e) => void cambiar(u.id, "rol", e.target.value)} onBlur={() => setEditingUser(null)} className="text-xs rounded-lg px-2 py-1 outline-none" style={{ border: "1.5px solid var(--color-borde-marca)", background: "var(--color-superficie-suave)", color: "var(--color-texto)", cursor: "pointer" }}>
-                              {["usuario", "moderador", "supermoderador"].map((r) => <option key={r} value={r}>{r}</option>)}
-                            </select>
-                          ) : (
-                            <button onClick={() => !esYo && setEditingUser(u.id)} disabled={esYo} className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: ROLE_COLORS[u.rol].bg, color: ROLE_COLORS[u.rol].text, border: "none", cursor: esYo ? "default" : "pointer" }}>
-                              {u.rol}
-                            </button>
-                          )}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="flex items-center gap-1.5 text-xs">
-                            <span className="rounded-full" style={{ width: 6, height: 6, background: STATUS_COLORS[u.estado].dot, display: "inline-block" }} />
-                            <span style={{ color: STATUS_COLORS[u.estado].text }}>{u.estado}</span>
-                          </span>
-                        </td>
-                        <td className="px-4 py-3">
-                          {esYo ? (
-                            <span className="text-xs px-3 py-1 rounded-lg" style={{ color: "var(--color-borde-fuerte)", background: "transparent" }}>—</span>
-                          ) : (
-                            <button onClick={() => void cambiar(u.id, "estado", u.estado === "activo" ? "inactivo" : "activo")} className="text-xs px-3 py-1 rounded-lg transition-all" style={{ background: u.estado === "activo" ? "var(--color-error-fondo)" : "var(--color-superficie-marca)", color: u.estado === "activo" ? "var(--color-error)" : "var(--color-texto-marca)", border: "none", cursor: "pointer" }}>
-                              {u.estado === "activo" ? "Desactivar" : "Reactivar"}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <>
+              {uso.length > 0 && <UsoPorRol uso={uso} />}
+              {usoDe && <HistorialDeUso key={usoDe.id} usuario={users.find((u) => u.id === usoDe.id) ?? usoDe} alCerrar={() => setUsoDe(null)} />}
+              <TablaUsuarios usuarios={users} miId={miId} alCambiar={(id, campo, valor) => void cambiar(id, campo, valor)} alVerUso={setUsoDe} />
+            </>
           )}
 
           {activeSection === "roles" && (

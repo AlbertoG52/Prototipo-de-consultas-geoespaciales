@@ -4,7 +4,7 @@
  * Se escriben una sola vez aquí para que la tabla de registros, el detalle de
  * un punto del mapa, la ficha y las descargas digan lo mismo.
  */
-import type { DatoRespuesta, RegistroPresencia } from "../types";
+import type { DatoRespuesta, EstadoConsulta, NombreRol, RegistroPresencia } from "../types";
 
 /** Idioma y región para mostrar fechas y horas (toLocaleString, toLocaleDateString). */
 export const IDIOMA_FECHAS = "es-CR";
@@ -72,4 +72,21 @@ export const ETIQUETAS_DATO: Record<DatoRespuesta, string> = {
   elevacion: "Elevación",
   registros: "Registros de presencia",
   mapa: "Mapa",
+};
+
+/** Un número con separador de miles: 2841 → "2 841". */
+export const formatearNumero = (numero: number) => numero.toLocaleString(IDIOMA_FECHAS);
+
+/** Nombre visible de cada rol (panel de administración). */
+export const ETIQUETAS_ROL: Record<NombreRol, string> = {
+  usuario: "Usuario",
+  moderador: "Moderador",
+  supermoderador: "Supermoderador",
+};
+
+/** Cómo terminó una consulta guardada (columna consultas.estado). */
+export const ETIQUETAS_ESTADO_CONSULTA: Record<EstadoConsulta, string> = {
+  resuelta: "Resuelta",
+  ambigua: "Pendiente de elegir especie",
+  sin_coincidencias: "Sin coincidencias",
 };
