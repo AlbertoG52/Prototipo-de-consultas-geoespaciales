@@ -949,12 +949,26 @@ def test_el_genero_o_la_especie_solos_no_identifican_una_especie(crbiolm, texto)
 # --- RR_31: validación de contenido reconocible ----------------------------------
 
 
-@pytest.mark.parametrize("texto", ["asdfgh", "¿Qué tal todo por allá?"])
-def test_sin_ningun_termino_reconocible_se_rechaza_con_el_motivo(crbiolm, visitante, texto):
+@pytest.mark.parametrize(
+    ("texto", "estado", "motivo"),
+    [
+        ("¿Dónde crece el árbol de Navidad?", "sin_coincidencias", None),
+        # RR_32 y RR_37 (services/preprocesamiento.py): se rechazan igual, pero
+        # orientando al usuario según lo que escribió.
+        ("asdfgh", "orientacion", "sin_sentido"),
+        ("¿Qué tal todo por allá?", "orientacion", "saludo"),
+    ],
+)
+def test_sin_ningun_termino_reconocible_se_rechaza_con_el_motivo(
+    crbiolm, visitante, texto, estado, motivo
+):
     datos = api.post("/consultas", headers=visitante, json={"texto": texto}).json()
-    assert datos["estado"] == "sin_coincidencias"  # criterio 2: se rechaza
+    assert datos["estado"] == estado  # criterio 2: se rechaza
+    assert datos["motivo"] == motivo
     assert datos["respuesta"] is None
-    assert datos["mensaje"] == MENSAJE_SIN_COINCIDENCIAS  # criterio 3: dice por qué
+    assert datos["mensaje"]  # criterio 3: dice por qué
+    if estado == "sin_coincidencias":
+        assert datos["mensaje"] == MENSAJE_SIN_COINCIDENCIAS
     assert datos["consultas_restantes"] == config.LIMITE_CONSULTAS_ANONIMO  # no cuesta
     assert pedidos_a_gbif == pedidos_de_mapa == pedidos_a_ia == []  # no se busca nada
 

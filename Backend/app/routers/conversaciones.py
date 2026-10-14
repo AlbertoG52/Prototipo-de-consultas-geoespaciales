@@ -1,7 +1,7 @@
 """Historial por conversaciones — RR_09.
 
-Cada conversación agrupa las consultas de un mismo chat, en sus tres estados
-(ver migración 012). Solo existen para cuentas registradas: un visitante
+Cada conversación agrupa las consultas de un mismo chat, en sus cuatro estados
+(ver migraciones 012 y 016). Solo existen para cuentas registradas: un visitante
 recibe 401, porque sus consultas no se guardan (RR_00_11).
 
 Cada persona solo ve sus propias conversaciones: pedir la de otra responde
@@ -22,6 +22,7 @@ from ..schemas.consulta import (
     RespuestaConsulta,
 )
 from ..security import obtener_usuario_actual
+from ..services.preprocesamiento import EJEMPLOS_DE_CONSULTA
 
 router = APIRouter(prefix="/conversaciones", tags=["conversaciones"])
 
@@ -54,6 +55,9 @@ def _a_guardada(consulta: Consulta) -> ConsultaGuardada:
         if consulta.estado == EstadoConsulta.AMBIGUA
         else [],
         mensaje=consulta.mensaje,
+        motivo=consulta.motivo,
+        # Los ejemplos no se guardan: al reabrir se muestran los actuales (RR_40).
+        ejemplos=list(EJEMPLOS_DE_CONSULTA) if consulta.motivo else [],
         realizada_en=consulta.realizada_en,
     )
 

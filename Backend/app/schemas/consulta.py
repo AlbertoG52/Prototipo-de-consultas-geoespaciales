@@ -5,7 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..config import LONGITUD_MAXIMA_CONSULTA
-from ..dominio import DatoRespuesta, EstadoConsulta
+from ..dominio import DatoRespuesta, EstadoConsulta, MotivoOrientacion
 from ..sanitizacion import limpiar_consulta, sanitizar_texto
 from .base import EsquemaSalida
 
@@ -164,6 +164,10 @@ class ConsultaOut(EsquemaSalida):
     respuesta: RespuestaConsulta | None = None
     candidatos: list[EspecieCandidata] = Field(default_factory=list)
     mensaje: str | None = None
+    # Solo en "orientacion": por qué (saludo, ayuda...) y consultas de ejemplo
+    # que el usuario puede usar (RR_40 criterio 3).
+    motivo: MotivoOrientacion | None = None
+    ejemplos: list[str] = Field(default_factory=list)
     realizada_en: datetime | None = None
     consultas_restantes: int = 0
 
@@ -175,7 +179,8 @@ class ConsultaGuardada(EsquemaSalida):
     """Una consulta dentro de una conversación, en cualquiera de sus estados.
 
     Una "ambigua" trae además 'candidatos' y 'mensaje', y se puede resolver
-    eligiendo una especie (RR_17); una "sin_coincidencias" trae 'mensaje'.
+    eligiendo una especie (RR_17); una "sin_coincidencias" trae 'mensaje'; una
+    "orientacion" trae 'mensaje', 'motivo' y, según el motivo, 'ejemplos'.
     """
 
     id: int
@@ -184,6 +189,8 @@ class ConsultaGuardada(EsquemaSalida):
     respuesta: RespuestaConsulta | None = None
     candidatos: list[EspecieCandidata] = Field(default_factory=list)
     mensaje: str | None = None
+    motivo: MotivoOrientacion | None = None
+    ejemplos: list[str] = Field(default_factory=list)
     realizada_en: datetime
 
 

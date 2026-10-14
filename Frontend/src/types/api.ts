@@ -716,7 +716,8 @@ export interface components {
          * @description Una consulta dentro de una conversación, en cualquiera de sus estados.
          *
          *     Una "ambigua" trae además 'candidatos' y 'mensaje', y se puede resolver
-         *     eligiendo una especie (RR_17); una "sin_coincidencias" trae 'mensaje'.
+         *     eligiendo una especie (RR_17); una "sin_coincidencias" trae 'mensaje'; una
+         *     "orientacion" trae 'mensaje', 'motivo' y, según el motivo, 'ejemplos'.
          */
         ConsultaGuardada: {
             /** Id */
@@ -729,6 +730,9 @@ export interface components {
             candidatos: components["schemas"]["EspecieCandidata"][];
             /** Mensaje */
             mensaje: string | null;
+            motivo: components["schemas"]["MotivoOrientacion"] | null;
+            /** Ejemplos */
+            ejemplos: string[];
             /**
              * Realizada En
              * Format: date-time
@@ -752,6 +756,9 @@ export interface components {
             candidatos: components["schemas"]["EspecieCandidata"][];
             /** Mensaje */
             mensaje: string | null;
+            motivo: components["schemas"]["MotivoOrientacion"] | null;
+            /** Ejemplos */
+            ejemplos: string[];
             /** Realizada En */
             realizada_en: string | null;
             /**
@@ -852,9 +859,12 @@ export interface components {
          *     - RESUELTA: trae la respuesta; es la única que cuesta del límite diario.
          *     - AMBIGUA: trae las candidatas (RR_17); queda pendiente hasta que se elige.
          *     - SIN_COINCIDENCIAS: no se reconoció ninguna especie.
+         *     - ORIENTACION: no era una consulta que se pudiera procesar (saludo, ayuda,
+         *       otro idioma...); se responde orientando al usuario. El porqué va en
+         *       consultas.motivo (MotivoOrientacion). No cuesta del límite diario.
          * @enum {string}
          */
-        EstadoConsulta: "resuelta" | "ambigua" | "sin_coincidencias";
+        EstadoConsulta: "resuelta" | "ambigua" | "sin_coincidencias" | "orientacion";
         /**
          * EstadoCuenta
          * @description Columna usuarios.estado (RR_74, RR_75).
@@ -952,6 +962,15 @@ export interface components {
             /** Mensaje */
             mensaje: string;
         };
+        /**
+         * MotivoOrientacion
+         * @description Columna consultas.motivo: por qué una consulta terminó en ORIENTACION.
+         *
+         *     Los detecta services/preprocesamiento.py. Todos menos FUERA_DE_TEMA se
+         *     detectan antes de buscar especies.
+         * @enum {string}
+         */
+        MotivoOrientacion: "sin_sentido" | "idioma" | "ayuda" | "saludo" | "fuera_de_tema";
         /**
          * NombreRol
          * @description Roles de la tabla 'roles' (001_crear_tabla_roles.sql).
@@ -1093,11 +1112,11 @@ export interface components {
          * ResultadoConsulta
          * @description Columna tiempos_respuesta.resultado (RR_57): cómo terminó una consulta.
          *
-         *     Los tres primeros son los de EstadoConsulta; los demás, las consultas que
+         *     Los cuatro primeros son los de EstadoConsulta; los demás, las consultas que
          *     terminaron en error.
          * @enum {string}
          */
-        ResultadoConsulta: "resuelta" | "ambigua" | "sin_coincidencias" | "tiempo_agotado" | "limite_alcanzado" | "rechazada" | "error";
+        ResultadoConsulta: "resuelta" | "ambigua" | "sin_coincidencias" | "orientacion" | "tiempo_agotado" | "limite_alcanzado" | "rechazada" | "error";
         /**
          * ResumenTiempos
          * @description GET /admin/tiempos: resumen del periodo y las consultas más recientes.

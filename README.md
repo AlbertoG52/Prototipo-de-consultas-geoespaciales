@@ -137,6 +137,7 @@ Cada cambio a la base es un archivo SQL numerado en `Backend/migrations/`:
 | `013_inactividad_sesion.sql` | minutos de inactividad elegidos por cada usuario, para RR_00_04 |
 | `014_verificar_cuentas_existentes.sql` | marca como verificadas las cuentas creadas antes de RR_00_07 |
 | `015_tiempos_respuesta.sql` | tiempo de respuesta de cada consulta, para RR_57 |
+| `016_consultas_de_orientacion.sql` | estado `orientacion` y columna `motivo` (saludo, ayuda, idioma…), para RR_22, RR_32, RR_37 y RR_40 |
 
 Para agregar un cambio:
 1. Se crea un archivo nuevo, p.ej. `011_....sql`.
@@ -199,14 +200,16 @@ El registro siempre crea cuentas con rol `usuario`. Para asignar otro rol:
 docker compose exec backend python cambiar_rol.py <correo> supermoderador
 ```
 
-`POST /consultas` devuelve uno de tres estados:
+`POST /consultas` devuelve uno de cuatro estados:
 
 - `resuelta` — trae `respuesta`; es la única que descuenta del límite diario.
 - `ambigua` — trae `candidatos`. El frontend muestra las opciones y reenvía la
   misma consulta con `especie_id` (RR_17). Desambiguar no cuesta una consulta.
 - `sin_coincidencias` — no se reconoció ninguna especie.
+- `orientacion` — no era una consulta (saludo, ayuda, otro idioma…); trae
+  `motivo`, `mensaje` y `ejemplos`. Ver "Mensajes que no son una consulta".
 
-Con cuenta, los tres estados se guardan dentro de una conversación (RR_09):
+Con cuenta, los cuatro estados se guardan dentro de una conversación (RR_09):
 `POST /consultas` recibe `conversacion_id` para seguir una conversación, o crea
 una nueva si no viene. Una consulta `ambigua` queda **pendiente**: al reabrir la
 conversación se pueden elegir sus opciones, y se resuelve enviando
@@ -267,6 +270,34 @@ LLM reciben la pregunta con el nombre corregido.
 vez). Una palabra que está en varias regiones las incluye todas. El mapa sigue
 siendo el nacional (las herramientas de mapas de CR-BioLM no reciben una región)
 y se decide con el total del país. Sin zona, o con una provincia, no se filtra.
+
+### Mensajes que no son una consulta (RR_22, RR_32, RR_37, RR_40)
+
+`services/preprocesamiento.py` revisa el mensaje **antes de buscar especies**
+(después del límite diario: con el límite alcanzado se avisa eso). Si no es una
+consulta, `POST /consultas` responde con el estado **`orientacion`**, un `motivo`,
+un `mensaje` para el usuario y `ejemplos` de consultas válidas, sin llamar a
+CR-BioLM. En orden:
+
+| Motivo | Cuándo | Ejemplo |
+|---|---|---|
+| `sin_sentido` (RR_32) | sin letras, o ninguna palabra pronunciable (sin vocales o con 5 consonantes seguidas) | "asdfgh", "123" |
+| `idioma` (RR_22) | claramente inglés: 2+ palabras típicas del inglés y más que del español; ante la duda sigue (los nombres científicos no cuentan) | "Where does Quercus costaricensis grow?" |
+| `ayuda` (RR_40) | una frase de ayuda y nada más que cortesía o palabras sobre el agente y sus fuentes | "¿Qué puedo hacer con el manual de plantas?" |
+| `saludo` (RR_37) | solo cortesía | "hola", "¿qué tal todo por allá?" |
+| `fuera_de_tema` (RR_37) | **después** de buscar: ninguna especie y ninguna palabra sobre plantas, geografía o descripción | "¿Quién ganó el mundial?" |
+
+"¿Para qué sirve la guaria morada?" o "Hola, ¿dónde crece Quercus…?" siguen
+siendo consultas: sobra el nombre de la planta. El mensaje de fuera de tema
+sugiere el nombre científico, porque CR-BioLM todavía no reconoce nombres
+comunes (RR_25).
+
+Una orientación **no descuenta del límite**. De una cuenta registrada se guarda
+en su conversación (tabla 016, con `motivo`), se ve en el historial de uso del
+panel (RR_76) y **no** suma en el uso por rol. Los ejemplos
+(`EJEMPLOS_DE_CONSULTA`, con nombre científico) no se guardan: al reabrir la
+conversación se muestran los actuales. En el chat, tocar un ejemplo lo copia al
+campo de texto.
 
 ### Tiempo de respuesta (RR_57)
 

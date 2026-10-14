@@ -41,23 +41,42 @@ class EstadoConsulta(StrEnum):
     - RESUELTA: trae la respuesta; es la única que cuesta del límite diario.
     - AMBIGUA: trae las candidatas (RR_17); queda pendiente hasta que se elige.
     - SIN_COINCIDENCIAS: no se reconoció ninguna especie.
+    - ORIENTACION: no era una consulta que se pudiera procesar (saludo, ayuda,
+      otro idioma...); se responde orientando al usuario. El porqué va en
+      consultas.motivo (MotivoOrientacion). No cuesta del límite diario.
     """
 
     RESUELTA = "resuelta"
     AMBIGUA = "ambigua"
     SIN_COINCIDENCIAS = "sin_coincidencias"
+    ORIENTACION = "orientacion"
+
+
+class MotivoOrientacion(StrEnum):
+    """Columna consultas.motivo: por qué una consulta terminó en ORIENTACION.
+
+    Los detecta services/preprocesamiento.py. Todos menos FUERA_DE_TEMA se
+    detectan antes de buscar especies.
+    """
+
+    SIN_SENTIDO = "sin_sentido"  # RR_32: "asdfgh", "???", "123"
+    IDIOMA = "idioma"  # RR_22: escrita en otro idioma (por ahora, inglés)
+    AYUDA = "ayuda"  # RR_40: "¿qué puedo preguntar?"
+    SALUDO = "saludo"  # RR_37: "hola", "gracias"
+    FUERA_DE_TEMA = "fuera_de_tema"  # RR_37: sin especie ni nada sobre plantas
 
 
 class ResultadoConsulta(StrEnum):
     """Columna tiempos_respuesta.resultado (RR_57): cómo terminó una consulta.
 
-    Los tres primeros son los de EstadoConsulta; los demás, las consultas que
+    Los cuatro primeros son los de EstadoConsulta; los demás, las consultas que
     terminaron en error.
     """
 
     RESUELTA = "resuelta"
     AMBIGUA = "ambigua"
     SIN_COINCIDENCIAS = "sin_coincidencias"
+    ORIENTACION = "orientacion"
     TIEMPO_AGOTADO = "tiempo_agotado"  # RR_38
     LIMITE_ALCANZADO = "limite_alcanzado"  # límite diario de consultas
     RECHAZADA = "rechazada"  # otro error de la solicitud (4xx)

@@ -6,6 +6,7 @@
  *  - RR_13 reformulación de la última consulta
  *  - RR_16 sugerencias de nombres de especie mientras se escribe (lógica en utils/sugerencias.ts)
  *  - RR_34 límite de caracteres de la consulta (contador y aviso)
+ *  - RR_22, RR_32, RR_37, RR_40 orientación con ejemplos cuando el mensaje no es una consulta
  *
  * Lo que muestra cada mensaje vive en components/:
  *  - TarjetaRespuesta: RR_10 copiar, RR_15 descargar, RR_18 mapa o lista, RR_20 ficha,
@@ -34,6 +35,25 @@ const CONSULTAS_DE_EJEMPLO = [
   "Distribución de Cedrela odorata",
   "¿Dónde crece el pejibaye?",
 ];
+
+/** Una consulta de ejemplo: al tocarla se copia al campo de texto para enviarla o editarla. */
+function BotonDeEjemplo({ texto, onUsar }: { texto: string; onUsar: (texto: string) => void }) {
+  return (
+    <button
+      onClick={() => onUsar(texto)}
+      className="text-xs px-3 py-1.5 rounded-full transition-all"
+      style={{ border: "1px solid var(--color-borde-fuerte)", color: "var(--color-texto-marca)", background: "transparent", cursor: "pointer" }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "var(--color-superficie-marca)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent";
+      }}
+    >
+      {texto}
+    </button>
+  );
+}
 
 function Cargando() {
   return (
@@ -167,6 +187,12 @@ export function ChatPage() {
     }
   };
 
+  /** Un ejemplo pasa al campo de texto; la persona decide si lo envía. */
+  const usarEjemplo = (texto: string) => {
+    setEntrada(texto);
+    areaRef.current?.focus();
+  };
+
   const alCambiar = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setEntrada(e.target.value);
     e.target.style.height = "auto";
@@ -234,6 +260,29 @@ export function ChatPage() {
               style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)", borderTopLeftRadius: 6 }}
             >
               <p className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>{m.mensaje}</p>
+            </div>
+          </div>
+        );
+
+      // RR_22, RR_32, RR_37, RR_40 — el mensaje puede traer saltos de línea (la ayuda).
+      case "orientacion":
+        return (
+          <div key={m.id} className="flex justify-start">
+            <div
+              className="rounded-2xl px-5 py-4 max-w-md"
+              style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)", borderTopLeftRadius: 6 }}
+            >
+              <p className="text-sm" style={{ color: "var(--color-texto-secundario)", whiteSpace: "pre-line" }}>
+                {m.mensaje}
+              </p>
+              {m.ejemplos.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 mt-3">
+                  <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>Prueba con:</span>
+                  {m.ejemplos.map((ej) => (
+                    <BotonDeEjemplo key={ej} texto={ej} onUsar={usarEjemplo} />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );
@@ -330,23 +379,7 @@ export function ChatPage() {
           <>
           <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>Ejemplos:</span>
           {CONSULTAS_DE_EJEMPLO.map((ej) => (
-            <button
-              key={ej}
-              onClick={() => {
-                setEntrada(ej);
-                areaRef.current?.focus();
-              }}
-              className="text-xs px-3 py-1.5 rounded-full transition-all"
-              style={{ border: "1px solid var(--color-borde-fuerte)", color: "var(--color-texto-marca)", background: "transparent", cursor: "pointer" }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--color-superficie-marca)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-              }}
-            >
-              {ej}
-            </button>
+            <BotonDeEjemplo key={ej} texto={ej} onUsar={usarEjemplo} />
           ))}
           </>
           )}

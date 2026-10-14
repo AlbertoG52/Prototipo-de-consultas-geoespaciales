@@ -3,14 +3,21 @@
 El router (routers/consultas.py) solo recibe la petición y llama a
 `procesar_consulta`; las reglas viven aquí:
 
-- Ninguna especie reconocida  -> estado "sin_coincidencias".
+- No es una consulta          -> estado "orientacion" con su motivo (saludo,
+  ayuda, otro idioma, sin sentido: RR_22, RR_32, RR_37, RR_40). Se detecta
+  antes de buscar especies (services/preprocesamiento.py), así que no llama a
+  CR-BioLM.
+- Ninguna especie reconocida  -> estado "sin_coincidencias", u "orientacion"
+  (fuera de tema, RR_37) si además nada en el texto habla de plantas.
 - Varias especies reconocidas -> estado "ambigua" y la lista de candidatas
   (RR_17). El usuario elige una y el frontend reenvía la consulta con
   'especie_id' (y 'consulta_id' si es una cuenta registrada).
 - Una sola especie            -> estado "resuelta" con la respuesta completa.
 
-Solo el camino resuelto consume una consulta del límite diario: pedirle al
-usuario que desambigüe, o avisarle que no se encontró nada, no le cuesta.
+Solo el camino resuelto consume una consulta del límite diario: orientar al
+usuario, pedirle que desambigüe o avisarle que no se encontró nada no le
+cuesta. Con el límite alcanzado se le avisa eso, aunque el mensaje sea un
+saludo.
 
 De un usuario registrado se guardan los tres estados dentro de una
 conversación (RR_09), para poder reabrirla completa. Del visitante no se
@@ -25,11 +32,12 @@ RR_57 — el tiempo de cada consulta, termine bien o mal, queda registrado
 """
 
 import logging
+from dataclasses import dataclass, field
 
 from sqlalchemy.orm import Session
 
 from .. import config
-from ..dominio import EstadoConsulta
+from ..dominio import EstadoConsulta, MotivoOrientacion
 from ..errores import Conflicto, LimiteAlcanzado, NoEncontrado, SolicitudInvalida, TiempoAgotado
 from ..models import Consulta, Conversacion
 from ..schemas.consulta import ConsultaOut, ConsultaRequest, EspecieCandidata, RespuestaConsulta
@@ -37,6 +45,7 @@ from ..security import Identidad
 from ..tiempo import ahora, plazo, verificar_plazo
 from .catalogo import FuenteCatalogo
 from .mcp_cliente import MCPTiempoAgotado
+from .preprocesamiento import EJEMPLOS_DE_CONSULTA, fuera_de_tema, interpretar, mensaje_de
 from .tiempos import medir_consulta
 from .uso import consultas_hoy, limite_de, registrar_consumo_anonimo
 
@@ -51,10 +60,25 @@ MENSAJE_SIN_COINCIDENCIAS = (
 )
 MENSAJE_AMBIGUA = "La consulta coincide con más de una especie. Selecciona cuál te interesa."
 
-_MENSAJES = {
-    EstadoConsulta.SIN_COINCIDENCIAS: MENSAJE_SIN_COINCIDENCIAS,
-    EstadoConsulta.AMBIGUA: MENSAJE_AMBIGUA,
-}
+
+@dataclass
+class _Resultado:
+    """Qué se responde a una consulta, antes de guardarla."""
+
+    estado: EstadoConsulta
+    respuesta: RespuestaConsulta | None = None
+    candidatas: list[EspecieCandidata] = field(default_factory=list)  # solo en AMBIGUA
+    mensaje: str | None = None
+    motivo: MotivoOrientacion | None = None  # solo en ORIENTACION
+
+    @property
+    def ejemplos(self) -> list[str]:
+        """RR_40 criterio 3: consultas de ejemplo para quien recibe una orientación."""
+        return list(EJEMPLOS_DE_CONSULTA) if self.motivo else []
+
+
+def _orientacion(motivo: MotivoOrientacion, texto: str) -> _Resultado:
+    return _Resultado(EstadoConsulta.ORIENTACION, mensaje=mensaje_de(motivo, texto), motivo=motivo)
 
 
 def procesar_consulta(
@@ -97,23 +121,14 @@ def _procesar(
     if usadas >= limite:
         raise _limite_alcanzado(identidad)
 
-    candidatas = _identificar_especies(datos, catalogo)
-    if not candidatas:
-        estado, respuesta = EstadoConsulta.SIN_COINCIDENCIAS, None
-    elif len(candidatas) > 1:
-        # RR_17 criterios 1 y 2: presentar las coincidencias para que elija.
-        estado, respuesta = EstadoConsulta.AMBIGUA, None
-    else:
-        estado = EstadoConsulta.RESUELTA
-        respuesta = _construir_respuesta(catalogo, candidatas[0].id, datos.texto)
+    resultado = _resolver(datos, catalogo)
 
     # RR_38: si el tiempo se acabó mientras se buscaba, se corta aquí, antes de
     # guardar o cobrar nada.
     verificar_plazo()
 
+    estado, respuesta = resultado.estado, resultado.respuesta
     resuelta = estado == EstadoConsulta.RESUELTA
-    mensaje = _MENSAJES.get(estado)
-    ofrecidas = candidatas if estado == EstadoConsulta.AMBIGUA else []
     restantes = max(limite - usadas - (1 if resuelta else 0), 0)
 
     # --- visitante: se cuenta, pero no se guarda (RR_00_11) -----------------
@@ -124,8 +139,10 @@ def _procesar(
             estado=estado,
             texto=datos.texto,
             respuesta=respuesta,
-            candidatos=ofrecidas,
-            mensaje=mensaje,
+            candidatos=resultado.candidatas,
+            mensaje=resultado.mensaje,
+            motivo=resultado.motivo,
+            ejemplos=resultado.ejemplos,
             consultas_restantes=restantes,
         )
 
@@ -141,8 +158,9 @@ def _procesar(
         sesion_id=identidad.sesion_id,
         estado=estado,
         respuesta=respuesta.model_dump(mode="json") if respuesta else None,
-        candidatos=[c.model_dump(mode="json") for c in ofrecidas] or None,
-        mensaje=mensaje,
+        candidatos=[c.model_dump(mode="json") for c in resultado.candidatas] or None,
+        mensaje=resultado.mensaje,
+        motivo=resultado.motivo,
         resuelta_en=momento if resuelta else None,
     )
     db.add(consulta)
@@ -155,11 +173,34 @@ def _procesar(
         estado=estado,
         texto=consulta.texto,
         respuesta=respuesta,
-        candidatos=ofrecidas,
-        mensaje=mensaje,
+        candidatos=resultado.candidatas,
+        mensaje=resultado.mensaje,
+        motivo=resultado.motivo,
+        ejemplos=resultado.ejemplos,
         realizada_en=consulta.realizada_en,
         consultas_restantes=restantes,
     )
+
+
+def _resolver(datos: ConsultaRequest, catalogo: FuenteCatalogo) -> _Resultado:
+    """Qué se responde: orientación, sin coincidencias, ambigua o resuelta."""
+    # RR_22, RR_32, RR_37, RR_40: si no es una consulta, se orienta sin buscar.
+    # Con 'especie_id' el usuario eligió entre candidatas: ya es una consulta.
+    motivo = None if datos.especie_id else interpretar(datos.texto)
+    if motivo is not None:
+        return _orientacion(motivo, datos.texto)
+
+    candidatas = _identificar_especies(datos, catalogo)
+    if not candidatas:
+        # RR_37: sin especie y sin nada sobre plantas, está fuera de tema.
+        if fuera_de_tema(datos.texto):
+            return _orientacion(MotivoOrientacion.FUERA_DE_TEMA, datos.texto)
+        return _Resultado(EstadoConsulta.SIN_COINCIDENCIAS, mensaje=MENSAJE_SIN_COINCIDENCIAS)
+    if len(candidatas) > 1:
+        # RR_17 criterios 1 y 2: presentar las coincidencias para que elija.
+        return _Resultado(EstadoConsulta.AMBIGUA, candidatas=candidatas, mensaje=MENSAJE_AMBIGUA)
+    respuesta = _construir_respuesta(catalogo, candidatas[0].id, datos.texto)
+    return _Resultado(EstadoConsulta.RESUELTA, respuesta=respuesta)
 
 
 def _identificar_especies(

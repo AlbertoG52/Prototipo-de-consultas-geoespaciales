@@ -59,6 +59,8 @@ export type FichaEspecie = Esquema<"FichaEspecie">;
  * - "resuelta"          → viene `respuesta`
  * - "ambigua"           → viene `candidatos`; hay que preguntarle al usuario (RR_17)
  * - "sin_coincidencias" → no se reconoció ninguna especie
+ * - "orientacion"       → no era una consulta (saludo, ayuda, otro idioma…): vienen
+ *                         `mensaje`, `motivo` y `ejemplos` (RR_22, RR_32, RR_37, RR_40)
  */
 export type EstadoConsulta = Esquema<"EstadoConsulta">;
 
