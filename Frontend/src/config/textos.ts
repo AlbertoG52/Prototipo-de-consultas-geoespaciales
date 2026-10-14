@@ -89,4 +89,5 @@ export const ETIQUETAS_ESTADO_CONSULTA: Record<EstadoConsulta, string> = {
   resuelta: "Resuelta",
   ambigua: "Pendiente de elegir especie",
   sin_coincidencias: "Sin coincidencias",
+  orientacion: "Orientación (saludo, ayuda…)",
 };

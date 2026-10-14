@@ -23,7 +23,7 @@ from starlette.requests import Request
 
 from app import config
 from app.db import SessionLocal
-from app.dominio import EstadoConsulta, EstadoCuenta, NombreRol
+from app.dominio import EstadoConsulta, EstadoCuenta, MotivoOrientacion, NombreRol
 from app.errores import Conflicto, NoEncontrado
 from app.models import Consulta, Conversacion, Rol, Usuario
 from app.routers import consultas
@@ -251,8 +251,12 @@ def _consultar(
     texto: str,
     estado: EstadoConsulta = EstadoConsulta.RESUELTA,
     dias_atras: int = 0,
+    motivo: MotivoOrientacion | None = None,
 ) -> None:
-    """Guarda una consulta de `usuario` como la deja services/consultas.py."""
+    """Guarda una consulta de `usuario` como la deja services/consultas.py.
+
+    Una de orientación necesita su `motivo` (restricción de la tabla 016).
+    """
     momento = ahora() - timedelta(days=dias_atras)
     conversacion = Conversacion(usuario_id=usuario.id, titulo=texto)
     db.add(conversacion)
@@ -268,6 +272,7 @@ def _consultar(
             respuesta=respuesta if resuelta else None,
             resuelta_en=momento if resuelta else None,
             realizada_en=momento,
+            motivo=motivo,
         )
     )
     db.flush()
@@ -353,6 +358,19 @@ def test_uso_por_rol_suma_cuentas_y_consultas_de_cada_rol(sesion):
     assert usuarios.consultas - usuarios_antes.consultas == 2
     assert moderadores.usuarios - moderadores_antes.usuarios == 1
     assert moderadores.consultas - moderadores_antes.consultas == 1
+
+
+def test_las_orientaciones_se_ven_en_el_historial_pero_no_cuentan_como_uso(sesion):
+    """RR_37 y RR_40: un saludo o un pedido de ayuda no es uso del agente."""
+    usuario = _crear(sesion, "orientacion.prueba@example.com")
+    antes = _uso(sesion, NombreRol.USUARIO)
+    _consultar(sesion, usuario, "roble")
+    _consultar(sesion, usuario, "hola", EstadoConsulta.ORIENTACION, motivo=MotivoOrientacion.SALUDO)
+
+    assert _uso(sesion, NombreRol.USUARIO).consultas - antes.consultas == 1
+    historial = admin.historial_de_uso(sesion, usuario.id, limite=20, desplazamiento=0)
+    assert historial.total == 2
+    assert EstadoConsulta.ORIENTACION in {c.estado for c in historial.consultas}
 
 
 def test_uso_por_rol_trae_todos_los_roles(sesion):

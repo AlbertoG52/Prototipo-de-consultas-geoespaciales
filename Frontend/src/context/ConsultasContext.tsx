@@ -4,7 +4,9 @@
  * Acá se maneja:
  *
  *  - RR_09  historial por conversaciones, como en un chat: cada conversación
- *           guarda sus consultas en los tres estados y se puede reabrir.
+ *           guarda sus consultas en los cuatro estados y se puede reabrir.
+ *  - RR_22, RR_32, RR_37, RR_40  un saludo, un pedido de ayuda o un mensaje que
+ *           no es una consulta recibe una orientación con ejemplos.
  *  - RR_17  selección de especie cuando la consulta coincide con varias. Con
  *           cuenta, la consulta ambigua queda guardada y pendiente: se puede
  *           elegir la especie incluso al reabrir la conversación otro día.
@@ -52,6 +54,8 @@ export type Mensaje =
       resuelta: boolean;
     }
   | { clase: "aviso"; id: string; mensaje: string }
+  /** RR_22, RR_32, RR_37, RR_40: no era una consulta; se orienta con un mensaje y ejemplos. */
+  | { clase: "orientacion"; id: string; mensaje: string; ejemplos: string[] }
   | { clase: "error"; id: string; mensaje: string; textoOriginal: string };
 
 interface EstadoConsultas {
@@ -94,6 +98,7 @@ const nuevoId = () => `m${++contador}`;
 
 const MENSAJE_AMBIGUA = "Selecciona la especie que te interesa.";
 const MENSAJE_SIN_COINCIDENCIAS = "No se encontró información para esa consulta.";
+const MENSAJE_ORIENTACION = "Pregunta por una planta de Costa Rica usando su nombre común o científico.";
 
 const MENSAJE_SIN_CONEXION =
   "No se pudo conectar con el servidor. Revisa tu conexión a internet e intenta de nuevo.";
@@ -159,7 +164,15 @@ function aMensajes(c: ConsultaGuardada): Mensaje[] {
       },
     ];
   }
+  if (c.estado === "orientacion") {
+    return [pregunta, orientacion(c.mensaje, c.ejemplos)];
+  }
   return [pregunta, { clase: "aviso", id: nuevoId(), mensaje: c.mensaje ?? MENSAJE_SIN_COINCIDENCIAS }];
+}
+
+/** El mensaje de una consulta en estado "orientacion", nueva o guardada. */
+function orientacion(mensaje: string | null, ejemplos: string[]): Mensaje {
+  return { clase: "orientacion", id: nuevoId(), mensaje: mensaje ?? MENSAJE_ORIENTACION, ejemplos };
 }
 
 export function ConsultasProvider({ children }: { children: ReactNode }) {
@@ -222,11 +235,12 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
 
       ultimoTexto.current = limpio;
       const idCarga = nuevoId();
+      const idConsulta = nuevoId();
 
       // Cuando el usuario elige una especie, la consulta ya está en pantalla (RR_17).
       setMensajes((prev) => [
         ...prev,
-        ...(especieId ? [] : [{ clase: "consulta", id: nuevoId(), texto: limpio } as Mensaje]),
+        ...(especieId ? [] : [{ clase: "consulta", id: idConsulta, texto: limpio } as Mensaje]),
         { clase: "cargando", id: idCarga },
       ]);
       setEnviando(true);
@@ -248,7 +262,11 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
         }
 
         setMensajes((prev) => {
-          let sinCarga = prev.filter((m) => m.id !== idCarga);
+          // RR_21: la burbuja muestra la consulta como la limpió el servidor (sin
+          // emojis ni espacios de más), igual que al reabrir la conversación.
+          let sinCarga = prev
+            .filter((m) => m.id !== idCarga)
+            .map((m) => (m.id === idConsulta && m.clase === "consulta" ? { ...m, texto: salida.texto } : m));
           // Dónde va la respuesta: al final, salvo que resuelva unas opciones.
           let posicion = sinCarga.length;
 
@@ -288,6 +306,10 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
                 resuelta: false,
               },
             ];
+          }
+
+          if (salida.estado === "orientacion") {
+            return [...sinCarga, orientacion(salida.mensaje, salida.ejemplos)];
           }
 
           if (salida.estado === "sin_coincidencias") {

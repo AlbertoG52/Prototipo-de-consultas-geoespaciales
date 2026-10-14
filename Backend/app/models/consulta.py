@@ -45,7 +45,9 @@ class Consulta(Base):
     )
     estado: Mapped[str] = mapped_column(String(20), default=EstadoConsulta.RESUELTA)
     candidatos: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)  # solo en 'ambigua'
-    mensaje: Mapped[str | None] = mapped_column(Text)  # 'ambigua' y 'sin_coincidencias'
+    mensaje: Mapped[str | None] = mapped_column(Text)  # todos menos 'resuelta'
+    # Tabla 016: por qué se orientó al usuario (MotivoOrientacion); solo en 'orientacion'.
+    motivo: Mapped[str | None] = mapped_column(String(20))
     # Fecha con la que se cuenta el límite.
     resuelta_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 

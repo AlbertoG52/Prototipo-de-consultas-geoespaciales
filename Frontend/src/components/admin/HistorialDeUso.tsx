@@ -22,6 +22,8 @@ const COLORES_ESTADO: Record<ConsultaDeUsuario["estado"], { fondo: string; texto
   resuelta: { fondo: "var(--color-superficie-marca)", texto: "var(--color-texto-marca)" },
   ambigua: { fondo: "var(--color-aviso-fondo)", texto: "var(--color-aviso-texto)" },
   sin_coincidencias: { fondo: "var(--color-neutro-fondo)", texto: "var(--color-neutro)" },
+  // RR_37 y RR_40: saludos, ayuda… se ven, pero no cuentan como uso por rol.
+  orientacion: { fondo: "var(--color-superficie-suave)", texto: "var(--color-texto-secundario)" },
 };
 
 const fecha = (iso: string) => new Date(iso).toLocaleString(IDIOMA_FECHAS);

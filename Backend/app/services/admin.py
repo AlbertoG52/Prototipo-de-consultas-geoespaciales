@@ -161,7 +161,8 @@ def uso_por_rol(db: Session) -> list[UsoDeRol]:
 
     Cuenta las consultas guardadas (las mismas que muestra el historial), según
     el rol que la cuenta tiene hoy: si cambió de rol, todas sus consultas
-    cuentan para el rol nuevo.
+    cuentan para el rol nuevo. No cuenta las de orientación (saludos, ayuda...,
+    RR_37 y RR_40): se ven en el historial, pero no son uso del agente.
     """
     cuentas = (
         db.query(Rol.nombre, func.count(Usuario.id))
@@ -174,6 +175,7 @@ def uso_por_rol(db: Session) -> list[UsoDeRol]:
         db.query(Rol.nombre, func.count(Consulta.id))
         .join(Usuario, Usuario.rol_id == Rol.id)
         .join(Consulta, Consulta.usuario_id == Usuario.id)
+        .filter(Consulta.estado != EstadoConsulta.ORIENTACION)
         .group_by(Rol.nombre)
         .tuples()
         .all()
