@@ -63,7 +63,7 @@ def procesar_consulta(
     datos: ConsultaRequest,
     catalogo: FuenteCatalogo,
 ) -> ConsultaOut:
-    """Procesa una consulta en lenguaje natural (ver el docstring del módulo).
+    """Procesa una consulta en lenguaje natural.
 
     RR_38: todo el procesamiento corre dentro del tiempo máximo de la consulta.
     RR_57: y se mide, incluido el caso en que se corta o falla.
@@ -74,7 +74,6 @@ def procesar_consulta(
             with plazo(segundos):
                 salida = _procesar(db, identidad, datos, catalogo)
         except (TiempoAgotado, MCPTiempoAgotado) as error:
-            # Para el equipo técnico: qué consulta se cortó y en qué paso.
             logger.warning("Consulta cancelada por superar %g s: %s", segundos, error)
             raise TiempoAgotado(segundos) from error
         medicion.terminar(salida)

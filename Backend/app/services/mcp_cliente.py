@@ -209,7 +209,6 @@ async def _listar_herramientas(progreso: _Progreso) -> list[str]:
         respuesta = await sesion.list_tools()
         return [herramienta.name for herramienta in respuesta.tools]
 
-
 @asynccontextmanager
 async def _sesion() -> AsyncIterator[ClientSession]:
     """Conexión HTTP + sesión MCP ya inicializada."""
@@ -221,7 +220,6 @@ async def _sesion() -> AsyncIterator[ClientSession]:
     async with transporte as (lectura, escritura, _), ClientSession(lectura, escritura) as sesion:
         await sesion.initialize()
         yield sesion
-
 
 async def _con_reintentos(herramienta: str, operacion, *argumentos):
     """Ejecuta `operacion` con tiempo máximo y reintentos de conexión.
@@ -256,7 +254,6 @@ async def _con_reintentos(herramienta: str, operacion, *argumentos):
             raise error from exc
     raise AssertionError("inalcanzable")  # el ciclo siempre retorna o lanza
 
-
 def _tiempo_para_la_llamada(herramienta: str) -> float:
     """MCP_TIMEOUT_SEGUNDOS, o lo que le quede a la consulta si es menos (RR_38)."""
     restantes = segundos_restantes()
@@ -265,7 +262,6 @@ def _tiempo_para_la_llamada(herramienta: str) -> float:
     if restantes <= 0:
         raise MCPTiempoAgotado(herramienta, "la consulta ya había agotado su tiempo máximo")
     return min(config.MCP_TIMEOUT_SEGUNDOS, restantes)
-
 
 def _clasificar(herramienta: str, exc: Exception, limite: float) -> tuple[ErrorMCP, bool]:
     """Traduce un fallo del SDK o de la red a un ErrorMCP del proyecto.
