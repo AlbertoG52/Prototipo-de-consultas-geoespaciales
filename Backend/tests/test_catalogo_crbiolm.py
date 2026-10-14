@@ -223,6 +223,7 @@ def _puntos(cantidad: int) -> list[dict]:
             "elev_m": 2750,
             "region": "Talamanca",
             "vertiente": "Pacífico",
+            "date": "2019-03-14",
         }
     return puntos
 
@@ -1046,6 +1047,26 @@ def test_la_consulta_filtra_por_zona(crbiolm, visitante):
     assert datos["estado"] == "resuelta"
     assert datos["texto"] == texto
     assert datos["respuesta"]["total_registros"] == 3
+
+
+def test_el_registro_trae_la_fecha_de_gbif(crbiolm):
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", "")
+    assert respuesta.registros[0].fecha == "2019-03-14"
+    assert respuesta.registros[1].fecha == "Sin dato"  # sin fecha en GBIF
+
+
+@pytest.mark.parametrize(
+    ("fecha", "esperada"),
+    [
+        ("2019-03-14T10:00:00", "2019-03-14"),
+        ("2001-03/2001-04", "2001-03"),
+        ("1998", "1998"),
+        ("", "Sin dato"),
+        (None, "Sin dato"),
+    ],
+)
+def test_formato_de_la_fecha(fecha, esperada):
+    assert catalogo_crbiolm._fecha({"date": fecha}) == esperada
 
 
 # --- RR_29: clasificación del tipo de consulta ------------------------------------------

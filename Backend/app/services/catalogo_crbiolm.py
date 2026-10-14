@@ -332,7 +332,7 @@ def _url_del_mapa(especie: str) -> str:
     return f"/especies/{a_id(especie)}/mapa"
 
 
-# --- Manual vectorizado: el fragmento que responde la pregunta (RR_44) ----------
+#Manual vectorizado: el fragmento que responde la pregunta (RR_44)
 
 
 def _fragmento(especie: str, pregunta: str) -> Fragmento | None:
@@ -374,7 +374,7 @@ def _fragmento(especie: str, pregunta: str) -> Fragmento | None:
     return Fragmento(texto=texto, seccion=str(mejor.get("section") or ""))
 
 
-# --- RR_49: respuesta redactada por el LLM de CR-BioLM ---------------------------
+#RR_49: respuesta redactada por el LLM de CR-BioLM
 
 
 def _con_redaccion_ia(contexto: ContextoEspecie, pregunta: str) -> ContextoEspecie:
@@ -606,9 +606,20 @@ def _registro(punto: dict[str, Any]) -> RegistroPresencia:
     """Un punto de GBIF ya limpiado por CR-BioLM (RR_42 criterio 3) y validado (RR_60)."""
     return RegistroPresencia(
         localidad=punto.get("region") or SIN_DATO,
-        fecha=SIN_DATO,  # CR-BioLM todavía no entrega la fecha del registro
+        fecha=_fecha(punto),  # CR-BioLM todavía no entrega la fecha del registro
         latitud=punto["lat"],
         longitud=punto["lon"],
         elevacion_m=punto.get("elev_m"),
         fuente=FUENTE_GBIF,
     )
+
+def _fecha(punto: dict[str, Any]) -> str:
+    """La fecha del registro en GBIF ('2019-03-14', '2019-03' o '2019'), o SIN_DATO.
+
+    CR-BioLM la entrega en 'date'; si no viene (registros sin fecha o una versión
+    de CR-BioLM que todavía no la manda), se muestra "Sin dato".
+    """
+    fecha = punto.get("date")
+    if not isinstance(fecha, str) or not fecha.strip():
+        return SIN_DATO
+    return fecha.split("/")[0].split("T")[0].strip()
