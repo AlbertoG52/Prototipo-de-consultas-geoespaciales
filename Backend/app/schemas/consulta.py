@@ -5,7 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..config import LONGITUD_MAXIMA_CONSULTA
-from ..dominio import DatoRespuesta, EstadoConsulta, MotivoOrientacion
+from ..dominio import DatoRespuesta, EstadoConsulta, MotivoOrientacion, TipoPregunta
 from ..sanitizacion import limpiar_consulta, sanitizar_texto
 from .base import EsquemaSalida
 
@@ -74,6 +74,9 @@ class RespuestaConsulta(EsquemaSalida):
     # RR_41: False si la consulta no pide información geográfica (pregunta cómo
     # es la planta). Solo cambia el texto: los registros y el mapa vienen igual.
     geoespacial: bool = True
+    # RR_29: qué pregunta la consulta (distribución, hábitat, descripción); elige
+    # el texto y se registra en tiempos_respuesta.intencion (RR_33).
+    tipo: TipoPregunta = TipoPregunta.GENERAL
     procedencia: list[Procedencia] = Field(default_factory=list)  # RR_45
 
 

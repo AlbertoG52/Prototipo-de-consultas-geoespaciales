@@ -37,13 +37,14 @@ from dataclasses import dataclass, field
 from sqlalchemy.orm import Session
 
 from .. import config
-from ..dominio import EstadoConsulta, MotivoOrientacion
+from ..dominio import EstadoConsulta, IntencionConsulta, MotivoOrientacion
 from ..errores import Conflicto, LimiteAlcanzado, NoEncontrado, SolicitudInvalida, TiempoAgotado
 from ..models import Consulta, Conversacion
 from ..schemas.consulta import ConsultaOut, ConsultaRequest, EspecieCandidata, RespuestaConsulta
 from ..security import Identidad
 from ..tiempo import ahora, plazo, verificar_plazo
 from .catalogo import FuenteCatalogo
+from .intencion import analizar
 from .mcp_cliente import MCPTiempoAgotado
 from .preprocesamiento import EJEMPLOS_DE_CONSULTA, fuera_de_tema, interpretar, mensaje_de
 from .tiempos import medir_consulta
@@ -91,9 +92,11 @@ def procesar_consulta(
 
     RR_38: todo el procesamiento corre dentro del tiempo máximo de la consulta.
     RR_57: y se mide, incluido el caso en que se corta o falla.
+    RR_33: con la intención detectada, también si se corta o falla.
     """
     segundos = config.SEGUNDOS_MAXIMOS_CONSULTA
     with medir_consulta(identidad) as medicion:
+        medicion.intencion = _intencion_del_texto(datos)
         try:
             with plazo(segundos):
                 salida = _procesar(db, identidad, datos, catalogo)
@@ -103,6 +106,20 @@ def procesar_consulta(
             raise TiempoAgotado(segundos) from error
         medicion.terminar(salida)
         return salida
+
+
+def _intencion_del_texto(datos: ConsultaRequest) -> IntencionConsulta:
+    """RR_33: la intención según el texto, antes de buscar nada.
+
+    Es el motivo si no es una consulta (como en `_resolver`) o el tipo de
+    pregunta (RR_29). Al terminar, Medicion.terminar la precisa con lo que se
+    respondió: "fuera de tema" solo se sabe después de buscar, y el tipo de una
+    respuesta puede usar el vocabulario de CR-BioLM.
+    """
+    motivo = None if datos.especie_id else interpretar(datos.texto)
+    if motivo is not None:
+        return IntencionConsulta(motivo)
+    return IntencionConsulta(analizar(datos.texto).tipo)
 
 
 def _procesar(

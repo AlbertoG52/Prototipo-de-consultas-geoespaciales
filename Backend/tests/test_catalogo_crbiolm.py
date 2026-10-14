@@ -1046,3 +1046,24 @@ def test_la_consulta_filtra_por_zona(crbiolm, visitante):
     assert datos["estado"] == "resuelta"
     assert datos["texto"] == texto
     assert datos["respuesta"]["total_registros"] == 3
+
+
+# --- RR_29: clasificación del tipo de consulta ------------------------------------------
+
+
+def test_una_pregunta_de_habitat_se_responde_con_el_habitat_de_la_ficha(crbiolm):
+    """Criterio 2. Quercus oleoides no tiene fragmento ni respuesta del LLM en el falso."""
+    respuesta = crbiolm.construir_respuesta(
+        "quercus-oleoides", "¿En qué tipo de bosque vive Quercus oleoides?"
+    )
+    assert respuesta.tipo == "habitat"
+    assert respuesta.texto == "Crece entre 0 y 800 m de elevación."
+    assert respuesta.registros  # RR_41: GBIF se sigue pidiendo
+
+
+def test_el_tipo_usa_los_tipos_de_bosque_del_vocabulario(crbiolm, monkeypatch):
+    pregunta = "¿Hay Quercus oleoides en turbera?"
+    sin_vocabulario = crbiolm.construir_respuesta("quercus-oleoides", pregunta)
+    monkeypatch.setattr(crbiolm, "_vocabulario", lambda: {"forest_types": ["turbera"]})
+    con_vocabulario = crbiolm.construir_respuesta("quercus-oleoides", pregunta)
+    assert (sin_vocabulario.tipo, con_vocabulario.tipo) == ("general", "habitat")

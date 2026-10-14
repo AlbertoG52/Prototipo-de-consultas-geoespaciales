@@ -1,7 +1,7 @@
-"""Tiempo de respuesta de una consulta — tabla 015 (RR_57).
+"""Tiempo de respuesta de una consulta — tablas 015 (RR_57) y 017 (RR_33).
 
 Lo escribe services/tiempos.py al terminar cada consulta y lo lee
-GET /admin/tiempos. No guarda el texto ni quién consultó.
+GET /admin/tiempos. No guarda el texto ni quién consultó; sí la intención.
 """
 
 from datetime import datetime
@@ -25,3 +25,5 @@ class TiempoRespuesta(Base):
     tipo_sesion: Mapped[str] = mapped_column(String(20))  # dominio.TipoSesion
     especie_id: Mapped[str | None] = mapped_column(String(100))
     consulta_id: Mapped[int | None] = mapped_column(ForeignKey("consultas.id", ondelete="SET NULL"))
+    # Tabla 017 — RR_33: qué intentó hacer el usuario (dominio.IntencionConsulta).
+    intencion: Mapped[str | None] = mapped_column(String(20))

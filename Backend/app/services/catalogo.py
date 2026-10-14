@@ -28,6 +28,7 @@ from .. import config
 from ..sanitizacion import normalizar
 from ..schemas.consulta import EspecieCandidata, FichaEspecie, RegistroPresencia, RespuestaConsulta
 from .catalogo_crbiolm import CatalogoCRBioLM
+from .intencion import analizar
 
 
 class FuenteCatalogo(Protocol):
@@ -266,6 +267,9 @@ class CatalogoDemo:
             registros=registros,
             total_registros=len(registros),
             fuentes=list(_FUENTES),
+            # RR_29 y RR_33: el tipo de pregunta, para registrarlo. El texto de la
+            # demostración es siempre el mismo.
+            tipo=analizar(texto_consulta, entrada["nombre_cientifico"]).tipo,
         )
 
     def obtener_ficha(self, especie: str) -> FichaEspecie | None:

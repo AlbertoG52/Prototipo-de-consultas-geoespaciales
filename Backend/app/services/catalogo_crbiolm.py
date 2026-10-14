@@ -187,6 +187,7 @@ class CatalogoCRBioLM:
             mapa=contexto.mapa_especie(_url_del_mapa(contexto.especie)),
             avisos=contexto.avisos,
             geoespacial=contexto.geoespacial,
+            tipo=contexto.tipo,
             procedencia=contexto.procedencia(),
         )
 
@@ -243,7 +244,8 @@ class CatalogoCRBioLM:
         if manual is None:
             return None
         especie = str(manual.valor["species"])
-        intencion = analizar(pregunta, especie)
+        # RR_29: los tipos de bosque del vocabulario (el de RR_39) también son hábitat.
+        intencion = analizar(pregunta, especie, self._vocabulario() if pregunta else None)
         fragmento = _fragmento(especie, pregunta) if intencion.pregunta_especifica else None
 
         ocurrencias = _ocurrencias(especie)

@@ -779,6 +779,15 @@ export interface components {
             consulta_id?: number | null;
         };
         /**
+         * ConteoIntencion
+         * @description RR_33: cuántas consultas del periodo tuvieron una intención.
+         */
+        ConteoIntencion: {
+            intencion: components["schemas"]["IntencionConsulta"] | null;
+            /** Total */
+            total: number;
+        };
+        /**
          * ConversacionDetalle
          * @description Una conversación completa, con sus consultas en orden cronológico.
          */
@@ -926,6 +935,16 @@ export interface components {
             /** Consultas */
             consultas: components["schemas"]["ConsultaDeUsuario"][];
         };
+        /**
+         * IntencionConsulta
+         * @description Columna tiempos_respuesta.intencion (RR_33): qué quiso hacer el usuario.
+         *
+         *     Une los dos casos: una consulta sobre una especie (su TipoPregunta) o un
+         *     mensaje que no es una consulta (su MotivoOrientacion). Los valores son los
+         *     mismos de esos dos enums.
+         * @enum {string}
+         */
+        IntencionConsulta: "distribucion" | "habitat" | "descripcion" | "general" | "sin_sentido" | "idioma" | "ayuda" | "saludo" | "fuera_de_tema";
         /** LoginRequest */
         LoginRequest: {
             /**
@@ -1047,7 +1066,10 @@ export interface components {
         };
         /**
          * RegistroTiempo
-         * @description El tiempo de una consulta (tabla 015).
+         * @description El tiempo de una consulta (tabla 015) y su intención (017, RR_33).
+         *
+         *     `id` es el identificador único de la consulta en este registro (RR_33
+         *     criterio 2), también para los visitantes, que no guardan consultas.
          */
         RegistroTiempo: {
             /** Id */
@@ -1065,6 +1087,7 @@ export interface components {
             especie_id: string | null;
             /** Consulta Id */
             consulta_id: number | null;
+            intencion: components["schemas"]["IntencionConsulta"] | null;
             /** Lenta */
             lenta: boolean;
         };
@@ -1095,6 +1118,8 @@ export interface components {
              * @default true
              */
             geoespacial: boolean;
+            /** @default general */
+            tipo: components["schemas"]["TipoPregunta"];
             /** Procedencia */
             procedencia: components["schemas"]["Procedencia"][];
         };
@@ -1136,6 +1161,8 @@ export interface components {
             p95_ms: number | null;
             /** Maximo Ms */
             maximo_ms: number | null;
+            /** Por Intencion */
+            por_intencion: components["schemas"]["ConteoIntencion"][];
             /** Registros */
             registros: components["schemas"]["RegistroTiempo"][];
         };
@@ -1165,6 +1192,16 @@ export interface components {
             /** Longitud Maxima Consulta */
             longitud_maxima_consulta: number;
         };
+        /**
+         * TipoPregunta
+         * @description Qué pregunta una consulta sobre una especie — RR_41 y RR_29.
+         *
+         *     Lo decide services/intencion.py (ver la prioridad allí) y elige el texto de
+         *     la respuesta (services/contexto_especie.py). Se creó en intencion.py y vive
+         *     aquí desde RR_33, porque se guarda en la BD (IntencionConsulta).
+         * @enum {string}
+         */
+        TipoPregunta: "distribucion" | "habitat" | "descripcion" | "general";
         /**
          * TipoSesion
          * @description Quién hace la petición: una cuenta registrada o un visitante (RR_00_11).
