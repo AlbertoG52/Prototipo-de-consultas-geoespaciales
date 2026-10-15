@@ -19,6 +19,14 @@ el servidor. Cada llamada a CR-BioLM tiene además su propio tiempo en el log
 Se guarda con una sesión de BD propia: así queda registrada aunque la
 consulta haya fallado y su transacción se haya descartado. Si guardar falla,
 se anota en el log y la consulta sigue: medir nunca debe romper una respuesta.
+
+RR_33 — la misma fila guarda la intención de la consulta (tabla 017,
+IntencionConsulta), con su id único (criterio 2). El servicio de consultas la
+fija antes de procesar, a partir del texto, para que quede aunque la consulta
+falle; `terminar` la precisa con lo que se respondió (el motivo de una
+orientación o el tipo de pregunta con que se armó la respuesta). GET
+/admin/tiempos la muestra por fila y cuenta cuántas hubo de cada una
+(criterio 3).
 """
 
 from __future__ import annotations
@@ -30,15 +38,15 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import timedelta
 
-from sqlalchemy import func
+from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm import Session
 
 from .. import config
 from ..db import SessionLocal
-from ..dominio import ResultadoConsulta
+from ..dominio import IntencionConsulta, ResultadoConsulta
 from ..errores import ErrorDominio, LimiteAlcanzado, TiempoAgotado
 from ..models import TiempoRespuesta
-from ..schemas.admin import RegistroTiempo, ResumenTiempos
+from ..schemas.admin import ConteoIntencion, RegistroTiempo, ResumenTiempos
 from ..schemas.consulta import ConsultaOut
 from ..security import Identidad
 from ..tiempo import ahora
@@ -53,11 +61,17 @@ class Medicion:
     resultado: ResultadoConsulta = ResultadoConsulta.ERROR
     especie_id: str | None = None
     consulta_id: int | None = None
+    intencion: IntencionConsulta | None = None  # RR_33
 
     def terminar(self, salida: ConsultaOut) -> None:
         self.resultado = ResultadoConsulta(salida.estado)
         self.especie_id = salida.respuesta.especie.id if salida.respuesta else None
         self.consulta_id = salida.id
+        # RR_33: lo que se respondió manda sobre lo que se dedujo del texto.
+        if salida.motivo is not None:
+            self.intencion = IntencionConsulta(salida.motivo)
+        elif salida.respuesta is not None:
+            self.intencion = IntencionConsulta(salida.respuesta.tipo)
 
 
 @contextmanager
@@ -116,6 +130,7 @@ def resumen(db: Session, dias: int, solo_lentas: bool, limite: int) -> ResumenTi
         promedio_ms=_entero(promedio),
         p95_ms=_entero(p95),
         maximo_ms=maximo,
+        por_intencion=_por_intencion(db, en_periodo),
         registros=[
             RegistroTiempo(
                 id=f.id,
@@ -125,11 +140,30 @@ def resumen(db: Session, dias: int, solo_lentas: bool, limite: int) -> ResumenTi
                 tipo_sesion=f.tipo_sesion,
                 especie_id=f.especie_id,
                 consulta_id=f.consulta_id,
+                intencion=IntencionConsulta(f.intencion) if f.intencion else None,
                 lenta=f.duracion_ms >= umbral_ms,
             )
             for f in filas
         ],
     )
+
+
+def _por_intencion(db: Session, en_periodo: ColumnElement[bool]) -> list[ConteoIntencion]:
+    """RR_33 criterio 3: cuántas consultas hubo de cada intención, la más común primero.
+
+    Las registradas antes de la tabla 017 cuentan como intención None.
+    """
+    conteos = (
+        db.query(TiempoRespuesta.intencion, func.count())
+        .filter(en_periodo)
+        .group_by(TiempoRespuesta.intencion)
+        .tuples()
+        .all()
+    )
+    return [
+        ConteoIntencion(intencion=IntencionConsulta(i) if i else None, total=n)
+        for i, n in sorted(conteos, key=lambda c: (-c[1], c[0] or ""))
+    ]
 
 
 def _entero(valor: object) -> int | None:
@@ -156,7 +190,12 @@ def _registrar(medicion: Medicion, identidad: Identidad, duracion_ms: int) -> No
             medicion.especie_id,
         )
     else:
-        logger.info("RR_57: consulta en %d ms, resultado=%s", duracion_ms, medicion.resultado)
+        logger.info(
+            "RR_57: consulta en %d ms, resultado=%s, intencion=%s",
+            duracion_ms,
+            medicion.resultado,
+            medicion.intencion,
+        )
 
     try:
         with SessionLocal() as db:
@@ -167,6 +206,7 @@ def _registrar(medicion: Medicion, identidad: Identidad, duracion_ms: int) -> No
                     tipo_sesion=identidad.tipo,
                     especie_id=medicion.especie_id,
                     consulta_id=medicion.consulta_id,
+                    intencion=medicion.intencion,
                 )
             )
             db.commit()

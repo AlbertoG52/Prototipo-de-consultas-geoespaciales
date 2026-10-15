@@ -66,6 +66,39 @@ class MotivoOrientacion(StrEnum):
     FUERA_DE_TEMA = "fuera_de_tema"  # RR_37: sin especie ni nada sobre plantas
 
 
+class TipoPregunta(StrEnum):
+    """Qué pregunta una consulta sobre una especie — RR_41 y RR_29.
+
+    Lo decide services/intencion.py (ver la prioridad allí) y elige el texto de
+    la respuesta (services/contexto_especie.py). Se creó en intencion.py y vive
+    aquí desde RR_33, porque se guarda en la BD (IntencionConsulta).
+    """
+
+    DISTRIBUCION = "distribucion"
+    HABITAT = "habitat"  # RR_29
+    DESCRIPCION = "descripcion"
+    GENERAL = "general"
+
+
+class IntencionConsulta(StrEnum):
+    """Columna tiempos_respuesta.intencion (RR_33): qué quiso hacer el usuario.
+
+    Une los dos casos: una consulta sobre una especie (su TipoPregunta) o un
+    mensaje que no es una consulta (su MotivoOrientacion). Los valores son los
+    mismos de esos dos enums.
+    """
+
+    DISTRIBUCION = TipoPregunta.DISTRIBUCION.value
+    HABITAT = TipoPregunta.HABITAT.value
+    DESCRIPCION = TipoPregunta.DESCRIPCION.value
+    GENERAL = TipoPregunta.GENERAL.value
+    SIN_SENTIDO = MotivoOrientacion.SIN_SENTIDO.value
+    IDIOMA = MotivoOrientacion.IDIOMA.value
+    AYUDA = MotivoOrientacion.AYUDA.value
+    SALUDO = MotivoOrientacion.SALUDO.value
+    FUERA_DE_TEMA = MotivoOrientacion.FUERA_DE_TEMA.value
+
+
 class ResultadoConsulta(StrEnum):
     """Columna tiempos_respuesta.resultado (RR_57): cómo terminó una consulta.
 

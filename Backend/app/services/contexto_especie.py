@@ -26,9 +26,9 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from ..dominio import DatoRespuesta
+from ..dominio import DatoRespuesta, TipoPregunta
 from ..schemas.consulta import MapaEspecie, Procedencia, RegistroPresencia
-from .intencion import TipoPregunta
+from .habitat import texto_de_habitat
 from .mcp_cliente import Sobre
 
 MANUAL = "Manual de Plantas de Costa Rica"
@@ -54,6 +54,7 @@ SECCIONES = {
 # citas técnicas de CR-BioLM (filtros de GBIF, archivos del mapa) no se muestran.
 FICHA = "ficha de la especie"
 DE_LA_PREGUNTA = "fragmento más relacionado con la pregunta"  # RR_44
+DETALLE_HABITAT = "hábitat: forma de crecimiento, tipo de bosque, vertiente y elevación"  # RR_29
 DETALLE_REGISTROS = "registros de presencia en Costa Rica, consultados en vivo"
 DETALLE_MAPA = (
     "elaborado con el Manual, los registros de GBIF, un modelo de elevación "
@@ -197,8 +198,9 @@ class ContextoEspecie:
 
         1. La respuesta redactada por el LLM de CR-BioLM (RR_49).
         2. El fragmento que responde la pregunta (RR_44).
-        3. Según el tipo de pregunta (RR_41): la morfología si pregunta cómo es la
-           planta. RR_29 (Cristopher): aquí va el texto de hábitat para HABITAT.
+        3. Según el tipo de pregunta (RR_41, RR_29): el hábitat de la ficha si
+           pregunta dónde vive (services/habitat.py), la morfología si pregunta
+           cómo es la planta.
         4. El párrafo de distribución.
         """
         if self.redaccion is not None:
@@ -206,6 +208,8 @@ class ContextoEspecie:
         if self.fragmento is not None:
             seccion = SECCIONES.get(self.fragmento.seccion, self.fragmento.seccion)
             return self.fragmento.texto, f"{seccion} · {DE_LA_PREGUNTA}"
+        if self.tipo is TipoPregunta.HABITAT and (habitat := texto_de_habitat(self.ficha)):
+            return habitat, DETALLE_HABITAT
         if self.tipo is TipoPregunta.DESCRIPCION and self.ficha.get("morphology"):
             return str(self.ficha["morphology"]), SECCIONES["description"]
         if self.ficha.get("distribution_paragraph"):

@@ -1,10 +1,17 @@
-"""Esquemas de administración — RR_00_09, RR_57 y RR_76."""
+"""Esquemas de administración — RR_00_09, RR_33, RR_57 y RR_76."""
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from ..dominio import EstadoConsulta, EstadoCuenta, NombreRol, ResultadoConsulta, TipoSesion
+from ..dominio import (
+    EstadoConsulta,
+    EstadoCuenta,
+    IntencionConsulta,
+    NombreRol,
+    ResultadoConsulta,
+    TipoSesion,
+)
 from .base import EsquemaSalida
 from .usuario import UsuarioOut
 
@@ -31,7 +38,11 @@ class RegistroAuditoria(EsquemaSalida):
 
 
 class RegistroTiempo(EsquemaSalida):
-    """El tiempo de una consulta (tabla 015)."""
+    """El tiempo de una consulta (tabla 015) y su intención (017, RR_33).
+
+    `id` es el identificador único de la consulta en este registro (RR_33
+    criterio 2), también para los visitantes, que no guardan consultas.
+    """
 
     id: int
     registrada_en: datetime
@@ -40,7 +51,15 @@ class RegistroTiempo(EsquemaSalida):
     tipo_sesion: TipoSesion
     especie_id: str | None
     consulta_id: int | None  # solo de cuentas registradas
+    intencion: IntencionConsulta | None = None  # None: registrada antes de la tabla 017
     lenta: bool  # duracion_ms >= umbral_lenta_ms
+
+
+class ConteoIntencion(EsquemaSalida):
+    """RR_33: cuántas consultas del periodo tuvieron una intención."""
+
+    intencion: IntencionConsulta | None  # None: registradas antes de la tabla 017
+    total: int
 
 
 class ResumenTiempos(EsquemaSalida):
@@ -53,6 +72,8 @@ class ResumenTiempos(EsquemaSalida):
     promedio_ms: int | None  # None si no hubo consultas en el periodo
     p95_ms: int | None  # el 95 % de las consultas tardó esto o menos
     maximo_ms: int | None
+    # RR_33 criterio 3: cuántas consultas hubo de cada intención en el periodo.
+    por_intencion: list[ConteoIntencion] = Field(default_factory=list)
     registros: list[RegistroTiempo]
 
 

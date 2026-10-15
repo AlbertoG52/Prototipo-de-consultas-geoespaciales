@@ -1048,6 +1048,7 @@ def test_la_consulta_filtra_por_zona(crbiolm, visitante):
     assert datos["texto"] == texto
     assert datos["respuesta"]["total_registros"] == 3
 
+
 def test_el_registro_trae_la_fecha_de_gbif(crbiolm):
     respuesta = crbiolm.construir_respuesta("quercus-costaricensis", "")
     assert respuesta.registros[0].fecha == "2019-03-14"
@@ -1066,3 +1067,51 @@ def test_el_registro_trae_la_fecha_de_gbif(crbiolm):
 )
 def test_formato_de_la_fecha(fecha, esperada):
     assert catalogo_crbiolm._fecha({"date": fecha}) == esperada
+
+
+# --- RR_29: clasificación del tipo de consulta ------------------------------------------
+
+
+def test_una_pregunta_de_habitat_se_responde_con_el_habitat_de_la_ficha(crbiolm):
+    """Criterio 2. Quercus oleoides no tiene fragmento ni respuesta del LLM en el falso."""
+    respuesta = crbiolm.construir_respuesta(
+        "quercus-oleoides", "¿En qué tipo de bosque vive Quercus oleoides?"
+    )
+    assert respuesta.tipo == "habitat"
+    assert respuesta.texto == "Crece entre 0 y 800 m de elevación."
+    assert respuesta.registros  # RR_41: GBIF se sigue pidiendo
+
+
+def test_el_tipo_usa_los_tipos_de_bosque_del_vocabulario(crbiolm, monkeypatch):
+    pregunta = "¿Hay Quercus oleoides en turbera?"
+    sin_vocabulario = crbiolm.construir_respuesta("quercus-oleoides", pregunta)
+    monkeypatch.setattr(crbiolm, "_vocabulario", lambda: {"forest_types": ["turbera"]})
+    con_vocabulario = crbiolm.construir_respuesta("quercus-oleoides", pregunta)
+    assert (sin_vocabulario.tipo, con_vocabulario.tipo) == ("general", "habitat")
+
+
+# --- RR_35: CR-BioLM recibe el nombre como en el catálogo -----------------------------
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿Dónde crece myrsine coriacea?",
+        "¿DÓNDE CRECE MYRSINE CORIACEA?",
+        "¿Dónde crece Mýrsine coriácea?",
+    ],
+)
+def test_el_llm_recibe_el_nombre_como_en_el_catalogo(crbiolm, texto):
+    """Criterio 3: sin esto, CR-BioLM no reconoce la especie y el LLM no responde."""
+    respuesta = crbiolm.construir_respuesta("myrsine-coriacea", texto)
+    [pregunta] = pedidos_a_ia
+    assert "Myrsine coriacea" in pregunta
+    assert respuesta.texto == TEXTO_IA
+
+
+def test_la_persona_sigue_viendo_lo_que_escribio(crbiolm, visitante):
+    texto = "¿DÓNDE CRECE MYRSINE CORIÁCEA?"
+    datos = api.post("/consultas", headers=visitante, json={"texto": texto}).json()
+    assert datos["estado"] == "resuelta"
+    assert datos["texto"] == texto  # lo guardado y mostrado no cambia
+    assert datos["respuesta"]["texto"] == TEXTO_IA

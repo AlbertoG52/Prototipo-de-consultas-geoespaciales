@@ -62,7 +62,7 @@ from itertools import pairwise
 from typing import Any
 
 from .. import config
-from ..sanitizacion import normalizar
+from ..sanitizacion import con_nombre_canonico, normalizar
 from ..schemas.consulta import (
     EspecieCandidata,
     FichaEspecie,
@@ -173,6 +173,11 @@ class CatalogoCRBioLM:
         if texto_consulta and normalizar(nombre) not in normalizar(texto_consulta):
             # RR_23: el Manual y el LLM reciben la pregunta con el nombre corregido.
             texto_consulta = corregir_nombres(texto_consulta, self._nombres())
+        # RR_35: y escrito como en el catálogo, sin importar mayúsculas ni tildes.
+        # CR-BioLM reconoce la especie de la pregunta solo si está escrita así
+        # ("Quercus costaricensis"); si no, la toma como una pregunta por varias
+        # especies y la respuesta del LLM no sirve (RR_49).
+        texto_consulta = con_nombre_canonico(texto_consulta, nombre)
         contexto = self.contexto(nombre, texto_consulta)
         if contexto is None:
             return None
@@ -187,6 +192,7 @@ class CatalogoCRBioLM:
             mapa=contexto.mapa_especie(_url_del_mapa(contexto.especie)),
             avisos=contexto.avisos,
             geoespacial=contexto.geoespacial,
+            tipo=contexto.tipo,
             procedencia=contexto.procedencia(),
         )
 
@@ -243,7 +249,8 @@ class CatalogoCRBioLM:
         if manual is None:
             return None
         especie = str(manual.valor["species"])
-        intencion = analizar(pregunta, especie)
+        # RR_29: los tipos de bosque del vocabulario (el de RR_39) también son hábitat.
+        intencion = analizar(pregunta, especie, self._vocabulario() if pregunta else None)
         fragmento = _fragmento(especie, pregunta) if intencion.pregunta_especifica else None
 
         ocurrencias = _ocurrencias(especie)

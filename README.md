@@ -138,6 +138,7 @@ Cada cambio a la base es un archivo SQL numerado en `Backend/migrations/`:
 | `014_verificar_cuentas_existentes.sql` | marca como verificadas las cuentas creadas antes de RR_00_07 |
 | `015_tiempos_respuesta.sql` | tiempo de respuesta de cada consulta, para RR_57 |
 | `016_consultas_de_orientacion.sql` | estado `orientacion` y columna `motivo` (saludo, ayuda, idioma…), para RR_22, RR_32, RR_37 y RR_40 |
+| `017_intencion_de_consulta.sql` | intención de cada consulta en `tiempos_respuesta`, para RR_33 (y RR_29 criterio 3) |
 
 Para agregar un cambio:
 1. Se crea un archivo nuevo, p.ej. `011_....sql`.
@@ -175,7 +176,7 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | PATCH | `/admin/usuarios/{id}/estado` | activar o desactivar (no a sí mismo: 409) | supermoderador |
 | PATCH | `/admin/usuarios/{id}/rol` | cambiar el rol (no a sí mismo: 409) | supermoderador |
 | GET | `/admin/auditoria` | registro de acciones administrativas (RR_00_09) | supermoderador |
-| GET | `/admin/tiempos` | tiempos de respuesta de las consultas; `?solo_lentas=true` filtra las lentas (RR_57) | supermoderador |
+| GET | `/admin/tiempos` | tiempos de respuesta de las consultas; `?solo_lentas=true` filtra las lentas (RR_57); intención de cada una y conteo por intención (RR_33) | supermoderador |
 
 ### Control de acceso por rol
 
@@ -316,6 +317,21 @@ igual.
   máximo y cuántas fueron lentas en los últimos `dias` (7 por defecto), con las
   consultas más recientes; `solo_lentas=true` deja solo las lentas.
 
+### Intención de cada consulta (RR_33)
+
+La misma fila de `tiempos_respuesta` guarda la **intención** (tabla 017,
+`dominio.IntencionConsulta`): el tipo de pregunta de RR_29 (`distribucion`,
+`habitat`, `descripcion`, `general`) o el motivo de una orientación
+(`saludo`, `ayuda`, `idioma`, `sin_sentido`, `fuera_de_tema`).
+
+- Se fija antes de procesar, a partir del texto, así que queda también si la
+  consulta se corta por tiempo o falla. Al terminar se precisa con lo que se
+  respondió ("fuera de tema" solo se sabe después de buscar).
+- Cada fila tiene su `id` único y, si es de una cuenta, `consulta_id`. Del
+  visitante no se guarda el texto.
+- `GET /admin/tiempos` trae la `intencion` de cada registro y `por_intencion`:
+  cuántas consultas hubo de cada una en el periodo. El log también la anota.
+
 ---
 
 ## El catálogo de especies
@@ -387,6 +403,21 @@ palabras clave):
   `geoespacial` (false solo para descripción). Los registros de GBIF y el mapa
   se piden **siempre** que existan, porque RR_52, RR_46 y RR_59 piden mostrar
   la distribución y la cantidad de registros cuando hay datos.
+- **RR_29 — clasificación del tipo de consulta**: hábitat = "hábitat",
+  "ambiente", "bosque", "páramo", "epífita"… (lista `HABITAT`) más los tipos de
+  bosque del vocabulario de CR-BioLM (`get_vocabulary`, el mismo que carga
+  RR_39), sin los ambiguos ("roble", "seco", "húmedo"). Lo geográfico gana
+  ("¿en qué provincia…?"), pero "crece" o "se encuentra" junto a una palabra de
+  hábitat es hábitat ("¿en qué bosque crece…?"). Qué fuente da el texto según el
+  tipo, si no lo redactó el LLM (RR_49) ni hay fragmento (RR_44):
+
+  | Tipo | Texto |
+  |---|---|
+  | distribución, general | párrafo de distribución del Manual |
+  | hábitat | campos de la ficha: forma de crecimiento, tipo de bosque, vertiente y elevación (`services/habitat.py`); sin esos datos, el párrafo de distribución |
+  | descripción | morfología |
+
+  La respuesta trae el `tipo`, que se registra con RR_33.
 - **RR_44 — búsqueda semántica sobre el Manual**: si la consulta pregunta algo
   concreto, el texto de la respuesta es el fragmento del Manual de **esa**
   especie que mejor lo responde, buscado por significado en los datos
