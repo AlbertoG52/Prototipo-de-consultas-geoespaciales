@@ -133,3 +133,29 @@ def normalizar(texto: str) -> str:
     """
     sin_acentos = unicodedata.normalize("NFD", texto.lower())
     return "".join(c for c in sin_acentos if unicodedata.category(c) != "Mn")
+
+
+# Una palabra del texto: letras y guiones (el mismo criterio que buscar_especies).
+_PALABRA = re.compile(r"[^\W\d_][\w-]*")
+
+
+def con_nombre_canonico(texto: str, nombre: str) -> str:
+    """RR_35 criterio 3: `texto` con el nombre de la especie escrito como en el catálogo.
+
+    "¿Dónde crece QUÉRCUS costaricénsis?" -> "¿Dónde crece Quercus costaricensis?".
+    Se usa para la pregunta que se envía a CR-BioLM (LLM y fragmento del Manual),
+    que busca la especie con su propia regla, sensible a mayúsculas y tildes. El
+    texto que se guarda y se muestra no pasa por aquí. Si el nombre no aparece
+    (sin importar mayúsculas ni tildes), el texto queda igual.
+    """
+    buscadas = _PALABRA.findall(normalizar(nombre))
+    palabras = list(_PALABRA.finditer(texto))
+    n = len(buscadas)
+    for i in range(len(palabras) - n + 1):
+        ventana = palabras[i : i + n]
+        if [normalizar(p.group()) for p in ventana] == buscadas:
+            # Se reemplaza del inicio de la primera palabra al fin de la última, así
+            # que un "var." en medio también queda como en el catálogo.
+            inicio, fin = ventana[0].start(), ventana[-1].end()
+            return texto[:inicio] + nombre + texto[fin:]
+    return texto

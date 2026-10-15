@@ -10,7 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from app import config
-from app.sanitizacion import limpiar_consulta, normalizar
+from app.sanitizacion import con_nombre_canonico, limpiar_consulta, normalizar
 from app.schemas.consulta import ConsultaRequest
 from app.services.catalogo import CatalogoDemo
 from app.services.intencion import analizar
@@ -183,3 +183,30 @@ def test_la_normalizacion_es_para_comparar():
     assert normalizar("Guaría MORADA") == "guaria morada"
     consulta = ConsultaRequest(texto="Guaría MORADA")
     assert consulta.texto == "Guaría MORADA"
+
+
+# --- RR_35 criterio 3: la pregunta que recibe CR-BioLM ------------------------------
+
+
+@pytest.mark.parametrize(
+    ("texto", "esperado"),
+    [
+        ("¿Dónde crece QUERCUS COSTARICENSIS?", "¿Dónde crece Quercus costaricensis?"),
+        (
+            "¿dónde crece quércus costaricénsis en Talamanca?",
+            "¿dónde crece Quercus costaricensis en Talamanca?",
+        ),
+        ("¿Dónde crece Quercus costaricensis?", "¿Dónde crece Quercus costaricensis?"),
+        ("¿Dónde crece el roble negro?", "¿Dónde crece el roble negro?"),  # no aparece: igual
+        ("Quercus", "Quercus"),  # el género solo no es el nombre
+    ],
+)
+def test_cr_biolm_recibe_el_nombre_como_en_el_catalogo(texto, esperado):
+    # CR-BioLM reconoce la especie solo si está escrita como en el catálogo.
+    assert con_nombre_canonico(texto, "Quercus costaricensis") == esperado
+
+
+def test_el_nombre_con_rango_infraespecifico_tambien_se_corrige():
+    texto = "Ficha de INGA EDULIS VAR. MINUTULA, por favor"
+    esperado = "Ficha de Inga edulis var. minutula, por favor"
+    assert con_nombre_canonico(texto, "Inga edulis var. minutula") == esperado
