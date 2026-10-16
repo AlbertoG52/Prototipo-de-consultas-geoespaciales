@@ -56,9 +56,12 @@ FICHA = "ficha de la especie"
 DE_LA_PREGUNTA = "fragmento más relacionado con la pregunta"  # RR_44
 DETALLE_HABITAT = "hábitat: forma de crecimiento, tipo de bosque, vertiente y elevación"  # RR_29
 DETALLE_REGISTROS = "registros de presencia en Costa Rica, consultados en vivo"
+# Las mismas fuentes que acredita el pie del mapa de CR-BioLM (render_species_map).
+# Si José cambia las capas del mapa, hay que actualizar este texto.
 DETALLE_MAPA = (
-    "elaborado con el Manual, los registros de GBIF, un modelo de elevación "
-    "y las regiones botánicas"
+    "elaborado con las regiones botánicas de M. V. Castro (Manual de Plantas de "
+    "Costa Rica), las áreas silvestres protegidas del SINAC, la altitud de SRTM e "
+    "INEC y los registros de GBIF"
 )
 
 

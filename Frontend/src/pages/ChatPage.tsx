@@ -31,10 +31,12 @@ import { incorporarNombre, nombreAInsertar, palabraEnCurso } from "../utils/suge
 const PROPORCION_AVISO_LIMITE = 0.8;
 
 const CONSULTAS_DE_EJEMPLO = [
-  "¿Dónde se encuentra la guaria morada?",
-  "Distribución de Cedrela odorata",
-  "¿Dónde crece el pejibaye?",
+  "¿Dónde crece Quercus costaricensis?",
+  "Distribución de Cedrela tonduzii",
+  "¿Dónde se encuentra Bactris gasipaes?",
 ];
+
+const ATAJOS = "Enter para enviar · Shift+Enter para nueva línea · ↑ para editar la última consulta";
 
 /** Una consulta de ejemplo: al tocarla se copia al campo de texto para enviarla o editarla. */
 function BotonDeEjemplo({ texto, onUsar }: { texto: string; onUsar: (texto: string) => void }) {
@@ -86,6 +88,30 @@ export function ChatPage() {
   const [entrada, setEntrada] = useState("");
   const finRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
+  const areaConsultaRef = useRef<HTMLDivElement>(null);
+  const contenidoConsultaRef = useRef<HTMLDivElement>(null);
+
+  // Altura natural del área de la consulta -> --alto-pie-chat, para alinearla
+  // con el pie de la barra lateral (ver pages/Root.tsx).
+  useEffect(() => {
+    const area = areaConsultaRef.current;
+    const contenido = contenidoConsultaRef.current;
+    if (!area || !contenido) return;
+    const raiz = document.documentElement.style;
+    const medir = () => {
+      const estilo = getComputedStyle(area);
+      const extra = ["paddingTop", "paddingBottom", "borderTopWidth"] as const;
+      const alto = contenido.offsetHeight + extra.reduce((suma, k) => suma + parseFloat(estilo[k]), 0);
+      raiz.setProperty("--alto-pie-chat", `${Math.round(alto)}px`);
+    };
+    medir();
+    const observador = new ResizeObserver(medir);
+    observador.observe(contenido);
+    return () => {
+      observador.disconnect();
+      raiz.removeProperty("--alto-pie-chat");
+    };
+  }, []);
 
   // RR_16 — se piden sugerencias 250 ms después de la última tecla, a partir de
   // 2 letras. Si llega una respuesta de una palabra anterior, se descarta.
@@ -318,8 +344,8 @@ export function ChatPage() {
 
   return (
     <>
-      <div className="px-8 py-5 border-b shrink-0" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
-        <h1 className="text-xl font-semibold" style={{ color: "var(--color-texto)" }}>
+      <div className="px-4 md:px-8 py-4 md:py-5 border-b shrink-0" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
+        <h1 className="text-lg md:text-xl font-semibold" style={{ color: "var(--color-texto)" }}>
           Flora de Costa Rica
         </h1>
         <p className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>
@@ -327,8 +353,8 @@ export function ChatPage() {
         </p>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-8 py-6" style={{ background: "var(--color-fondo)" }}>
-        <div className="flex flex-col gap-6 max-w-2xl">
+      <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6" style={{ background: "var(--color-fondo)" }}>
+        <div className="flex flex-col gap-6 w-full max-w-4xl mx-auto">
           {mensajes.length === 0 && (
             <div className="rounded-2xl px-6 py-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
               <h2 className="text-base font-semibold mb-1" style={{ color: "var(--color-texto)" }}>
@@ -338,6 +364,13 @@ export function ChatPage() {
                 Escribe abajo el nombre común o científico de una especie y te muestro dónde se
                 ha registrado y qué se sabe de ella.
               </p>
+              {/* RR_02 — ejemplos de consulta; solo con la conversación vacía. */}
+              <div className="flex items-center gap-2 flex-wrap mt-4">
+                <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>Prueba con:</span>
+                {CONSULTAS_DE_EJEMPLO.map((ej) => (
+                  <BotonDeEjemplo key={ej} texto={ej} onUsar={usarEjemplo} />
+                ))}
+              </div>
             </div>
           )}
           {mensajes.map((m) => (
@@ -349,15 +382,25 @@ export function ChatPage() {
         </div>
       </div>
 
-      <div className="px-8 py-5 border-t shrink-0" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
-        {/*
-          RR_16 — mientras hay sugerencias ocupan el lugar de los ejemplos (RR_02).
-          Cada una muestra el nombre común y el científico; al elegirla se
-          incorpora al campo en lugar de lo que se venía escribiendo.
-        */}
-        <div className="flex items-center gap-2 flex-wrap mb-3">
-          {sugerencias.length > 0 ? (
-            <>
+      {/*
+        La conversación y esta área van en una columna centrada de max-w-4xl.
+        En pantallas grandes esta área y el pie de la barra lateral usan la misma
+        altura mínima, para que sus líneas divisorias queden alineadas (ver
+        pages/Root.tsx).
+      */}
+      <div
+        ref={areaConsultaRef}
+        className="px-4 md:px-8 py-3 md:py-4 border-t shrink-0 flex flex-col justify-center md:min-h-[max(var(--alto-pie-lateral,0px),var(--alto-pie-chat,0px))]"
+        style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}
+      >
+        <div ref={contenidoConsultaRef} className="w-full max-w-4xl mx-auto">
+          {/*
+            RR_16 — sugerencias de nombres mientras se escribe; solo aparecen
+            cuando hay. Cada una muestra el nombre científico y el común; al
+            elegirla se incorpora al campo en lugar de lo que se venía escribiendo.
+          */}
+          {sugerencias.length > 0 && (
+            <div className="flex items-center gap-2 flex-wrap mb-3">
               <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>Sugerencias:</span>
               {sugerencias.map((s) => (
                 <button
@@ -374,105 +417,101 @@ export function ChatPage() {
                   {s.nombre_comun && <span style={{ color: "var(--color-texto-secundario)" }}> · {s.nombre_comun}</span>}
                 </button>
               ))}
-            </>
-          ) : (
-          <>
-          <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>Ejemplos:</span>
-          {CONSULTAS_DE_EJEMPLO.map((ej) => (
-            <BotonDeEjemplo key={ej} texto={ej} onUsar={usarEjemplo} />
-          ))}
-          </>
+            </div>
           )}
-        </div>
 
-        {!sesion && (
+          {!sesion && (
+            <div
+              role="status"
+              className="rounded-xl px-4 py-3 mb-3 text-sm"
+              style={{ background: "var(--color-superficie-suave)", border: "1px solid var(--color-borde)", color: "var(--color-texto-secundario)" }}
+            >
+              {conectando
+                ? "Conectando con el servidor… la consulta se habilita apenas responda."
+                : "Cargando…"}
+            </div>
+          )}
+
+          {sinConsultas && (
+            <div
+              className="rounded-xl px-4 py-3 mb-3 text-sm"
+              style={{ background: "var(--color-error-fondo)", border: "1px solid var(--color-error-borde)", color: "var(--color-error-texto)" }}
+            >
+              Agotaste tus consultas de hoy.{" "}
+              {sesion?.tipo === "anonimo" && (
+                <button
+                  onClick={() => navigate("/register")}
+                  className="font-medium underline"
+                  style={{ color: "var(--color-error-texto)", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
+                >
+                  Crea una cuenta para obtener más.
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* RR_02 — campo de texto libre en español para la consulta. */}
           <div
-            role="status"
-            className="rounded-xl px-4 py-3 mb-3 text-sm"
-            style={{ background: "var(--color-superficie-suave)", border: "1px solid var(--color-borde)", color: "var(--color-texto-secundario)" }}
-          >
-            {conectando
-              ? "Conectando con el servidor… la consulta se habilita apenas responda."
-              : "Cargando…"}
-          </div>
-        )}
-
-        {sinConsultas && (
-          <div
-            className="rounded-xl px-4 py-3 mb-3 text-sm"
-            style={{ background: "var(--color-error-fondo)", border: "1px solid var(--color-error-borde)", color: "var(--color-error-texto)" }}
-          >
-            Agotaste tus consultas de hoy.{" "}
-            {sesion?.tipo === "anonimo" && (
-              <button
-                onClick={() => navigate("/register")}
-                className="font-medium underline"
-                style={{ color: "var(--color-error-texto)", border: "none", background: "transparent", cursor: "pointer", padding: 0 }}
-              >
-                Crea una cuenta para obtener más.
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* RR_02 — campo de texto libre en español para la consulta. */}
-        <div
-          className="flex items-end gap-3 rounded-2xl px-4 py-3"
-          style={{ border: "1.5px solid var(--color-borde-fuerte)", background: "var(--color-fondo)" }}
-          onFocusCapture={(e) => {
-            e.currentTarget.style.borderColor = "var(--color-borde-marca)";
-          }}
-          onBlurCapture={(e) => {
-            e.currentTarget.style.borderColor = "var(--color-borde-fuerte)";
-          }}
-        >
-          <textarea
-            ref={areaRef}
-            value={entrada}
-            onChange={alCambiar}
-            onKeyDown={alTeclear}
-            disabled={bloqueado}
-            aria-label="Consulta sobre flora costarricense"
-            aria-invalid={excede}
-            aria-describedby="limite-consulta"
-            placeholder="Escribe tu consulta sobre flora costarricense..."
-            rows={1}
-            className="flex-1 resize-none bg-transparent text-sm outline-none"
-            style={{ color: "var(--color-texto)", lineHeight: "1.5", maxHeight: 120 }}
-          />
-          <button
-            onClick={() => void mandar()}
-            disabled={!puedeEnviar}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-all shrink-0"
-            style={{
-              background: puedeEnviar ? "var(--color-marca)" : "var(--color-borde-fuerte)",
-              color: puedeEnviar ? "var(--color-sobre-marca)" : "var(--color-texto-tenue)",
-              border: "none",
-              cursor: puedeEnviar ? "pointer" : "default",
+            className="flex items-end gap-3 rounded-2xl px-4 py-2"
+            style={{ border: "1.5px solid var(--color-borde-fuerte)", background: "var(--color-fondo)" }}
+            onFocusCapture={(e) => {
+              e.currentTarget.style.borderColor = "var(--color-borde-marca)";
+            }}
+            onBlurCapture={(e) => {
+              e.currentTarget.style.borderColor = "var(--color-borde-fuerte)";
             }}
           >
-            <Send size={14} />
-            Enviar
-          </button>
-        </div>
-        {/* RR_34 criterios 2 y 3 — el contador aparece cerca del límite y avisa al pasarlo. */}
-        <div id="limite-consulta" aria-live="polite">
-          {limite !== undefined && (excede || cercaDelLimite) && (
-            <p
-              className="flex items-center justify-end gap-1.5 text-xs mt-2"
-              style={{ color: excede ? "var(--color-error-texto)" : "var(--color-texto-tenue)" }}
+            <textarea
+              ref={areaRef}
+              value={entrada}
+              onChange={alCambiar}
+              onKeyDown={alTeclear}
+              disabled={bloqueado}
+              aria-label="Consulta sobre flora costarricense"
+              aria-invalid={excede}
+              aria-describedby="limite-consulta atajos-consulta"
+              title={ATAJOS}
+              placeholder="Escribe tu consulta sobre flora costarricense..."
+              rows={1}
+              className="flex-1 min-w-0 resize-none bg-transparent text-sm outline-none self-center"
+              style={{ color: "var(--color-texto)", lineHeight: "1.5", maxHeight: 120 }}
+            />
+            <button
+              onClick={() => void mandar()}
+              disabled={!puedeEnviar}
+              title={ATAJOS}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-sm font-medium transition-all shrink-0"
+              style={{
+                background: puedeEnviar ? "var(--color-marca)" : "var(--color-borde-fuerte)",
+                color: puedeEnviar ? "var(--color-sobre-marca)" : "var(--color-texto-tenue)",
+                border: "none",
+                cursor: puedeEnviar ? "pointer" : "default",
+              }}
             >
-              {excede && <CircleAlert size={12} />}
-              {excede && <span>{textoConsultaLarga(limite)}</span>}
-              <span style={{ fontFamily: "var(--font-mono)" }}>
-                {largo}/{limite}
-              </span>
-            </p>
-          )}
+              <Send size={14} />
+              Enviar
+            </button>
+          </div>
+          {/* RR_34 criterios 2 y 3 — el contador aparece cerca del límite y avisa al pasarlo. */}
+          <div id="limite-consulta" aria-live="polite">
+            {limite !== undefined && (excede || cercaDelLimite) && (
+              <p
+                className="flex items-center justify-end gap-1.5 text-xs mt-2"
+                style={{ color: excede ? "var(--color-error-texto)" : "var(--color-texto-tenue)" }}
+              >
+                {excede && <CircleAlert size={12} />}
+                {excede && <span>{textoConsultaLarga(limite)}</span>}
+                <span style={{ fontFamily: "var(--font-mono)" }}>
+                  {largo}/{limite}
+                </span>
+              </p>
+            )}
+          </div>
+          {/* Atajos de teclado: para lectores de pantalla; a la vista, en el tooltip del campo y de Enviar. */}
+          <p id="atajos-consulta" className="sr-only">
+            {ATAJOS}
+          </p>
         </div>
-        <p className="text-center text-xs mt-2" style={{ color: "var(--color-texto-tenue)" }}>
-          Enter para enviar · Shift+Enter para nueva línea · ↑ para editar la última consulta
-        </p>
       </div>
 
       <style>{`@keyframes rebote { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }`}</style>

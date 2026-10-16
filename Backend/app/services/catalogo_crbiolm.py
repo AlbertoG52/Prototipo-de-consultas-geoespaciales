@@ -219,12 +219,7 @@ class CatalogoCRBioLM:
         )
 
     def obtener_mapa(self, especie_id: str) -> bytes | None:
-        """PNG del mapa (GET /especies/{id}/mapa).
-
-        Sale de la memoria si ya se generó para una respuesta. Si no, se aplican
-        las mismas reglas que en la respuesta (RR_60, RR_43, RR_58): sin
-        registros suficientes no hay mapa.
-        """
+        """PNG del mapa (GET /especies/{id}/mapa)."""
         with self._candado:
             if especie_id in self._mapas:
                 self._mapas.move_to_end(especie_id)
@@ -234,10 +229,6 @@ class CatalogoCRBioLM:
 
     def contexto(self, nombre: str, pregunta: str = "") -> ContextoEspecie | None:
         """RR_45: toda la información validada de la especie, como un contexto único.
-
-        None si la especie no está en el catálogo. Siempre se piden la ficha, los
-        registros de GBIF y el mapa (RR_52, RR_46, RR_59). La pregunta decide:
-
         - RR_41: su tipo, que elige el texto (contexto_especie.py).
         - RR_44: si pregunta algo concreto, se busca el fragmento del Manual.
         - RR_39: si menciona una región o vertiente, los registros y su conteo
@@ -337,7 +328,7 @@ def _url_del_mapa(especie: str) -> str:
     return f"/especies/{a_id(especie)}/mapa"
 
 
-#Manual vectorizado: el fragmento que responde la pregunta (RR_44)
+# --- Manual vectorizado: el fragmento que responde la pregunta (RR_44) --------
 
 
 def _fragmento(especie: str, pregunta: str) -> Fragmento | None:
@@ -379,7 +370,7 @@ def _fragmento(especie: str, pregunta: str) -> Fragmento | None:
     return Fragmento(texto=texto, seccion=str(mejor.get("section") or ""))
 
 
-#RR_49: respuesta redactada por el LLM de CR-BioLM
+# --- RR_49: respuesta redactada por el LLM de CR-BioLM ------------------------
 
 
 def _con_redaccion_ia(contexto: ContextoEspecie, pregunta: str) -> ContextoEspecie:
@@ -611,12 +602,13 @@ def _registro(punto: dict[str, Any]) -> RegistroPresencia:
     """Un punto de GBIF ya limpiado por CR-BioLM (RR_42 criterio 3) y validado (RR_60)."""
     return RegistroPresencia(
         localidad=punto.get("region") or SIN_DATO,
-        fecha=_fecha(punto),  # CR-BioLM todavía no entrega la fecha del registro
+        fecha=_fecha(punto),
         latitud=punto["lat"],
         longitud=punto["lon"],
         elevacion_m=punto.get("elev_m"),
         fuente=FUENTE_GBIF,
     )
+
 
 def _fecha(punto: dict[str, Any]) -> str:
     """La fecha del registro en GBIF ('2019-03-14', '2019-03' o '2019'), o SIN_DATO.

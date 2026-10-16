@@ -84,23 +84,23 @@ export function AdminPage() {
   return (
     <>
       {/* Header */}
-      <div className="px-8 py-5 border-b shrink-0" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
+      <div className="px-4 md:px-8 py-4 md:py-5 border-b shrink-0" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
         <h1 className="text-xl font-semibold" style={{ color: "var(--color-texto)" }}>Panel de Administración</h1>
         <p className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>Gestión de usuarios, roles y control de consultas — Supermoderador</p>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sub-nav */}
-        <nav className="shrink-0 py-4 flex flex-col gap-1 border-r" style={{ width: 200, background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
+      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
+        {/* Sub-nav: pestañas arriba en pantallas chicas, columna a la izquierda en grandes. */}
+        <nav className="shrink-0 py-2 md:py-4 flex flex-row md:flex-col gap-1 overflow-x-auto border-b md:border-b-0 md:border-r md:w-[200px]" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
           {sections.map((s) => (
-            <button key={s.id} onClick={() => setActiveSection(s.id)} className="flex items-center gap-2.5 mx-2 px-3 py-2.5 rounded-lg text-sm text-left transition-all" style={{ background: activeSection === s.id ? "var(--color-superficie-marca)" : "transparent", color: activeSection === s.id ? "var(--color-texto)" : "var(--color-texto-secundario)", border: "none", cursor: "pointer", fontWeight: activeSection === s.id ? 500 : 400 }}>
+            <button key={s.id} onClick={() => setActiveSection(s.id)} className="flex items-center gap-2.5 mx-1 md:mx-2 px-3 py-2.5 rounded-lg text-sm text-left transition-all whitespace-nowrap shrink-0" style={{ background: activeSection === s.id ? "var(--color-superficie-marca)" : "transparent", color: activeSection === s.id ? "var(--color-texto)" : "var(--color-texto-secundario)", border: "none", cursor: "pointer", fontWeight: activeSection === s.id ? 500 : 400 }}>
               <span>{s.icon}</span>{s.label}
             </button>
           ))}
         </nav>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6" style={{ background: "var(--color-fondo)" }}>
+        <div className="flex-1 min-w-0 overflow-y-auto p-4 md:p-6" style={{ background: "var(--color-fondo)" }}>
 
           {error && (
             <div className="rounded-xl px-4 py-3 mb-4 text-sm" style={{ background: "var(--color-error-fondo)", border: "1px solid var(--color-error-borde)", color: "var(--color-error-texto)" }}>
@@ -110,7 +110,7 @@ export function AdminPage() {
 
           {/* Stats row */}
           <div className="mb-2"><DatosDeEjemplo /></div>
-          <div className="grid grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {STATS.map((s) => (
               <div key={s.label} className="rounded-2xl p-4" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
                 <div className="flex items-center justify-between mb-2">
@@ -229,7 +229,7 @@ export function AdminPage() {
                   </div>
                 ))}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="rounded-2xl p-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
                   <h3 className="font-semibold mb-4 text-sm" style={{ color: "var(--color-texto)" }}>Consultas por día (última semana)</h3>
                   <div className="flex items-end gap-2" style={{ height: 80 }}>
@@ -275,15 +275,15 @@ export function AdminPage() {
                     <div className="rounded-full p-2 shrink-0 mt-0.5" style={{ background: "var(--color-superficie-marca)" }}>
                       <ClipboardList size={12} style={{ color: "var(--color-texto-marca)" }} />
                     </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-0.5">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between flex-wrap gap-x-3 mb-0.5">
                         <span className="text-sm font-medium" style={{ color: "var(--color-texto)" }}>{ACCIONES[log.accion] ?? log.accion}</span>
                         <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>{new Date(log.fecha).toLocaleString(IDIOMA_FECHAS)}</span>
                       </div>
                       <div className="text-xs" style={{ color: "var(--color-texto-secundario)" }}>
                         Usuario afectado: <strong style={{ color: "var(--color-texto-cuerpo)" }}>{log.afectado ?? "—"}</strong> · Por: <strong style={{ color: "var(--color-texto-cuerpo)" }}>{log.actor ?? "Servidor"}</strong>
                       </div>
-                      <div className="text-xs mt-0.5 font-mono" style={{ color: "var(--color-texto-tenue)" }}>{log.detalle}</div>
+                      <div className="text-xs mt-0.5 font-mono break-words" style={{ color: "var(--color-texto-tenue)" }}>{log.detalle}</div>
                     </div>
                   </div>
                 ))}

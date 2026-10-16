@@ -497,7 +497,7 @@ export function ProfilePage() {
 
   return (
     <>
-      <div className="px-8 py-5 border-b shrink-0" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
+      <div className="px-4 md:px-8 py-4 md:py-5 border-b shrink-0" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
         <h1 className="text-xl font-semibold" style={{ color: "var(--color-texto)" }}>
           Mi perfil
         </h1>
@@ -507,7 +507,7 @@ export function ProfilePage() {
       </div>
 
       <div className="flex-1 overflow-y-auto" style={{ background: "var(--color-fondo)" }}>
-        <div className="px-8 py-8" style={{ background: "var(--color-superficie)", borderBottom: "1px solid var(--color-borde)" }}>
+        <div className="px-4 md:px-8 py-6 md:py-8" style={{ background: "var(--color-superficie)", borderBottom: "1px solid var(--color-borde)" }}>
           <div className="flex items-center gap-5 max-w-2xl">
             <div
               className="flex items-center justify-center rounded-full text-2xl font-bold"
@@ -530,7 +530,7 @@ export function ProfilePage() {
           </div>
         </div>
 
-        <div className="border-b px-8" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
+        <div className="border-b px-4 md:px-8 overflow-x-auto" style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}>
           <div className="flex gap-0 max-w-2xl" role="tablist">
             {PESTANAS.map((t) => {
               const activa = pestana === t.id;
@@ -540,7 +540,7 @@ export function ProfilePage() {
                   role="tab"
                   aria-selected={activa}
                   onClick={() => setPestana(t.id)}
-                  className="px-5 py-3.5 text-sm font-medium transition-all"
+                  className="px-4 md:px-5 py-3.5 text-sm font-medium transition-all whitespace-nowrap"
                   style={{
                     border: "none",
                     background: "transparent",
@@ -557,7 +557,7 @@ export function ProfilePage() {
           </div>
         </div>
 
-        <div className="px-8 py-6 max-w-2xl">
+        <div className="px-4 md:px-8 py-6 max-w-2xl">
           {pestana === "perfil" && <PestanaPerfil />}
           {pestana === "preferencias" && <PestanaPreferencias />}
           {pestana === "seguridad" && <PestanaSeguridad />}

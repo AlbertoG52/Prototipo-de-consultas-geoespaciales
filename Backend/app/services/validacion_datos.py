@@ -43,11 +43,7 @@ def normalizar_nombre(nombre: str) -> str:
 
 
 def misma_especie(pedida: str, recibida: Any) -> bool:
-    """True si `recibida` es exactamente la especie `pedida` (RR_60).
-
-    Solo se toleran diferencias de mayúsculas y espacios; un género, epíteto o
-    rango infraespecífico distinto no corresponde.
-    """
+    """True si `recibida` es exactamente la especie pedida (RR_60)."""
     if not isinstance(recibida, str) or not recibida.strip():
         return False
     return normalizar_nombre(pedida) == normalizar_nombre(recibida)
@@ -57,8 +53,7 @@ def punto_valido(punto: Any) -> bool:
     """True si el punto de GBIF es un registro utilizable en Costa Rica (RR_60).
 
     Descarta coordenadas ausentes, no numéricas, NaN, (0, 0) y fuera de la caja
-    de Costa Rica. CR-BioLM ya las limpia; esto evita que un dato mal formado
-    llegue a la respuesta si eso cambia.
+    de Costa Rica.
     """
     if not isinstance(punto, dict):
         return False

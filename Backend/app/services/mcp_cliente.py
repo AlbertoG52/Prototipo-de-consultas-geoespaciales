@@ -28,10 +28,6 @@ Qué hace:
   conocer los detalles del protocolo.
 - Registra en el log cuánto tardó cada llamada (el tiempo de la consulta
   completa lo registra RR_57, ver services/tiempos.py).
-
-Qué NO hace, a propósito:
-- No decide qué herramientas llamar: eso es del flujo de consultas.
-- No aplica límites ni costos por rol (RR_62, RR_77): eso va por encima.
 """
 
 from __future__ import annotations
@@ -64,20 +60,15 @@ CONFIANZA_ESTIMADA = "estimated"
 CONFIANZA_INSUFICIENTE = "insufficient"
 CONFIANZAS = (CONFIANZA_EXACTA, CONFIANZA_ESTIMADA, CONFIANZA_INSUFICIENTE)
 
-# Fallos de red en los que la petición no llegó a procesarse: vale la pena
-# reintentar si la herramienta todavía no se había pedido.
+# Fallos de red en los que la petición no llegó a procesarse
 _FALLOS_DE_CONEXION = (httpx.ConnectError, httpx.ConnectTimeout, httpx.RemoteProtocolError)
 
 
-# --- errores ------------------------------------------------------------------
+# errores
 
 
 class ErrorMCP(Exception):
-    """Cualquier fallo al usar CR-BioLM. Los routers lo traducen a RR_05.
-
-    El mensaje es para el log, no para el usuario: puede traer detalles
-    internos (URL, nombre de la herramienta, error del servidor).
-    """
+    """Cualquier fallo al usar CR-BioLM. El mensaje es para el log."""
 
     def __init__(self, herramienta: str, detalle: str):
         super().__init__(f"{herramienta}: {detalle}")
@@ -86,8 +77,7 @@ class ErrorMCP(Exception):
 
 
 class MCPNoDisponible(ErrorMCP):
-    """No se pudo hablar con el servidor: está apagado, la URL está mal o rechazó
-    la conexión. Reintentar más tarde puede funcionar."""
+    """La URL está mal o rechazó la conexión."""
 
 
 class MCPTiempoAgotado(ErrorMCP):
@@ -102,7 +92,7 @@ class MCPRespuestaInvalida(ErrorMCP):
     """La herramienta respondió algo que no es el sobre de procedencia esperado."""
 
 
-# --- resultado ----------------------------------------------------------------
+# resultado
 
 
 @dataclass(frozen=True)
@@ -146,18 +136,11 @@ class Sobre:
         )
 
 
-# --- llamadas -----------------------------------------------------------------
+# llamadas
 
 
 def llamar(herramienta: str, **argumentos: Any) -> Sobre:
-    """Llama una herramienta de CR-BioLM y devuelve su sobre.
-
-    Para código síncrono. Dentro de una función `async` use `allamar`, porque
-    esta función abre su propio ciclo de eventos.
-
-    Los argumentos en None se omiten: en CR-BioLM, omitir un filtro es la forma
-    de no aplicarlo.
-    """
+    """Llama una herramienta de CR-BioLM y devuelve su sobre."""
     return anyio.run(partial(allamar, herramienta, **argumentos))
 
 
@@ -185,12 +168,10 @@ def herramientas_disponibles() -> list[str]:
         raise
 
 
-# --- detalles internos --------------------------------------------------------
+# detalles internos
 
 
 class _Progreso:
-    """Recuerda si la herramienta ya se pidió, para no reintentar en ese caso."""
-
     def __init__(self) -> None:
         self.pedida = False
 
@@ -209,6 +190,7 @@ async def _listar_herramientas(progreso: _Progreso) -> list[str]:
         respuesta = await sesion.list_tools()
         return [herramienta.name for herramienta in respuesta.tools]
 
+
 @asynccontextmanager
 async def _sesion() -> AsyncIterator[ClientSession]:
     """Conexión HTTP + sesión MCP ya inicializada."""
@@ -221,13 +203,9 @@ async def _sesion() -> AsyncIterator[ClientSession]:
         await sesion.initialize()
         yield sesion
 
-async def _con_reintentos(herramienta: str, operacion, *argumentos):
-    """Ejecuta `operacion` con tiempo máximo y reintentos de conexión.
 
-    Se reintenta solo si no se pudo conectar Y la herramienta todavía no se
-    había pedido. Entre intentos se espera MCP_ESPERA_REINTENTO_SEGUNDOS, salvo
-    que a la consulta ya no le alcance el tiempo para otro intento (RR_38).
-    """
+async def _con_reintentos(herramienta: str, operacion, *argumentos):
+    """Ejecuta `operacion` con tiempo máximo y reintentos de conexión (RR_38)."""
     intentos = config.MCP_REINTENTOS_CONEXION + 1
     for intento in range(1, intentos + 1):
         limite = _tiempo_para_la_llamada(herramienta)
@@ -254,6 +232,7 @@ async def _con_reintentos(herramienta: str, operacion, *argumentos):
             raise error from exc
     raise AssertionError("inalcanzable")  # el ciclo siempre retorna o lanza
 
+
 def _tiempo_para_la_llamada(herramienta: str) -> float:
     """MCP_TIMEOUT_SEGUNDOS, o lo que le quede a la consulta si es menos (RR_38)."""
     restantes = segundos_restantes()
@@ -263,11 +242,9 @@ def _tiempo_para_la_llamada(herramienta: str) -> float:
         raise MCPTiempoAgotado(herramienta, "la consulta ya había agotado su tiempo máximo")
     return min(config.MCP_TIMEOUT_SEGUNDOS, restantes)
 
-def _clasificar(herramienta: str, exc: Exception, limite: float) -> tuple[ErrorMCP, bool]:
-    """Traduce un fallo del SDK o de la red a un ErrorMCP del proyecto.
 
-    El booleano dice si vale la pena reintentar: solo cuando no se pudo conectar.
-    """
+def _clasificar(herramienta: str, exc: Exception, limite: float) -> tuple[ErrorMCP, bool]:
+    """Traduce un fallo del SDK o de la red a un ErrorMCP del proyecto."""
     if _contiene(exc, TimeoutError):
         detalle = f"superó {limite:g} s sin responder"
         return MCPTiempoAgotado(herramienta, detalle), False
