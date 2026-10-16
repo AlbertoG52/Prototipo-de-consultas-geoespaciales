@@ -721,8 +721,9 @@ def test_cada_dato_dice_de_donde_sale(crbiolm):
     )
     assert origen["mapa"] == (
         "CR-BioLM",
-        "elaborado con el Manual, los registros de GBIF, un modelo de elevación "
-        "y las regiones botánicas",
+        "elaborado con las regiones botánicas de M. V. Castro (Manual de Plantas de "
+        "Costa Rica), las áreas silvestres protegidas del SINAC, la altitud de SRTM e "
+        "INEC y los registros de GBIF",
     )
 
 

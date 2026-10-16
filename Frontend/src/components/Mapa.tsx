@@ -3,13 +3,14 @@
  * RR_52, RR_53, RR_12 y RR_19.
  *
  * Todos los mapas vienen de CR-BioLM (PNG). Si la respuesta no trae mapa, no
- * se muestra ninguno. El detalle de un registro (RR_12) y el filtro por
- * elevación (RR_19) trabajan sobre la tabla de registros, porque en una imagen
- * no se puede seleccionar ni ocultar puntos.
+ * se muestra ninguno. El detalle de un registro (RR_12, en una ventana) y el
+ * filtro por elevación (RR_19) trabajan sobre la tabla de registros, porque en
+ * una imagen no se puede seleccionar ni ocultar puntos.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
-import { Download, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Maximize2, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
 import * as api from "../services/api";
 import type { MapaEspecie, RegistroPresencia } from "../types";
 import { RANGO_VACIO, type RangoElevacion } from "../utils/elevacion";
@@ -66,6 +67,9 @@ function useImagenMapa(ruta: string): EstadoImagen {
  *
  * RR_15: "Descargar mapa" baja este mismo PNG.
  * RR_59: debajo del mapa se indica cuántos registros de GBIF tiene dibujados.
+ *
+ * Al hacer clic en el mapa, o en "Pantalla completa", se abre en grande
+ * (VisorMapa). Se usa en el chat (TarjetaRespuesta) y en la ficha (SpeciesPage).
  */
 export function MapaCRBioLM({
   mapa,
@@ -79,11 +83,21 @@ export function MapaCRBioLM({
   nombreArchivo: string;
 }) {
   const imagen = useImagenMapa(mapa.url);
+  const [ampliado, setAmpliado] = useState(false);
+  const textoAlternativo = `Mapa de distribución de ${especie} en Costa Rica, generado por CR-BioLM.`;
 
   return (
     <figure className="m-0">
       {imagen.tipo === "lista" && (
-        <div className="flex justify-end mb-1">
+        <div className="flex justify-end gap-1 mb-1">
+          <button
+            onClick={() => setAmpliado(true)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all"
+            style={{ color: "var(--color-texto-tenue)", background: "transparent", border: "none", cursor: "pointer" }}
+          >
+            <Maximize2 size={12} />
+            Pantalla completa
+          </button>
           <a
             href={imagen.url}
             download={nombreArchivo}
@@ -110,13 +124,26 @@ export function MapaCRBioLM({
           </p>
         )}
         {imagen.tipo === "lista" && (
-          <img
-            src={imagen.url}
-            alt={`Mapa de distribución de ${especie} en Costa Rica, generado por CR-BioLM.`}
-            className="w-full h-auto block"
-          />
+          <button
+            onClick={() => setAmpliado(true)}
+            aria-label={`Ver el mapa de ${especie} en pantalla completa`}
+            title="Ver en pantalla completa"
+            className="w-full block p-0"
+            style={{ border: "none", background: "transparent", cursor: "zoom-in" }}
+          >
+            <img src={imagen.url} alt={textoAlternativo} className="w-full h-auto block" />
+          </button>
         )}
       </div>
+      {ampliado && imagen.tipo === "lista" && (
+        <VisorMapa
+          url={imagen.url}
+          especie={especie}
+          textoAlternativo={textoAlternativo}
+          nombreArchivo={nombreArchivo}
+          onCerrar={() => setAmpliado(false)}
+        />
+      )}
       <figcaption className="mt-1.5 text-xs flex flex-col gap-0.5">
         {/* RR_59 criterio 2: la cantidad de registros junto al mapa. */}
         {mapa.puntos > 0 && (
@@ -131,20 +158,317 @@ export function MapaCRBioLM({
   );
 }
 
+// Zoom del visor: de 1× (el mapa entero) a ZOOM_MAXIMO×. Es un PNG, así que
+// más allá de unas 3–4× solo se agrandan los píxeles.
+const ZOOM_MAXIMO = 4;
+const PASO_ZOOM = 1.5;
+
+type Punto = { x: number; y: number };
+
+function limitar(valor: number, minimo: number, maximo: number): number {
+  return Math.min(Math.max(valor, minimo), maximo);
+}
+
+/**
+ * El mapa en grande, sobre un fondo oscuro que cubre la pantalla.
+ *
+ * Zoom: rueda del mouse (hacia donde está el cursor), doble clic, botones
+ * + / − / restablecer, teclas + − 0, y pellizcar en el teléfono. Con zoom, el
+ * mapa se mueve arrastrándolo, sin salirse de la vista.
+ *
+ * Se cierra con la X, con Escape o con un clic fuera del mapa. Mientras está
+ * abierto la página de atrás no se desplaza, y al cerrarlo el foco vuelve a
+ * donde estaba.
+ */
+function VisorMapa({
+  url,
+  especie,
+  textoAlternativo,
+  nombreArchivo,
+  onCerrar,
+}: {
+  url: string;
+  especie: string;
+  textoAlternativo: string;
+  nombreArchivo: string;
+  onCerrar: () => void;
+}) {
+  const cerrarRef = useRef<HTMLButtonElement>(null);
+  const zonaRef = useRef<HTMLDivElement>(null);
+  const imagenRef = useRef<HTMLImageElement>(null);
+  const [vista, setVista] = useState({ escala: 1, x: 0, y: 0 });
+  // Copia inmediata de `vista`: varios eventos seguidos (rueda, pellizco)
+  // pueden llegar antes de que React vuelva a dibujar.
+  const vistaRef = useRef(vista);
+  const [arrastrando, setArrastrando] = useState(false);
+  // Punteros apoyados (mouse o dedos), dónde empezó el gesto y si hubo
+  // movimiento, para no confundir el final de un arrastre con un clic que cierra.
+  const punteros = useRef(new Map<number, Punto>());
+  const empezoFuera = useRef(false);
+  const seMovio = useRef(false);
+  const escala = vista.escala;
+
+  const aplicar = (nueva: { escala: number; x: number; y: number }) => {
+    vistaRef.current = nueva;
+    setVista(nueva);
+  };
+
+  // La última onCerrar, para que el efecto corra solo al abrir y al cerrar.
+  const onCerrarRef = useRef(onCerrar);
+  useEffect(() => {
+    onCerrarRef.current = onCerrar;
+  }, [onCerrar]);
+
+  /** Mantiene el mapa dentro de la vista: sin zoom queda centrado. */
+  const ajustar = (nuevaEscala: number, punto: Punto): Punto => {
+    const imagen = imagenRef.current;
+    if (!imagen || nuevaEscala <= 1) return { x: 0, y: 0 };
+    const maxX = ((nuevaEscala - 1) * imagen.offsetWidth) / 2;
+    const maxY = ((nuevaEscala - 1) * imagen.offsetHeight) / 2;
+    return { x: limitar(punto.x, -maxX, maxX), y: limitar(punto.y, -maxY, maxY) };
+  };
+
+  /** Multiplica el zoom por `factor` dejando quieto el punto `foco` de la pantalla (o el centro). */
+  const hacerZoom = (factor: number, foco?: Punto) => {
+    const zona = zonaRef.current;
+    if (!zona) return;
+    const actual = vistaRef.current;
+    const destino = limitar(actual.escala * factor, 1, ZOOM_MAXIMO);
+    const real = destino / actual.escala;
+    const caja = zona.getBoundingClientRect();
+    const centro = { x: caja.left + caja.width / 2, y: caja.top + caja.height / 2 };
+    const relativo = foco ? { x: foco.x - centro.x, y: foco.y - centro.y } : { x: 0, y: 0 };
+    const punto = ajustar(destino, {
+      x: relativo.x - real * (relativo.x - actual.x),
+      y: relativo.y - real * (relativo.y - actual.y),
+    });
+    aplicar({ escala: destino, ...punto });
+  };
+
+  const restablecer = () => aplicar({ escala: 1, x: 0, y: 0 });
+
+  useEffect(() => {
+    const anterior = document.activeElement as HTMLElement | null;
+    const desplazamientoPagina = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    cerrarRef.current?.focus();
+    const alTeclear = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCerrarRef.current();
+      else teclasZoomRef.current(e);
+    };
+    window.addEventListener("keydown", alTeclear);
+    return () => {
+      window.removeEventListener("keydown", alTeclear);
+      document.body.style.overflow = desplazamientoPagina;
+      anterior?.focus();
+    };
+  }, []);
+
+  // Teclas + − 0 (el efecto de arriba las recibe en toda la ventana).
+  const teclasZoomRef = useRef<(e: KeyboardEvent) => void>(() => undefined);
+  useEffect(() => {
+    teclasZoomRef.current = (e: KeyboardEvent) => {
+      if (e.key === "+" || e.key === "=") hacerZoom(PASO_ZOOM);
+      else if (e.key === "-") hacerZoom(1 / PASO_ZOOM);
+      else if (e.key === "0") restablecer();
+    };
+  });
+
+  const alApoyar = (e: React.PointerEvent) => {
+    punteros.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (punteros.current.size === 1) {
+      seMovio.current = false;
+      empezoFuera.current = e.target === e.currentTarget;
+    }
+    if (punteros.current.size === 1 && vistaRef.current.escala > 1) setArrastrando(true);
+  };
+
+  const alMover = (e: React.PointerEvent) => {
+    const antes = punteros.current.get(e.pointerId);
+    if (!antes) return;
+    const ahora = { x: e.clientX, y: e.clientY };
+    if (Math.abs(ahora.x - antes.x) + Math.abs(ahora.y - antes.y) > 2) {
+      seMovio.current = true;
+      // Desde que hay arrastre, el gesto sigue aunque el puntero salga del mapa.
+      if (!e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.setPointerCapture(e.pointerId);
+    }
+
+    if (punteros.current.size === 2) {
+      // Pellizco: la escala cambia en proporción a la distancia entre los dedos.
+      const [otroId] = [...punteros.current.keys()].filter((id) => id !== e.pointerId);
+      const otro = punteros.current.get(otroId)!;
+      const distanciaAntes = Math.hypot(antes.x - otro.x, antes.y - otro.y);
+      const distanciaAhora = Math.hypot(ahora.x - otro.x, ahora.y - otro.y);
+      if (distanciaAntes > 0) {
+        const medio = { x: (ahora.x + otro.x) / 2, y: (ahora.y + otro.y) / 2 };
+        hacerZoom(distanciaAhora / distanciaAntes, medio);
+      }
+    } else if (vistaRef.current.escala > 1) {
+      const actual = vistaRef.current;
+      const punto = ajustar(actual.escala, { x: actual.x + ahora.x - antes.x, y: actual.y + ahora.y - antes.y });
+      aplicar({ escala: actual.escala, ...punto });
+    }
+    punteros.current.set(e.pointerId, ahora);
+  };
+
+  const alSoltar = (e: React.PointerEvent) => {
+    punteros.current.delete(e.pointerId);
+    if (punteros.current.size === 0) setArrastrando(false);
+  };
+
+  // Un clic fuera del mapa (que empezó fuera y sin arrastrar) cierra el visor.
+  const alHacerClicEnZona = () => {
+    if (empezoFuera.current && !seMovio.current) onCerrar();
+  };
+
+  const estiloBoton = {
+    color: "#fff",
+    background: "rgba(255, 255, 255, 0.12)",
+    border: "none",
+    cursor: "pointer",
+    textDecoration: "none",
+  };
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Mapa de distribución de ${especie}`}
+      className="fixed inset-0 z-50 flex flex-col"
+      style={{ background: "rgba(0, 0, 0, 0.85)" }}
+    >
+      <div className="flex items-center gap-2 px-4 py-3 shrink-0">
+        <span className="flex-1 min-w-0 truncate text-sm" style={{ color: "#fff" }}>
+          Mapa de distribución de <em>{especie}</em>
+        </span>
+        <div className="flex items-center gap-1" role="group" aria-label="Zoom del mapa">
+          <button
+            onClick={() => hacerZoom(1 / PASO_ZOOM)}
+            disabled={escala <= 1}
+            aria-label="Alejar"
+            title="Alejar (−)"
+            className="p-1.5 rounded-lg disabled:opacity-40"
+            style={estiloBoton}
+          >
+            <ZoomOut size={16} />
+          </button>
+          <span className="text-xs w-10 text-center tabular-nums" style={{ color: "#fff" }} aria-live="polite">
+            {Math.round(escala * 100)}%
+          </span>
+          <button
+            onClick={() => hacerZoom(PASO_ZOOM)}
+            disabled={escala >= ZOOM_MAXIMO}
+            aria-label="Acercar"
+            title="Acercar (+)"
+            className="p-1.5 rounded-lg disabled:opacity-40"
+            style={estiloBoton}
+          >
+            <ZoomIn size={16} />
+          </button>
+          <button
+            onClick={restablecer}
+            disabled={escala === 1}
+            aria-label="Ver el mapa completo"
+            title="Ver el mapa completo (0)"
+            className="p-1.5 rounded-lg disabled:opacity-40"
+            style={estiloBoton}
+          >
+            <RotateCcw size={16} />
+          </button>
+        </div>
+        <a
+          href={url}
+          download={nombreArchivo}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs"
+          style={estiloBoton}
+        >
+          <Download size={14} />
+          <span className="hidden sm:inline">Descargar mapa</span>
+        </a>
+        <button
+          ref={cerrarRef}
+          onClick={onCerrar}
+          aria-label="Cerrar el mapa"
+          className="p-1.5 rounded-lg"
+          style={estiloBoton}
+        >
+          <X size={18} />
+        </button>
+      </div>
+      <div
+        ref={zonaRef}
+        className="flex-1 min-h-0 flex items-center justify-center p-4 pt-0 overflow-hidden select-none"
+        style={{ touchAction: "none" }}
+        onClick={alHacerClicEnZona}
+        onWheel={(e) => hacerZoom(e.deltaY < 0 ? 1.2 : 1 / 1.2, { x: e.clientX, y: e.clientY })}
+        onPointerDown={alApoyar}
+        onPointerMove={alMover}
+        onPointerUp={alSoltar}
+        onPointerCancel={alSoltar}
+      >
+        <img
+          ref={imagenRef}
+          src={url}
+          alt={textoAlternativo}
+          draggable={false}
+          className="max-w-full max-h-full object-contain rounded-lg"
+          onDoubleClick={(e) => (escala > 1 ? restablecer() : hacerZoom(2, { x: e.clientX, y: e.clientY }))}
+          style={{
+            background: "#fff",
+            transform: `translate(${vista.x}px, ${vista.y}px) scale(${escala})`,
+            transition: arrastrando ? "none" : "transform 0.12s ease-out",
+            cursor: escala > 1 ? (arrastrando ? "grabbing" : "grab") : "zoom-in",
+          }}
+        />
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 /**
  * RR_12 — detalle del punto seleccionado.
  *
- * Va debajo de la tabla de registros. Se cierra con la X, con Escape o
- * volviendo a hacer clic en la misma fila.
+ * Se abre en una ventana al hacer clic en una fila de la tabla de registros,
+ * así no hay que bajar hasta el final de una lista larga para verlo. Se cierra
+ * con la X, con Escape o con un clic fuera. Con `onAnterior` y `onSiguiente`
+ * se recorren los registros visibles sin cerrarla (también con ← y →).
  */
-export function DetallePunto({ registro, onCerrar }: { registro: RegistroPresencia; onCerrar: () => void }) {
+export function DetallePunto({
+  registro,
+  onCerrar,
+  posicion,
+  onAnterior,
+  onSiguiente,
+}: {
+  registro: RegistroPresencia;
+  onCerrar: () => void;
+  /** Lugar del registro entre los visibles (1 = el primero). */
+  posicion?: { actual: number; total: number };
+  onAnterior?: () => void;
+  onSiguiente?: () => void;
+}) {
+  const cerrarRef = useRef<HTMLButtonElement>(null);
+  // Las últimas funciones, para que el efecto corra solo al abrir y al cerrar.
+  const acciones = useRef({ onCerrar, onAnterior, onSiguiente });
   useEffect(() => {
+    acciones.current = { onCerrar, onAnterior, onSiguiente };
+  });
+
+  useEffect(() => {
+    const anterior = document.activeElement as HTMLElement | null;
+    cerrarRef.current?.focus();
     const alTeclear = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCerrar();
+      if (e.key === "Escape") acciones.current.onCerrar();
+      else if (e.key === "ArrowLeft") acciones.current.onAnterior?.();
+      else if (e.key === "ArrowRight") acciones.current.onSiguiente?.();
     };
     window.addEventListener("keydown", alTeclear);
-    return () => window.removeEventListener("keydown", alTeclear);
-  }, [onCerrar]);
+    return () => {
+      window.removeEventListener("keydown", alTeclear);
+      anterior?.focus();
+    };
+  }, []);
 
   const filas: [string, string][] = [
     [ETIQUETAS_REGISTRO.localidad, registro.localidad],
@@ -154,40 +478,82 @@ export function DetallePunto({ registro, onCerrar }: { registro: RegistroPresenc
     [ETIQUETAS_REGISTRO.fuente, registro.fuente],
   ];
 
-  return (
+  const estiloNavegar = {
+    border: "1px solid var(--color-borde-fuerte)",
+    background: "transparent",
+    color: "var(--color-texto-cuerpo)",
+    cursor: "pointer",
+  };
+
+  return createPortal(
     <div
-      role="region"
-      aria-live="polite"
-      aria-label={`Detalle del registro en ${registro.localidad}`}
-      className="mt-2 rounded-xl px-4 py-3 text-xs"
-      style={{ background: "var(--color-superficie-suave)", border: "1px solid var(--color-borde-fuerte)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0, 0, 0, 0.5)" }}
+      onClick={onCerrar}
     >
-      <div className="flex items-center justify-between gap-2 mb-2">
-        <span className="flex items-center gap-1.5 font-semibold" style={{ color: "var(--color-texto)" }}>
-          <span className="inline-block rounded-full" style={{ width: 8, height: 8, background: "var(--color-mapa-activo)" }} />
-          Detalle del registro
-        </span>
-        <button
-          onClick={onCerrar}
-          aria-label="Cerrar detalle"
-          className="flex items-center gap-1 px-2 py-1 rounded-md"
-          style={{ border: "none", background: "transparent", color: "var(--color-texto-secundario)", cursor: "pointer" }}
-        >
-          <X size={12} />
-          Cerrar
-        </button>
-      </div>
-      <dl className="grid gap-x-4 gap-y-1" style={{ gridTemplateColumns: "auto 1fr" }}>
-        {filas.map(([k, v]) => (
-          <div key={k} className="contents">
-            <dt style={{ color: "var(--color-texto-tenue)" }}>{k}</dt>
-            <dd className="font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>
-              {v}
-            </dd>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Detalle del registro en ${registro.localidad}`}
+        className="w-full max-w-sm rounded-2xl px-5 py-4 text-sm shadow-xl"
+        style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde-fuerte)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <span className="flex items-center gap-1.5 font-semibold" style={{ color: "var(--color-texto)" }}>
+            <span className="inline-block rounded-full" style={{ width: 8, height: 8, background: "var(--color-mapa-activo)" }} />
+            Detalle del registro
+          </span>
+          <button
+            ref={cerrarRef}
+            onClick={onCerrar}
+            aria-label="Cerrar detalle"
+            className="p-1.5 rounded-md"
+            style={{ border: "none", background: "transparent", color: "var(--color-texto-secundario)", cursor: "pointer" }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+        <dl className="grid gap-x-4 gap-y-1.5 text-xs" style={{ gridTemplateColumns: "auto 1fr" }}>
+          {filas.map(([k, v]) => (
+            <div key={k} className="contents">
+              <dt style={{ color: "var(--color-texto-tenue)" }}>{k}</dt>
+              <dd className="font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>
+                {v}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {posicion && (onAnterior || onSiguiente) && (
+          <div className="flex items-center justify-between gap-2 mt-4 pt-3" style={{ borderTop: "1px solid var(--color-borde)" }}>
+            <button
+              onClick={onAnterior}
+              disabled={!onAnterior}
+              aria-label="Registro anterior"
+              title="Registro anterior (←)"
+              className="p-1.5 rounded-lg disabled:opacity-40"
+              style={estiloNavegar}
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <span className="text-xs" style={{ color: "var(--color-texto-secundario)" }} aria-live="polite">
+              Registro {posicion.actual} de {posicion.total}
+            </span>
+            <button
+              onClick={onSiguiente}
+              disabled={!onSiguiente}
+              aria-label="Registro siguiente"
+              title="Registro siguiente (→)"
+              className="p-1.5 rounded-lg disabled:opacity-40"
+              style={estiloNavegar}
+            >
+              <ChevronRight size={16} />
+            </button>
           </div>
-        ))}
-      </dl>
-    </div>
+        )}
+      </div>
+    </div>,
+    document.body,
   );
 }
 

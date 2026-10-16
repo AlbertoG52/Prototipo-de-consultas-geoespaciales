@@ -80,7 +80,7 @@ export function SpeciesPage() {
     <>
       {/* Encabezado */}
       <div
-        className="px-8 py-4 border-b shrink-0 flex items-center gap-3"
+        className="px-4 md:px-8 py-4 border-b shrink-0 flex items-center gap-3"
         style={{ background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}
       >
         <button
@@ -105,13 +105,13 @@ export function SpeciesPage() {
 
       <div className="flex-1 overflow-y-auto" style={{ background: "var(--color-fondo)" }}>
         {estado.tipo === "cargando" && (
-          <div className="px-8 py-10 text-sm" role="status" style={{ color: "var(--color-texto-secundario)" }}>
+          <div className="px-4 md:px-8 py-10 text-sm" role="status" style={{ color: "var(--color-texto-secundario)" }}>
             Cargando la ficha…
           </div>
         )}
 
         {estado.tipo === "error" && (
-          <div className="px-8 py-10 max-w-xl">
+          <div className="px-4 md:px-8 py-10 max-w-xl mx-auto">
             <div
               role="alert"
               className="rounded-xl p-4 text-sm"
@@ -150,13 +150,13 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
   return (
     <>
       {/* Portada de la especie */}
-      <div className="px-8 py-8" style={{ background: "var(--color-marca)" }}>
-        <div className="max-w-4xl">
+      <div className="px-4 md:px-8 py-8" style={{ background: "var(--color-marca)" }}>
+        <div className="max-w-4xl mx-auto">
           <div className="text-xs font-medium tracking-widest mb-2" style={{ color: "var(--color-sobre-marca-suave)", letterSpacing: "0.15em" }}>
             {ficha.familia.toUpperCase()}
           </div>
           <h2
-            className={`text-4xl font-semibold italic ${ficha.nombre_comun ? "mb-1" : "mb-4"}`}
+            className={`text-3xl md:text-4xl font-semibold italic ${ficha.nombre_comun ? "mb-1" : "mb-4"}`}
             style={{ color: "var(--color-sobre-marca)", fontFamily: "var(--font-serif)" }}
           >
             {ficha.nombre_cientifico}
@@ -180,11 +180,11 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
         </div>
       </div>
 
-      <div className="px-8 py-6 max-w-4xl">
+      <div className="px-4 md:px-8 py-6 max-w-[60rem] mx-auto">
         {/* RR_43 y RR_58: por qué falta el mapa o los registros. */}
         <Avisos avisos={ficha.avisos} className="mb-6" />
-        <div className="grid gap-6" style={{ gridTemplateColumns: "1fr 280px" }}>
-          <div className="flex flex-col gap-5">
+        <div className="grid gap-6 grid-cols-1 md:grid-cols-[1fr_280px]">
+          <div className="flex flex-col gap-5 min-w-0">
             <div className="rounded-2xl p-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
               <h3 className="font-semibold mb-3" style={{ color: "var(--color-texto)" }}>
                 Descripción general
@@ -224,7 +224,7 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
                     Se muestran {textoRegistros(ficha.registros.length)} de {ficha.total_registros.toLocaleString(IDIOMA_FECHAS)}.
                   </p>
                 )}
-                <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-borde)" }}>
+                <div className="rounded-xl overflow-x-auto" style={{ border: "1px solid var(--color-borde)" }}>
                   <table className="w-full text-xs">
                     <thead style={{ background: "var(--color-superficie-suave)" }}>
                       <tr>
@@ -239,8 +239,8 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
                       {ficha.registros.map((r, i) => (
                         <tr key={i} style={{ borderTop: "1px solid var(--color-borde)" }}>
                           <td className="px-3 py-2" style={{ color: "var(--color-texto-cuerpo)" }}>{r.localidad}</td>
-                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>{r.fecha}</td>
-                          <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)", fontFamily: "var(--font-mono)" }}>
+                          <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--color-texto-secundario)" }}>{r.fecha}</td>
+                          <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--color-texto-secundario)", fontFamily: "var(--font-mono)" }}>
                             {formatearCoordenadas(r)}
                           </td>
                           <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>

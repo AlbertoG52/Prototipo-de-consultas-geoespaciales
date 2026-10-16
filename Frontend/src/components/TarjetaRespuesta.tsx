@@ -58,6 +58,9 @@ export function TarjetaRespuesta({
   const fuenteRegistros = procedenciaDe(respuesta.procedencia, "registros");
   const origen = origenDeLaInformacion(respuesta.procedencia);
 
+  // RR_12 — lugar del registro abierto entre los visibles, para recorrerlos.
+  const posicionVisible = seleccionado === null ? -1 : filtro.indices.indexOf(seleccionado);
+
   // Si el filtro oculta el punto cuyo detalle está abierto, el detalle se cierra
   // (RR_12 criterio 2: el detalle siempre corresponde a un punto visible).
   useEffect(() => {
@@ -90,7 +93,7 @@ export function TarjetaRespuesta({
         className="rounded-2xl overflow-hidden w-full"
         style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)", maxWidth: 560, borderTopLeftRadius: 6 }}
       >
-        <div className="px-6 py-5" style={{ background: "var(--color-marca)" }}>
+        <div className="px-4 sm:px-6 py-5" style={{ background: "var(--color-marca)" }}>
           <div
             className="text-xs font-medium mb-1"
             style={{ color: "var(--color-sobre-marca-suave)", letterSpacing: "0.12em" }}
@@ -127,7 +130,7 @@ export function TarjetaRespuesta({
           </div>
         </div>
 
-        <div className="px-6 py-5">
+        <div className="px-4 sm:px-6 py-5">
           <p className="text-sm leading-relaxed" style={{ color: "var(--color-texto-cuerpo)" }}>
             {/* RR_49 / RR_51: las citas del Manual dentro del texto, con formato de cita. */}
             {partirCitas(respuesta.texto).map((trozo, i) =>
@@ -228,7 +231,7 @@ export function TarjetaRespuesta({
                       Ningún registro está dentro de ese rango de elevación. Ajusta el rango o quita el filtro.
                     </p>
                   ) : (
-                    <div className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--color-borde)" }}>
+                    <div className="rounded-xl overflow-x-auto" style={{ border: "1px solid var(--color-borde)" }}>
                       <table className="w-full text-xs">
                         <thead style={{ background: "var(--color-superficie-suave)" }}>
                           <tr>
@@ -265,8 +268,8 @@ export function TarjetaRespuesta({
                                 }}
                               >
                                 <td className="px-3 py-2" style={{ color: "var(--color-texto-cuerpo)" }}>{r.localidad}</td>
-                                <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>{r.fecha}</td>
-                                <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)", fontFamily: "var(--font-mono)" }}>
+                                <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--color-texto-secundario)" }}>{r.fecha}</td>
+                                <td className="px-3 py-2 whitespace-nowrap" style={{ color: "var(--color-texto-secundario)", fontFamily: "var(--font-mono)" }}>
                                   {formatearCoordenadas(r)}
                                 </td>
                                 <td className="px-3 py-2" style={{ color: "var(--color-texto-secundario)" }}>
@@ -279,14 +282,23 @@ export function TarjetaRespuesta({
                       </table>
                     </div>
                   )}
-                  {seleccionado !== null && respuesta.registros[seleccionado] ? (
-                    <DetallePunto registro={respuesta.registros[seleccionado]} onCerrar={cerrarDetalle} />
-                  ) : (
-                    filtro.indices.length > 0 && (
-                      <p className="mt-1.5 text-xs" style={{ color: "var(--color-texto-tenue)" }}>
-                        Haz clic en un registro para ver su detalle.
-                      </p>
-                    )
+                  {filtro.indices.length > 0 && (
+                    <p className="mt-1.5 text-xs" style={{ color: "var(--color-texto-tenue)" }}>
+                      Haz clic en un registro para ver su detalle.
+                    </p>
+                  )}
+                  {seleccionado !== null && respuesta.registros[seleccionado] && (
+                    <DetallePunto
+                      registro={respuesta.registros[seleccionado]}
+                      onCerrar={cerrarDetalle}
+                      posicion={{ actual: posicionVisible + 1, total: filtro.indices.length }}
+                      onAnterior={posicionVisible > 0 ? () => setSeleccionado(filtro.indices[posicionVisible - 1]) : undefined}
+                      onSiguiente={
+                        posicionVisible < filtro.indices.length - 1
+                          ? () => setSeleccionado(filtro.indices[posicionVisible + 1])
+                          : undefined
+                      }
+                    />
                   )}
                 </div>
               )}
