@@ -94,3 +94,17 @@ export type UsoDeRol = Esquema<"UsoDeRol">;
 export type HistorialUso = Esquema<"HistorialUso">;
 
 export type ConsultaDeUsuario = Esquema<"ConsultaDeUsuario">;
+
+// ─── Preferencias de respuesta (RR_67, RR_68, RR_79, RR_80) ───
+
+/** Si las respuestas incluyen el mapa y las fuentes. */
+export type PreferenciasRespuesta = Esquema<"PreferenciasRespuesta">;
+
+/**
+ * Las del moderador (RR_67, RR_68): las que aplican, si cada una es propia
+ * (`*_propio`) o sigue la del sistema, y la del sistema (`por_defecto`, RR_80).
+ */
+export type PreferenciasModerador = Esquema<"PreferenciasModerador">;
+
+/** RR_80 — el comportamiento por defecto del sistema y quién lo cambió por última vez. */
+export type PreferenciasPorDefecto = Esquema<"PreferenciasPorDefecto">;

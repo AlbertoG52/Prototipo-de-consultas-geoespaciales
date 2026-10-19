@@ -139,6 +139,7 @@ Cada cambio a la base es un archivo SQL numerado en `Backend/migrations/`:
 | `015_tiempos_respuesta.sql` | tiempo de respuesta de cada consulta, para RR_57 |
 | `016_consultas_de_orientacion.sql` | estado `orientacion` y columna `motivo` (saludo, ayuda, idioma…), para RR_22, RR_32, RR_37 y RR_40 |
 | `017_intencion_de_consulta.sql` | intención de cada consulta en `tiempos_respuesta`, para RR_33 (y RR_29 criterio 3) |
+| `018_preferencias_de_respuesta.sql` | comportamiento por defecto de mapa y fuentes (`configuracion_respuestas`) y preferencias del moderador con NULL = "la del sistema", para RR_67, RR_68, RR_79 y RR_80 |
 
 Para agregar un cambio:
 1. Se crea un archivo nuevo, p.ej. `011_....sql`.
@@ -170,6 +171,8 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | GET | `/especies/{id}` | ficha completa de la especie (RR_20) | cualquier sesión |
 | PATCH | `/perfil` | cambiar el nombre de la cuenta | solo cuentas registradas |
 | POST | `/perfil/password` | cambiar la contraseña (pide la actual) | solo cuentas registradas |
+| GET | `/perfil/preferencias` | si mis respuestas incluyen el mapa y las fuentes, y la del sistema (RR_67, RR_68, RR_79) | moderador y supermoderador |
+| PATCH | `/perfil/preferencias` | activar o desactivar el mapa o las fuentes; `null` vuelve a la del sistema (RR_67, RR_68) | moderador y supermoderador |
 | GET | `/admin/usuarios` | usuarios registrados | supermoderador |
 | GET | `/admin/usuarios/{id}/consultas` | historial de uso de una cuenta, por páginas (RR_76) | supermoderador |
 | GET | `/admin/uso-por-rol` | cuentas y consultas guardadas de cada rol (RR_76) | supermoderador |
@@ -177,6 +180,8 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | PATCH | `/admin/usuarios/{id}/rol` | cambiar el rol (no a sí mismo: 409) | supermoderador |
 | GET | `/admin/auditoria` | registro de acciones administrativas (RR_00_09) | supermoderador |
 | GET | `/admin/tiempos` | tiempos de respuesta de las consultas; `?solo_lentas=true` filtra las lentas (RR_57); intención de cada una y conteo por intención (RR_33) | supermoderador |
+| GET | `/admin/preferencias-respuesta` | comportamiento por defecto de mapa y fuentes (RR_80) | supermoderador |
+| PUT | `/admin/preferencias-respuesta` | cambiarlo; aplica a todos los que no tienen preferencia propia (RR_80) | supermoderador |
 
 ### Control de acceso por rol
 
@@ -331,6 +336,35 @@ La misma fila de `tiempos_respuesta` guarda la **intención** (tabla 017,
   visitante no se guarda el texto.
 - `GET /admin/tiempos` trae la `intencion` de cada registro y `por_intencion`:
   cuántas consultas hubo de cada una en el periodo. El log también la anota.
+
+### Mapa y fuentes en las respuestas (RR_67, RR_68, RR_79, RR_80)
+
+Si una respuesta incluye el mapa y las fuentes lo decide
+`services/preferencias.py`, antes de guardar la consulta (así la conversación
+reabierta muestra lo mismo que se respondió):
+
+- **RR_80** — el supermoderador define el comportamiento por defecto en
+  Administración → Respuestas (`configuracion_respuestas`, una sola fila).
+  Aplica a todos los que no lo han cambiado: usuarios, visitantes y
+  moderadores sin preferencia propia.
+- **RR_67 y RR_68** — el moderador (y el supermoderador) cambia las suyas en
+  Perfil → Preferencias. Se guardan en `usuarios.incluir_mapa` e
+  `incluir_fuentes`; NULL = sigue la del sistema. Aplican desde la consulta
+  siguiente.
+- **RR_79** — como están en la cuenta, se conservan entre sesiones y cada
+  moderador tiene las suyas.
+- Sin mapa: `mapa = null` (el chat muestra solo el texto). Sin fuentes: sin la
+  lista de fuentes, sin la procedencia (RR_45) y sin las citas 【…】 del texto.
+  El pie "Fuentes: …" que CR-BioLM dibuja dentro del PNG del mapa no se puede
+  quitar desde aquí.
+
+### Leyenda del mapa (RR_48)
+
+El PNG de CR-BioLM trae su leyenda, pero con el zoom del visor se agranda y se
+corta. El frontend dibuja otra aparte (`config/leyendaMapa.ts`, con los mismos
+colores que `habitat_map.py` de CR-BioLM): debajo del mapa se despliega y en el
+visor queda fija encima del mapa. La **escala** está pendiente: hay que
+acordarla con José (que CR-BioLM la dibuje o devuelva los km por píxel).
 
 ---
 

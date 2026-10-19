@@ -1,4 +1,5 @@
-"""Perfil del usuario autenticado: nombre, contraseña e inactividad de la sesión.
+"""Perfil del usuario autenticado: nombre, contraseña, inactividad de la sesión y
+preferencias de respuesta del moderador (RR_67, RR_68, RR_79).
 
 Todo el router exige una cuenta: un visitante anónimo recibe 401. Cada
 persona solo puede modificar su propia cuenta; el id sale del token, nunca
@@ -12,10 +13,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..dominio import TipoSesion
+from ..dominio import NombreRol, TipoSesion
 from ..models import Usuario
 from ..schemas.auth import TokenOut
 from ..schemas.perfil import CambioInactividadRequest, CambioNombreRequest, CambioPasswordRequest
+from ..schemas.preferencias import CambioPreferencias, PreferenciasModerador
 from ..schemas.usuario import UsuarioOut
 from ..security import (
     Identidad,
@@ -23,8 +25,10 @@ from ..security import (
     hash_password,
     obtener_identidad,
     obtener_usuario_actual,
+    requiere_rol,
     verificar_password,
 )
+from ..services import preferencias
 
 router = APIRouter(prefix="/perfil", tags=["perfil"])
 
@@ -87,3 +91,44 @@ def cambiar_inactividad(
     db.refresh(usuario)
     token, _ = crear_token_usuario(usuario, sesion_id=identidad.sesion_id or None)
     return TokenOut(access_token=token, tipo=TipoSesion.USUARIO)
+
+
+# RR_67: solo el moderador (y el supermoderador) configura sus respuestas. Un
+# usuario normal recibe 403 y sus respuestas siguen la del sistema (RR_80).
+# El rol va en `dependencies` y la cuenta en el parámetro, como en el resto
+# del router (tests/test_perfil.py exige obtener_usuario_actual en cada ruta).
+_solo_moderadores = requiere_rol(NombreRol.MODERADOR, NombreRol.SUPERMODERADOR)
+
+
+@router.get(
+    "/preferencias",
+    response_model=PreferenciasModerador,
+    dependencies=[Depends(_solo_moderadores)],
+)
+def ver_preferencias(
+    usuario: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """RR_67, RR_68, RR_79 — si las respuestas del moderador incluyen el mapa y las fuentes.
+
+    Trae también si cada una es propia o sigue la del sistema (RR_80).
+    """
+    return preferencias.ver_del_moderador(db, usuario)
+
+
+@router.patch(
+    "/preferencias",
+    response_model=PreferenciasModerador,
+    dependencies=[Depends(_solo_moderadores)],
+)
+def cambiar_preferencias(
+    datos: CambioPreferencias,
+    usuario: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """RR_67, RR_68 — activa o desactiva el mapa y las fuentes en las respuestas.
+
+    Se guarda en la cuenta, así que se conserva entre sesiones y aplica desde
+    la consulta siguiente (RR_79). Un campo en null vuelve a la del sistema.
+    """
+    return preferencias.cambiar_del_moderador(db, usuario, datos)

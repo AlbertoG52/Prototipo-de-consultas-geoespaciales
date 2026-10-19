@@ -12,6 +12,9 @@ import type {
   EspecieCandidata,
   FichaEspecie,
   HistorialUso,
+  PreferenciasModerador,
+  PreferenciasPorDefecto,
+  PreferenciasRespuesta,
   RegistroAuditoria,
   RegistroRequest,
   Sesion,
@@ -266,6 +269,19 @@ export async function cambiarInactividad(minutos: number): Promise<void> {
   await pedirToken("/perfil/inactividad", "PATCH", { minutos });
 }
 
+/** RR_67, RR_68, RR_79 — preferencias de respuesta del moderador (otro rol: 403). */
+export const obtenerPreferencias = () => pedir<PreferenciasModerador>("/perfil/preferencias");
+
+/**
+ * RR_67, RR_68 — cambia si las respuestas del moderador incluyen el mapa o las
+ * fuentes. Solo se envían los campos que cambian; `null` vuelve a la del
+ * sistema (RR_80). Aplica desde la consulta siguiente.
+ */
+export const cambiarPreferencias = (cambio: {
+  incluir_mapa?: boolean | null;
+  incluir_fuentes?: boolean | null;
+}) => pedir<PreferenciasModerador>("/perfil/preferencias", "PATCH", cambio);
+
 // Especies — no consumen consultas del límite diario.
 
 /** RR_20 — ficha completa de una especie, por su id del catálogo. 404 si no existe. */
@@ -308,6 +324,14 @@ export const cambiarUsuario = (id: number, campo: "estado" | "rol", valor: strin
   pedir<Usuario>(`/admin/usuarios/${id}/${campo}`, "PATCH", { [campo]: valor });
 
 export const obtenerAuditoria = () => pedir<RegistroAuditoria[]>("/admin/auditoria");
+
+/** RR_80 — comportamiento por defecto de las respuestas (mapa y fuentes). */
+export const obtenerPreferenciasPorDefecto = () =>
+  pedir<PreferenciasPorDefecto>("/admin/preferencias-respuesta");
+
+/** RR_80 criterio 3 — aplica a todos los que no han cambiado su preferencia. */
+export const cambiarPreferenciasPorDefecto = (preferencias: PreferenciasRespuesta) =>
+  pedir<PreferenciasPorDefecto>("/admin/preferencias-respuesta", "PUT", preferencias);
 
 /** RR_76 — una página del historial de uso de una cuenta, de lo más reciente a lo más antiguo. */
 export const obtenerHistorialDeUso = (usuarioId: number, limite: number, desplazamiento: number) =>

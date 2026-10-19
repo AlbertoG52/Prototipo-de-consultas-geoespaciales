@@ -4,6 +4,7 @@ Este paquete necesita exportar explícitamente las clases para que otros módulo
 puedan importar patrones como "from ..models import Rol, Usuario".
 """
 
+from .configuracion_respuestas import ConfiguracionRespuestas
 from .consulta import Consulta
 from .consumo_anonimo import ConsumoAnonimo
 from .conversacion import Conversacion
@@ -13,6 +14,7 @@ from .token import Token
 from .usuario import Usuario
 
 __all__ = [
+    "ConfiguracionRespuestas",
     "Consulta",
     "ConsumoAnonimo",
     "Conversacion",

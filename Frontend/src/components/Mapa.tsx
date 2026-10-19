@@ -1,6 +1,6 @@
 /**
  * Mapa de distribución de CR-BioLM y controles de los registros — RR_46,
- * RR_52, RR_53, RR_12 y RR_19.
+ * RR_48, RR_52, RR_53, RR_12 y RR_19.
  *
  * Todos los mapas vienen de CR-BioLM (PNG). Si la respuesta no trae mapa, no
  * se muestra ninguno. El detalle de un registro (RR_12, en una ventana) y el
@@ -10,11 +10,12 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { ChevronLeft, ChevronRight, Download, Maximize2, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, List, Maximize2, RotateCcw, X, ZoomIn, ZoomOut } from "lucide-react";
 import * as api from "../services/api";
 import type { MapaEspecie, RegistroPresencia } from "../types";
 import { RANGO_VACIO, type RangoElevacion } from "../utils/elevacion";
 import { ETIQUETAS_REGISTRO, formatearCoordenadas, SIN_DATO, textoRegistros } from "../config/textos";
+import { LEYENDA_MAPA, NOTA_REGIONES } from "../config/leyendaMapa";
 
 type EstadoImagen =
   | { tipo: "cargando" }
@@ -58,6 +59,50 @@ function useImagenMapa(ruta: string): EstadoImagen {
 }
 
 /**
+ * RR_48 criterio 1 — qué significa cada símbolo del mapa (config/leyendaMapa.ts).
+ *
+ * Va fuera de la imagen: en el visor queda fija sobre el mapa aunque se haga
+ * zoom o se arrastre (criterio 3), y debajo del mapa pequeño se despliega.
+ */
+function LeyendaMapa({ puntos, oscura = false }: { puntos: number; oscura?: boolean }) {
+  const colorTexto = oscura ? "#e5e7eb" : "var(--color-texto-cuerpo)";
+  const colorNota = oscura ? "#9ca3af" : "var(--color-texto-tenue)";
+  return (
+    <div className="flex flex-col gap-1.5 text-xs">
+      <ul className="flex flex-col gap-1 m-0 p-0 list-none">
+        {LEYENDA_MAPA.map((s) => (
+          <li key={s.etiqueta} className="flex items-start gap-2" style={{ color: colorTexto }}>
+            <span
+              aria-hidden="true"
+              className="inline-block rounded-sm shrink-0 mt-0.5"
+              style={{
+                width: 14,
+                height: 10,
+                background: s.contorno
+                  ? "transparent"
+                  : s.rayado
+                    ? `repeating-linear-gradient(45deg, ${s.color} 0 2px, transparent 2px 4px)`
+                    : s.color,
+                border: s.contorno
+                  ? `1.5px ${s.discontinuo ? "dashed" : "solid"} ${oscura ? s.color : (s.contornoEnClaro ?? s.color)}`
+                  : `1px solid ${s.borde ?? s.color}`,
+              }}
+            />
+            <span>
+              {s.etiqueta}
+              {s.registros && puntos > 0 && ` (${puntos})`}
+            </span>
+          </li>
+        ))}
+      </ul>
+      <p className="m-0" style={{ color: colorNota }}>
+        {NOTA_REGIONES}
+      </p>
+    </div>
+  );
+}
+
+/**
  * RR_46 — mapa de distribución generado por CR-BioLM.
  *
  * - Criterio 1: solo se monta cuando la respuesta trae `mapa` (hay datos
@@ -67,6 +112,8 @@ function useImagenMapa(ruta: string): EstadoImagen {
  *
  * RR_15: "Descargar mapa" baja este mismo PNG.
  * RR_59: debajo del mapa se indica cuántos registros de GBIF tiene dibujados.
+ * RR_48: la leyenda se despliega debajo del mapa y en el visor queda fija
+ * sobre el mapa al hacer zoom.
  *
  * Al hacer clic en el mapa, o en "Pantalla completa", se abre en grande
  * (VisorMapa). Se usa en el chat (TarjetaRespuesta) y en la ficha (SpeciesPage).
@@ -139,6 +186,7 @@ export function MapaCRBioLM({
         <VisorMapa
           url={imagen.url}
           especie={especie}
+          puntos={mapa.puntos}
           textoAlternativo={textoAlternativo}
           nombreArchivo={nombreArchivo}
           onCerrar={() => setAmpliado(false)}
@@ -154,6 +202,16 @@ export function MapaCRBioLM({
         {/* Aviso de CR-BioLM sobre el mapa, si lo hay. */}
         {mapa.advertencia && <span style={{ color: "var(--color-aviso-texto)" }}>{mapa.advertencia}</span>}
       </figcaption>
+      {imagen.tipo === "lista" && (
+        <details className="mt-1.5">
+          <summary className="text-xs cursor-pointer select-none" style={{ color: "var(--color-texto-secundario)" }}>
+            Leyenda del mapa
+          </summary>
+          <div className="mt-2 rounded-xl px-3 py-2.5" style={{ background: "var(--color-superficie-suave)" }}>
+            <LeyendaMapa puntos={mapa.puntos} />
+          </div>
+        </details>
+      )}
     </figure>
   );
 }
@@ -183,12 +241,15 @@ function limitar(valor: number, minimo: number, maximo: number): number {
 function VisorMapa({
   url,
   especie,
+  puntos,
   textoAlternativo,
   nombreArchivo,
   onCerrar,
 }: {
   url: string;
   especie: string;
+  /** Registros de GBIF dibujados en el mapa, para la leyenda (RR_48). */
+  puntos: number;
   textoAlternativo: string;
   nombreArchivo: string;
   onCerrar: () => void;
@@ -201,6 +262,8 @@ function VisorMapa({
   // pueden llegar antes de que React vuelva a dibujar.
   const vistaRef = useRef(vista);
   const [arrastrando, setArrastrando] = useState(false);
+  // RR_48: la leyenda empieza visible y se puede ocultar para ver todo el mapa.
+  const [conLeyenda, setConLeyenda] = useState(true);
   // Punteros apoyados (mouse o dedos), dónde empezó el gesto y si hubo
   // movimiento, para no confundir el final de un arrastre con un clic que cierra.
   const punteros = useRef(new Map<number, Punto>());
@@ -376,6 +439,17 @@ function VisorMapa({
             <RotateCcw size={16} />
           </button>
         </div>
+        <button
+          onClick={() => setConLeyenda((v) => !v)}
+          aria-pressed={conLeyenda}
+          aria-label={conLeyenda ? "Ocultar la leyenda" : "Mostrar la leyenda"}
+          title={conLeyenda ? "Ocultar la leyenda" : "Mostrar la leyenda"}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs"
+          style={{ ...estiloBoton, background: conLeyenda ? "rgba(255, 255, 255, 0.24)" : estiloBoton.background }}
+        >
+          <List size={14} />
+          <span className="hidden sm:inline">Leyenda</span>
+        </button>
         <a
           href={url}
           download={nombreArchivo}
@@ -397,7 +471,7 @@ function VisorMapa({
       </div>
       <div
         ref={zonaRef}
-        className="flex-1 min-h-0 flex items-center justify-center p-4 pt-0 overflow-hidden select-none"
+        className="relative flex-1 min-h-0 flex items-center justify-center p-4 pt-0 overflow-hidden select-none"
         style={{ touchAction: "none" }}
         onClick={alHacerClicEnZona}
         onWheel={(e) => hacerZoom(e.deltaY < 0 ? 1.2 : 1 / 1.2, { x: e.clientX, y: e.clientY })}
@@ -420,6 +494,23 @@ function VisorMapa({
             cursor: escala > 1 ? (arrastrando ? "grabbing" : "grab") : "zoom-in",
           }}
         />
+        {/* RR_48 criterio 3: fuera de la imagen, así no se mueve ni se corta con el zoom. */}
+        {conLeyenda && (
+          <div
+            role="region"
+            aria-label="Leyenda del mapa"
+            className="absolute left-4 bottom-4 max-w-[min(20rem,calc(100%-2rem))] max-h-[60%] overflow-y-auto rounded-xl px-3 py-2.5"
+            style={{ background: "rgba(17, 24, 39, 0.9)", border: "1px solid #374151" }}
+            onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-xs font-semibold mb-1.5" style={{ color: "#fff" }}>
+              Leyenda
+            </div>
+            <LeyendaMapa puntos={puntos} oscura />
+          </div>
+        )}
       </div>
     </div>,
     document.body,

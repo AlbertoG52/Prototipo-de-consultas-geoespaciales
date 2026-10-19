@@ -457,6 +457,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/preferencias-respuesta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Preferencias Por Defecto
+         * @description RR_80 — si las respuestas incluyen el mapa y las fuentes por defecto.
+         */
+        get: operations["ver_preferencias_por_defecto_admin_preferencias_respuesta_get"];
+        /**
+         * Cambiar Preferencias Por Defecto
+         * @description RR_80 criterio 3 — ajusta el comportamiento por defecto del sistema.
+         *
+         *     Aplica a todos los que no han cambiado su preferencia (criterio 2): los
+         *     usuarios, los visitantes y los moderadores sin preferencia propia.
+         */
+        put: operations["cambiar_preferencias_por_defecto_admin_preferencias_respuesta_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/perfil": {
         parameters: {
             query?: never;
@@ -521,6 +548,35 @@ export interface paths {
          *     esperar a la siguiente renovación.
          */
         patch: operations["cambiar_inactividad_perfil_inactividad_patch"];
+        trace?: never;
+    };
+    "/perfil/preferencias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Preferencias
+         * @description RR_67, RR_68, RR_79 — si las respuestas del moderador incluyen el mapa y las fuentes.
+         *
+         *     Trae también si cada una es propia o sigue la del sistema (RR_80).
+         */
+        get: operations["ver_preferencias_perfil_preferencias_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Cambiar Preferencias
+         * @description RR_67, RR_68 — activa o desactiva el mapa y las fuentes en las respuestas.
+         *
+         *     Se guarda en la cuenta, así que se conserva entre sesiones y aplica desde
+         *     la consulta siguiente (RR_79). Un campo en null vuelve a la del sistema.
+         */
+        patch: operations["cambiar_preferencias_perfil_preferencias_patch"];
         trace?: never;
     };
     "/especies": {
@@ -688,6 +744,31 @@ export interface components {
             password_actual: string;
             /** Password Nueva */
             password_nueva: string;
+        };
+        /**
+         * CambioPreferencias
+         * @description Cambio de las preferencias del moderador (PATCH /perfil/preferencias).
+         *
+         *     Cada campo es opcional:
+         *     - ausente: no se cambia;
+         *     - true/false: queda como preferencia propia (RR_67, RR_68);
+         *     - null: vuelve a usar la del sistema (RR_80).
+         */
+        CambioPreferencias: {
+            /** Incluir Mapa */
+            incluir_mapa?: boolean | null;
+            /** Incluir Fuentes */
+            incluir_fuentes?: boolean | null;
+        };
+        /**
+         * CambioPreferenciasPorDefecto
+         * @description RR_80 criterio 3 — el supermoderador fija el comportamiento por defecto.
+         */
+        CambioPreferenciasPorDefecto: {
+            /** Incluir Mapa */
+            incluir_mapa: boolean;
+            /** Incluir Fuentes */
+            incluir_fuentes: boolean;
         };
         /** CambioRol */
         CambioRol: {
@@ -996,6 +1077,49 @@ export interface components {
          * @enum {string}
          */
         NombreRol: "usuario" | "moderador" | "supermoderador";
+        /**
+         * PreferenciasModerador
+         * @description RR_67, RR_68 — las preferencias que aplican a las respuestas del moderador.
+         *
+         *     `incluir_mapa` e `incluir_fuentes` son las que se aplican. Los campos
+         *     `*_propio` dicen si las cambió él (True) o si sigue la del sistema (False,
+         *     RR_80); `por_defecto` es la del sistema, para mostrarla en el perfil.
+         */
+        PreferenciasModerador: {
+            /** Incluir Mapa */
+            incluir_mapa: boolean;
+            /** Incluir Fuentes */
+            incluir_fuentes: boolean;
+            /** Mapa Propio */
+            mapa_propio: boolean;
+            /** Fuentes Propio */
+            fuentes_propio: boolean;
+            por_defecto: components["schemas"]["PreferenciasRespuesta"];
+        };
+        /**
+         * PreferenciasPorDefecto
+         * @description RR_80 — el comportamiento por defecto del sistema y su último cambio.
+         */
+        PreferenciasPorDefecto: {
+            /** Incluir Mapa */
+            incluir_mapa: boolean;
+            /** Incluir Fuentes */
+            incluir_fuentes: boolean;
+            /** Actualizado En */
+            actualizado_en: string | null;
+            /** Actualizado Por */
+            actualizado_por: string | null;
+        };
+        /**
+         * PreferenciasRespuesta
+         * @description Si las respuestas incluyen el mapa de distribución y la lista de fuentes.
+         */
+        PreferenciasRespuesta: {
+            /** Incluir Mapa */
+            incluir_mapa: boolean;
+            /** Incluir Fuentes */
+            incluir_fuentes: boolean;
+        };
         /**
          * Procedencia
          * @description RR_45 criterio 3: de dónde sale un dato de la respuesta.
@@ -1840,6 +1964,59 @@ export interface operations {
             };
         };
     };
+    ver_preferencias_por_defecto_admin_preferencias_respuesta_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciasPorDefecto"];
+                };
+            };
+        };
+    };
+    cambiar_preferencias_por_defecto_admin_preferencias_respuesta_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CambioPreferenciasPorDefecto"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciasPorDefecto"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     cambiar_nombre_perfil_patch: {
         parameters: {
             query?: never;
@@ -1924,6 +2101,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TokenOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_preferencias_perfil_preferencias_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciasModerador"];
+                };
+            };
+        };
+    };
+    cambiar_preferencias_perfil_preferencias_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CambioPreferencias"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciasModerador"];
                 };
             };
             /** @description Validation Error */
