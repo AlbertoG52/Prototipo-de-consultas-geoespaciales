@@ -4,8 +4,9 @@
  * Pestañas:
  *  - Perfil: nombre (editable) y correo (solo lectura).
  *  - Preferencias: apariencia (modo oscuro y tipo de letra), guardada en el
- *    navegador. La configuración de respuestas (RR_67 / RR_68) sigue siendo
- *    solo interfaz: la implementa otro requerimiento.
+ *    navegador. Al moderador y al supermoderador también le muestra si sus
+ *    respuestas incluyen el mapa y las fuentes (RR_67, RR_68), guardado en su
+ *    cuenta para que se conserve entre sesiones (RR_79).
  *  - Seguridad: cambio de contraseña, validado en el servidor con las mismas
  *    reglas del registro (RR_00_03), y tiempo de inactividad que cierra la
  *    sesión (RR_00_04), guardado en la cuenta.
@@ -21,8 +22,10 @@ import { ChevronDown } from "lucide-react";
 
 import { Aviso, BotonPrincipal, CampoTexto } from "../components/Formulario";
 import { FuerzaContrasena, cumpleReglasPassword } from "../components/FuerzaContrasena";
+import { Interruptor } from "../components/Interruptor";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
+import type { PreferenciasModerador } from "../types";
 import {
   FUENTES,
   aplicarFuente,
@@ -95,51 +98,6 @@ function Tarjeta({
       )}
       {children}
     </div>
-  );
-}
-
-function Interruptor({
-  activo,
-  onCambiar,
-  etiqueta,
-  deshabilitado = false,
-}: {
-  activo: boolean;
-  onCambiar: () => void;
-  etiqueta: string;
-  deshabilitado?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={activo}
-      aria-label={etiqueta}
-      onClick={onCambiar}
-      disabled={deshabilitado}
-      className="relative rounded-full transition-all"
-      style={{
-        width: 44,
-        height: 24,
-        background: activo ? "var(--color-marca)" : "var(--color-borde-fuerte)",
-        border: "none",
-        cursor: deshabilitado ? "not-allowed" : "pointer",
-        opacity: deshabilitado ? 0.6 : 1,
-        flexShrink: 0,
-      }}
-    >
-      <span
-        className="absolute rounded-full transition-all"
-        style={{
-          width: 18,
-          height: 18,
-          background: "var(--color-sobre-marca)",
-          top: 3,
-          left: activo ? 23 : 3,
-          boxShadow: "var(--sombra-interruptor)",
-        }}
-      />
-    </button>
   );
 }
 
@@ -218,9 +176,10 @@ function PestanaPreferencias() {
   const [fuente, setFuente] = useState<Fuente>(leerFuente);
   const fuenteActual = FUENTES.find((f) => f.id === fuente) ?? FUENTES[0];
 
-  // RR_67 / RR_68: solo interfaz por ahora; no se guardan ni afectan las respuestas.
-  const [incluirMapa, setIncluirMapa] = useState(true);
-  const [incluirFuentes, setIncluirFuentes] = useState(true);
+  // RR_67: la configuración de respuestas es solo del moderador y del supermoderador.
+  const { sesion } = useAuth();
+  const rol = sesion?.usuario?.rol;
+  const configuraRespuestas = rol === "moderador" || rol === "supermoderador";
 
   function cambiarTema() {
     const nuevo: Tema = tema === "oscuro" ? "claro" : "oscuro";
@@ -289,45 +248,139 @@ function PestanaPreferencias() {
         </div>
       </Tarjeta>
 
-      <Tarjeta
-        titulo="Configuración de respuestas"
-        etiqueta="Próximamente"
-        descripcion="Personaliza cómo el agente presenta los resultados de tus consultas."
-      >
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "var(--color-superficie-suave)" }}>
-            <div>
-              <div className="text-sm font-medium" style={{ color: "var(--color-texto)" }}>
-                Incluir mapa de distribución
-              </div>
-              <div className="text-xs mt-0.5" style={{ color: "var(--color-texto-tenue)" }}>
-                Muestra el mapa geoespacial junto a la respuesta cuando hay datos disponibles.
-              </div>
-            </div>
-            <Interruptor
-              activo={incluirMapa}
-              onCambiar={() => setIncluirMapa((v) => !v)}
-              etiqueta="Incluir mapa de distribución"
-            />
-          </div>
-          <div className="flex items-center justify-between p-4 rounded-xl" style={{ background: "var(--color-superficie-suave)" }}>
-            <div>
-              <div className="text-sm font-medium" style={{ color: "var(--color-texto)" }}>
-                Mostrar fuentes de información
-              </div>
-              <div className="text-xs mt-0.5" style={{ color: "var(--color-texto-tenue)" }}>
-                Lista las fuentes utilizadas (GBIF, Manual de Plantas de CR) al final de cada respuesta.
-              </div>
-            </div>
-            <Interruptor
-              activo={incluirFuentes}
-              onCambiar={() => setIncluirFuentes((v) => !v)}
-              etiqueta="Mostrar fuentes de información"
-            />
-          </div>
-        </div>
-      </Tarjeta>
+      {configuraRespuestas && <ConfiguracionDeRespuestas />}
     </div>
+  );
+}
+
+/** Una opción de la configuración de respuestas, con su interruptor. */
+function OpcionDeRespuesta({
+  titulo,
+  descripcion,
+  activa,
+  propia,
+  porDefecto,
+  deshabilitada,
+  onCambiar,
+  onRestablecer,
+}: {
+  titulo: string;
+  descripcion: string;
+  activa: boolean;
+  propia: boolean;
+  porDefecto: boolean;
+  deshabilitada: boolean;
+  onCambiar: () => void;
+  onRestablecer: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 p-4 rounded-xl" style={{ background: "var(--color-superficie-suave)" }}>
+      <div>
+        <div className="text-sm font-medium" style={{ color: "var(--color-texto)" }}>
+          {titulo}
+        </div>
+        <div className="text-xs mt-0.5" style={{ color: "var(--color-texto-tenue)" }}>
+          {descripcion}
+        </div>
+        {/* RR_80: si no la ha cambiado, sigue la del sistema. */}
+        <div className="text-xs mt-1" style={{ color: "var(--color-texto-tenue)" }}>
+          {propia ? (
+            <>
+              Preferencia propia ·{" "}
+              <button
+                type="button"
+                onClick={onRestablecer}
+                disabled={deshabilitada}
+                className="underline"
+                style={{ background: "none", border: "none", padding: 0, color: "var(--color-texto-marca)", cursor: "pointer" }}
+              >
+                usar la del sistema ({porDefecto ? "incluir" : "no incluir"})
+              </button>
+            </>
+          ) : (
+            "Según la configuración del sistema"
+          )}
+        </div>
+      </div>
+      <Interruptor activo={activa} onCambiar={onCambiar} etiqueta={titulo} deshabilitado={deshabilitada} />
+    </div>
+  );
+}
+
+/**
+ * RR_67, RR_68, RR_79 — si las respuestas del moderador incluyen el mapa y las
+ * fuentes. Se guarda en la cuenta al instante y aplica desde la consulta
+ * siguiente; mientras no la cambie, sigue la del sistema (RR_80).
+ */
+function ConfiguracionDeRespuestas() {
+  const [preferencias, setPreferencias] = useState<PreferenciasModerador | null>(null);
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let vigente = true;
+    api
+      .obtenerPreferencias()
+      .then((p) => {
+        if (vigente) setPreferencias(p);
+      })
+      .catch((err) => {
+        if (vigente) setError(err instanceof Error ? err.message : "No se pudo cargar la configuración.");
+      });
+    return () => {
+      vigente = false;
+    };
+  }, []);
+
+  async function cambiar(cambio: { incluir_mapa?: boolean | null; incluir_fuentes?: boolean | null }) {
+    setGuardando(true);
+    setError(null);
+    try {
+      setPreferencias(await api.cambiarPreferencias(cambio));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo guardar la configuración.");
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <Tarjeta
+      titulo="Configuración de respuestas"
+      descripcion="Personaliza cómo el agente presenta los resultados de tus consultas. Se guarda en tu cuenta y aplica desde tu siguiente consulta."
+    >
+      {error && <Aviso tipo="error">{error}</Aviso>}
+      {!preferencias ? (
+        !error && (
+          <p className="text-sm" style={{ color: "var(--color-texto-tenue)" }}>
+            Cargando…
+          </p>
+        )
+      ) : (
+        <div className="flex flex-col gap-4">
+          <OpcionDeRespuesta
+            titulo="Incluir mapa de distribución"
+            descripcion="Muestra el mapa geoespacial junto a la respuesta cuando hay datos disponibles."
+            activa={preferencias.incluir_mapa}
+            propia={preferencias.mapa_propio}
+            porDefecto={preferencias.por_defecto.incluir_mapa}
+            deshabilitada={guardando}
+            onCambiar={() => void cambiar({ incluir_mapa: !preferencias.incluir_mapa })}
+            onRestablecer={() => void cambiar({ incluir_mapa: null })}
+          />
+          <OpcionDeRespuesta
+            titulo="Mostrar fuentes de información"
+            descripcion="Lista las fuentes utilizadas (GBIF, Manual de Plantas de CR) y las citas dentro de cada respuesta."
+            activa={preferencias.incluir_fuentes}
+            propia={preferencias.fuentes_propio}
+            porDefecto={preferencias.por_defecto.incluir_fuentes}
+            deshabilitada={guardando}
+            onCambiar={() => void cambiar({ incluir_fuentes: !preferencias.incluir_fuentes })}
+            onRestablecer={() => void cambiar({ incluir_fuentes: null })}
+          />
+        </div>
+      )}
+    </Tarjeta>
   );
 }
 

@@ -29,6 +29,10 @@ guardar o cobrar nada, así que reintentarla no le cuesta al usuario.
 
 RR_57 — el tiempo de cada consulta, termine bien o mal, queda registrado
 (services/tiempos.py) para que el equipo técnico encuentre las lentas.
+
+RR_67, RR_68, RR_80 — la respuesta lleva el mapa y las fuentes según las
+preferencias de quien consulta (services/preferencias.py). Se aplican antes
+de guardarla, así la conversación muestra lo mismo que se respondió.
 """
 
 import logging
@@ -43,6 +47,7 @@ from ..models import Consulta, Conversacion
 from ..schemas.consulta import ConsultaOut, ConsultaRequest, EspecieCandidata, RespuestaConsulta
 from ..security import Identidad
 from ..tiempo import ahora, plazo, verificar_plazo
+from . import preferencias
 from .catalogo import FuenteCatalogo
 from .intencion import analizar
 from .mcp_cliente import MCPTiempoAgotado
@@ -144,6 +149,8 @@ def _procesar(
     verificar_plazo()
 
     estado, respuesta = resultado.estado, resultado.respuesta
+    if respuesta is not None:
+        respuesta = preferencias.aplicar(respuesta, preferencias.de(db, identidad.usuario))
     resuelta = estado == EstadoConsulta.RESUELTA
     restantes = max(limite - usadas - (1 if resuelta else 0), 0)
 
@@ -271,6 +278,7 @@ def _resolver_pendiente(
         raise _limite_alcanzado(identidad, pendiente=True)
 
     respuesta = _construir_respuesta(catalogo, datos.especie_id, consulta.texto)
+    respuesta = preferencias.aplicar(respuesta, preferencias.de(db, identidad.usuario))
     verificar_plazo()  # RR_38: antes de resolverla y cobrarla
     momento = ahora()
 

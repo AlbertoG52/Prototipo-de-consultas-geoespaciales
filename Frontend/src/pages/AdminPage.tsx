@@ -1,15 +1,17 @@
 /**
  * Panel de administración
  *
- * "Usuarios" (RR_70 a RR_76, en components/admin/) y "Auditoría" (RR_00_09)
- * usan datos reales; la ruta está protegida por rol (RR_00_10). Las tarjetas
- * superiores, "Roles y permisos" y "Estadísticas" son de otros requerimientos
- * del módulo 4 (RR_63, RR_78) y siguen con datos de ejemplo.
+ * "Usuarios" (RR_70 a RR_76, en components/admin/), "Respuestas" (RR_80) y
+ * "Auditoría" (RR_00_09) usan datos reales; la ruta está protegida por rol
+ * (RR_00_10). Las tarjetas superiores, "Roles y permisos" y "Estadísticas" son
+ * de otros requerimientos del módulo 4 (RR_63, RR_78) y siguen con datos de
+ * ejemplo.
  */
 import { useCallback, useEffect, useState } from "react";
 
 import { ClipboardList } from "lucide-react";
 import { HistorialDeUso } from "../components/admin/HistorialDeUso";
+import { PreferenciasPorDefecto } from "../components/admin/PreferenciasPorDefecto";
 import { TablaUsuarios } from "../components/admin/TablaUsuarios";
 import { UsoPorRol } from "../components/admin/UsoPorRol";
 import { useAuth } from "../context/AuthContext";
@@ -77,6 +79,7 @@ export function AdminPage() {
   const sections = [
     { id: "usuarios", label: "Usuarios", icon: "👥" },
     { id: "roles", label: "Roles y permisos", icon: "🔑" },
+    { id: "respuestas", label: "Respuestas", icon: "🗺️" },
     { id: "estadisticas", label: "Estadísticas", icon: "📊" },
     { id: "auditoria", label: "Auditoría", icon: "📋" },
   ];
@@ -207,6 +210,8 @@ export function AdminPage() {
               </div>
             </div>
           )}
+
+          {activeSection === "respuestas" && <PreferenciasPorDefecto />}
 
           {activeSection === "estadisticas" && (
             <div className="flex flex-col gap-4">

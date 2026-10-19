@@ -1,4 +1,4 @@
-"""Endpoints de administración — RR_69 a RR_76, RR_00_10, RR_00_09 y RR_57.
+"""Endpoints de administración — RR_69 a RR_76, RR_80, RR_00_10, RR_00_09 y RR_57.
 
 La dependencia de rol está en el router, no en cada endpoint: todo lo que se
 agregue bajo /admin queda restringido al supermoderador sin tener que
@@ -6,7 +6,7 @@ repetirla (RR_69 criterio 1, RR_71 criterio 2). tests/test_roles.py falla si
 alguien la quita.
 
 La lógica vive en services/admin.py (usuarios, roles, estados y auditoría) y
-services/tiempos.py (RR_57).
+services/tiempos.py (RR_57) y services/preferencias.py (RR_80).
 """
 
 from fastapi import APIRouter, Depends, Query
@@ -23,9 +23,10 @@ from ..schemas.admin import (
     ResumenTiempos,
     UsoDeRol,
 )
+from ..schemas.preferencias import CambioPreferenciasPorDefecto, PreferenciasPorDefecto
 from ..schemas.usuario import UsuarioOut
 from ..security import obtener_usuario_actual, requiere_rol
-from ..services import admin, tiempos
+from ..services import admin, preferencias, tiempos
 from .errores import errores_http
 
 router = APIRouter(
@@ -108,3 +109,23 @@ def tiempos_de_respuesta(
     `solo_lentas=true`, solo las que superaron SEGUNDOS_RESPUESTA_LENTA.
     """
     return tiempos.resumen(db, dias, solo_lentas, limite)
+
+
+@router.get("/preferencias-respuesta", response_model=PreferenciasPorDefecto)
+def ver_preferencias_por_defecto(db: Session = Depends(get_db)) -> PreferenciasPorDefecto:
+    """RR_80 — si las respuestas incluyen el mapa y las fuentes por defecto."""
+    return preferencias.ver_por_defecto(db)
+
+
+@router.put("/preferencias-respuesta", response_model=PreferenciasPorDefecto)
+def cambiar_preferencias_por_defecto(
+    datos: CambioPreferenciasPorDefecto,
+    actual: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+) -> PreferenciasPorDefecto:
+    """RR_80 criterio 3 — ajusta el comportamiento por defecto del sistema.
+
+    Aplica a todos los que no han cambiado su preferencia (criterio 2): los
+    usuarios, los visitantes y los moderadores sin preferencia propia.
+    """
+    return preferencias.cambiar_por_defecto(db, actual, datos)
