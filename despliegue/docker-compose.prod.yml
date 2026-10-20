@@ -1,0 +1,51 @@
+# Producción en la EC2: el frontend compilado y el backend, detrás de Caddy (HTTPS).
+#
+# La base de datos es la RDS de AWS (DATABASE_URL en .env.produccion), así que
+# aquí no hay servicio "db". CR-BioLM tampoco corre aquí: el backend lo busca en
+# MCP_URL (ver README de esta carpeta).
+#
+# Se levanta desde esta carpeta, en la EC2:
+#
+#   docker compose --env-file .env.produccion -f docker-compose.prod.yml up -d --build
+#
+# No modifica nada del desarrollo local: docker-compose.yml sigue igual.
+
+services:
+  backend:
+    # Mismo Dockerfile del desarrollo; solo cambia el comando: sin --reload.
+    build: ../Backend
+    env_file: .env.produccion
+    command: >
+      sh -c "python migrate.py &&
+             exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+             --proxy-headers --forwarded-allow-ips='*'"
+    extra_hosts:
+      # Para llegar a CR-BioLM por el túnel SSH mientras corra en una laptop.
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    # Sin "ports": el backend no se ve desde Internet, solo a través de Caddy.
+
+  web:
+    # El frontend se compila con VITE_API_URL=/api y lo sirve Caddy, que además
+    # pasa /api/* al backend y obtiene el certificado HTTPS solo.
+    build:
+      context: ../Frontend
+      dockerfile: ../despliegue/web.Dockerfile
+      args:
+        VITE_API_URL: /api
+    environment:
+      DOMINIO: ${DOMINIO:?Falta DOMINIO en .env.produccion}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data        # certificados HTTPS: si se borra, Caddy pide otros
+      - caddy_config:/config
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,0 +1,18 @@
+# DOMINIO sale de .env.produccion. Con un nombre (p. ej. 1-2-3-4.sslip.io para la IP 1.2.3.4)
+# Caddy obtiene y renueva solo el certificado HTTPS de Let's Encrypt.
+# Con "http://..." no usa HTTPS (solo para probar en local).
+{$DOMINIO} {
+	encode zstd gzip
+
+	# La API: /api/consultas llega al backend como /consultas.
+	handle_path /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# El frontend. Las rutas de React (/admin, /login...) devuelven index.html.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

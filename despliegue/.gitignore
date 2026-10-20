@@ -1,0 +1,2 @@
+# El .env de producción tiene la clave de la RDS y la SECRET_KEY: nunca a Git.
+.env.produccion
