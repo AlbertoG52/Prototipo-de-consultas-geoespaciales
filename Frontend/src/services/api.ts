@@ -6,12 +6,14 @@
  * lugar.
  */
 import type {
+  CambioPermisos,
   ConsultaOut,
   ConversacionDetalle,
   ConversacionResumen,
   EspecieCandidata,
   FichaEspecie,
   HistorialUso,
+  PermisosTiposConsulta,
   PreferenciasModerador,
   PreferenciasPorDefecto,
   PreferenciasRespuesta,
@@ -332,6 +334,13 @@ export const obtenerPreferenciasPorDefecto = () =>
 /** RR_80 criterio 3 — aplica a todos los que no han cambiado su preferencia. */
 export const cambiarPreferenciasPorDefecto = (preferencias: PreferenciasRespuesta) =>
   pedir<PreferenciasPorDefecto>("/admin/preferencias-respuesta", "PUT", preferencias);
+
+/** RR_77 — los tipos de consulta que puede hacer cada rol. */
+export const obtenerPermisosDeConsulta = () => pedir<PermisosTiposConsulta>("/admin/permisos-consulta");
+
+/** RR_77 criterio 1 — deja permitidos solo los tipos enviados de cada rol. */
+export const cambiarPermisosDeConsulta = (cambio: CambioPermisos) =>
+  pedir<PermisosTiposConsulta>("/admin/permisos-consulta", "PUT", cambio);
 
 /** RR_76 — una página del historial de uso de una cuenta, de lo más reciente a lo más antiguo. */
 export const obtenerHistorialDeUso = (usuarioId: number, limite: number, desplazamiento: number) =>

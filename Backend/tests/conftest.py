@@ -9,9 +9,11 @@ import pytest
 
 from app import config
 from app.db import SessionLocal
+from app.main import app
 from app.routers import auth
+from app.services.catalogo import obtener_catalogo
 
-from apoyo import sql
+from apoyo import api, sql
 
 
 @pytest.fixture(autouse=True)
@@ -65,3 +67,29 @@ def db():
     finally:
         sesion.rollback()
         sesion.close()
+
+
+@pytest.fixture
+def sesion(db, monkeypatch):
+    """La sesión `db` sin confirmar nada: commit solo envía los cambios a la BD.
+
+    Para probar servicios que confirman cambios que no se pueden borrar después,
+    como los que dejan registros en 'auditoria' (RR_00_09).
+    """
+    monkeypatch.setattr(db, "commit", db.flush)
+    return db
+
+
+@pytest.fixture
+def visitante():
+    """Cabeceras de un visitante con sesión anónima nueva (RR_00_11)."""
+    token = api.post("/auth/anonimo").json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+def catalogo(request):
+    """Reemplaza el catálogo de la API por el que recibe con `indirect=True`."""
+    app.dependency_overrides[obtener_catalogo] = request.param
+    yield
+    app.dependency_overrides.pop(obtener_catalogo, None)

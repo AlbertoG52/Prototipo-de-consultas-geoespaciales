@@ -1,4 +1,4 @@
-"""Endpoints de administración — RR_69 a RR_76, RR_80, RR_00_10, RR_00_09 y RR_57.
+"""Endpoints de administración — RR_69 a RR_77, RR_80, RR_00_10, RR_00_09 y RR_57.
 
 La dependencia de rol está en el router, no en cada endpoint: todo lo que se
 agregue bajo /admin queda restringido al supermoderador sin tener que
@@ -6,7 +6,8 @@ repetirla (RR_69 criterio 1, RR_71 criterio 2). tests/test_roles.py falla si
 alguien la quita.
 
 La lógica vive en services/admin.py (usuarios, roles, estados y auditoría) y
-services/tiempos.py (RR_57) y services/preferencias.py (RR_80).
+services/tiempos.py (RR_57), services/preferencias.py (RR_80) y
+services/permisos.py (RR_77).
 """
 
 from fastapi import APIRouter, Depends, Query
@@ -23,10 +24,11 @@ from ..schemas.admin import (
     ResumenTiempos,
     UsoDeRol,
 )
+from ..schemas.permisos import CambioPermisos, PermisosTiposConsulta
 from ..schemas.preferencias import CambioPreferenciasPorDefecto, PreferenciasPorDefecto
 from ..schemas.usuario import UsuarioOut
 from ..security import obtener_usuario_actual, requiere_rol
-from ..services import admin, preferencias, tiempos
+from ..services import admin, permisos, preferencias, tiempos
 from .errores import errores_http
 
 router = APIRouter(
@@ -129,3 +131,22 @@ def cambiar_preferencias_por_defecto(
     usuarios, los visitantes y los moderadores sin preferencia propia.
     """
     return preferencias.cambiar_por_defecto(db, actual, datos)
+
+
+@router.get("/permisos-consulta", response_model=PermisosTiposConsulta)
+def ver_permisos_de_consulta(db: Session = Depends(get_db)) -> PermisosTiposConsulta:
+    """RR_77 — los tipos de consulta que puede hacer cada rol."""
+    return permisos.ver(db)
+
+
+@router.put("/permisos-consulta", response_model=PermisosTiposConsulta)
+def cambiar_permisos_de_consulta(
+    datos: CambioPermisos,
+    actual: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+) -> PermisosTiposConsulta:
+    """RR_77 criterio 1 — define los tipos de consulta de los roles enviados.
+
+    Aplica desde la siguiente consulta y cada cambio queda en la auditoría.
+    """
+    return permisos.cambiar(db, actual, datos)

@@ -22,6 +22,11 @@ o descripción, el mensaje no es sobre flora. Antes de buscar no se puede saber:
 "guaria morada" no tiene ninguna de esas palabras y es una planta. Por eso su
 mensaje sugiere probar con el nombre científico.
 
+`fuera_de_costa_rica(texto)` (RR_30) se usa en el mismo momento: sin especie
+reconocida, una pregunta por la flora de otro país o continente ("¿Dónde crece
+el baobab en África?") también está fuera de alcance. Se responde con el mismo
+motivo y mensaje que RR_37 (FUERA_DE_TEMA).
+
 Todo es por palabras clave, sin LLM, comparadas sin tildes ni mayúsculas
 (intencion.palabras, RR_35), igual que services/intencion.py.
 """
@@ -198,6 +203,51 @@ def fuera_de_tema(texto: str) -> bool:
     """
     sobre_plantas = _FLORA | intencion.GEOESPACIALES | intencion.HABITAT | intencion.DESCRIPTIVAS
     return not any(p in sobre_plantas for p in palabras(texto))
+
+
+# --- RR_30: fuera de alcance (flora de otro lugar) ------------------------------------
+
+# Países y continentes que no son Costa Rica. Sin los que también son parte de
+# nombres comunes de plantas en Costa Rica: "chile" (chile dulce), "china" (la
+# flor), "india" (almendro de la India, caña india), "jamaica" (flor de
+# jamaica), "brasil" (palo de Brasil), "guinea" (zacate guinea). Tampoco
+# "Centroamérica" ni "América", que incluyen a Costa Rica.
+_OTROS_LUGARES = frozenset(
+    {
+        "africa", "asia", "europa", "oceania", "antartida", "norteamerica",
+        "sudamerica", "suramerica",
+        "panama", "nicaragua", "honduras", "guatemala", "belice", "mexico",
+        "colombia", "venezuela", "ecuador", "peru", "bolivia", "argentina",
+        "uruguay", "paraguay", "cuba", "haiti", "espana", "francia", "italia",
+        "alemania", "portugal", "inglaterra", "japon", "australia", "canada",
+        "madagascar", "eeuu", "usa",
+    }
+)  # fmt: skip
+_OTROS_LUGARES_COMPUESTOS = ("estados unidos", "el salvador", "nueva zelanda", "reino unido")
+
+# Lo que dice que la pregunta sí es sobre Costa Rica.
+_COSTA_RICA = frozenset(
+    {
+        "costarricense", "costarricenses", "alajuela", "cartago", "heredia",
+        "guanacaste", "puntarenas", "limon", "talamanca", "monteverde", "osa",
+    }
+)  # fmt: skip
+
+
+def fuera_de_costa_rica(texto: str) -> bool:
+    """RR_30: pregunta por la flora de otro país o continente y no por la de Costa Rica.
+
+    Como `fuera_de_tema`, se usa solo cuando no se reconoció ninguna especie: con
+    una especie del Manual la respuesta es sobre Costa Rica aunque se nombre otro
+    país. "¿El baobab de África crece en Costa Rica?" no está fuera de alcance.
+    """
+    sus_palabras = palabras(texto)
+    frase = f" {' '.join(sus_palabras)} "
+    if " costa rica " in frase or _COSTA_RICA & set(sus_palabras):
+        return False
+    return bool(_OTROS_LUGARES & set(sus_palabras)) or any(
+        f" {lugar} " in frase for lugar in _OTROS_LUGARES_COMPUESTOS
+    )
 
 
 # --- qué se responde ------------------------------------------------------------------

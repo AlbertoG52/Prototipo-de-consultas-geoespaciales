@@ -43,7 +43,7 @@ from sqlalchemy.orm import Session
 
 from .. import config
 from ..db import SessionLocal
-from ..dominio import IntencionConsulta, ResultadoConsulta
+from ..dominio import IntencionConsulta, MotivoOrientacion, ResultadoConsulta
 from ..errores import ErrorDominio, LimiteAlcanzado, TiempoAgotado
 from ..models import TiempoRespuesta
 from ..schemas.admin import ConteoIntencion, RegistroTiempo, ResumenTiempos
@@ -68,6 +68,9 @@ class Medicion:
         self.especie_id = salida.respuesta.especie.id if salida.respuesta else None
         self.consulta_id = salida.id
         # RR_33: lo que se respondió manda sobre lo que se dedujo del texto.
+        # RR_77: de una consulta no permitida queda el tipo que se pidió.
+        if salida.motivo is MotivoOrientacion.TIPO_NO_PERMITIDO:
+            return
         if salida.motivo is not None:
             self.intencion = IntencionConsulta(salida.motivo)
         elif salida.respuesta is not None:

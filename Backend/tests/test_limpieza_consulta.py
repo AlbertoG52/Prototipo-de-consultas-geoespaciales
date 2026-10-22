@@ -20,12 +20,6 @@ from apoyo import api
 catalogo = CatalogoDemo()
 
 
-@pytest.fixture
-def visitante():
-    token = api.post("/auth/anonimo").json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
-
-
 # --- RR_21 criterio 1: se quitan espacios y caracteres innecesarios -------------
 
 

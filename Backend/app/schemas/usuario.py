@@ -1,8 +1,9 @@
 """Esquemas de entrada y salida de usuarios."""
 
 import re
+from typing import Any
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator, model_validator
 
 from ..config import LONGITUD_MAXIMA_PASSWORD, LONGITUD_MINIMA_PASSWORD
 from ..dominio import EstadoCuenta, NombreRol
@@ -45,10 +46,31 @@ def validar_password(valor: str) -> str:
     return valor
 
 
+# RR_61 criterio 3: campos con los que alguien intentaría elegir su rol al registrarse.
+CAMPOS_DE_ROL = frozenset({"rol", "rol_id", "role", "role_id"})
+MENSAJE_ROL_EN_REGISTRO = (
+    "No se puede elegir el rol al registrarse: toda cuenta nueva es de usuario estándar."
+)
+
+
 class RegistroRequest(BaseModel):
+    """RR_00_01. RR_61: el rol no se recibe; routers/auth.py asigna siempre 'usuario'.
+
+    Cualquier campo de más se rechaza (422). Los de rol, con un mensaje propio.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
     nombre: str = Field(max_length=LONGITUD_MAXIMA_NOMBRE)
     correo: EmailStr
     password: str
+
+    @model_validator(mode="before")
+    @classmethod
+    def _sin_rol(cls, datos: Any) -> Any:
+        if isinstance(datos, dict) and CAMPOS_DE_ROL & datos.keys():
+            raise ValueError(MENSAJE_ROL_EN_REGISTRO)
+        return datos
 
     @field_validator("password")
     @classmethod

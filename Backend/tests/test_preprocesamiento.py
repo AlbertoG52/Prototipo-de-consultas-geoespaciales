@@ -1,5 +1,6 @@
-"""Pruebas de RR_22 (idioma), RR_32 (sin sentido), RR_37 (saludos y fuera de tema)
-y RR_40 (ayuda): services/preprocesamiento.py y su uso en POST /consultas.
+"""Pruebas de RR_22 (idioma), RR_30 (fuera de alcance), RR_32 (sin sentido), RR_37
+(saludos y fuera de tema) y RR_40 (ayuda): services/preprocesamiento.py y su uso
+en POST /consultas.
 
 Las de la primera parte no necesitan la BD; las que pasan por la API, sí, y
 borran lo que crean. Se ejecutan con:
@@ -9,19 +10,21 @@ borran lo que crean. Se ejecutan con:
 import pytest
 
 from app import config
-from app.dominio import MotivoOrientacion
+from app.dominio import EstadoConsulta, MotivoOrientacion
 from app.main import app
+from app.schemas.consulta import EspecieCandidata
 from app.services import consultas, intencion
 from app.services.catalogo import CatalogoDemo, obtener_catalogo
 from app.services.contexto_especie import MANUAL
 from app.services.preprocesamiento import (
     EJEMPLOS_DE_CONSULTA,
+    fuera_de_costa_rica,
     fuera_de_tema,
     interpretar,
     mensaje_de,
 )
 
-from apoyo import api, crear_cuenta_verificada, sql
+from apoyo import CatalogoQueNoSeUsa, api, crear_cuenta_verificada, sql
 
 PASSWORD = "Clave#2024"
 
@@ -216,20 +219,37 @@ def test_el_mensaje_fuera_de_tema_sugiere_el_nombre_cientifico():
     assert "nombre científico" in mensaje_de(MotivoOrientacion.FUERA_DE_TEMA, "")
 
 
-# --- por la API ---------------------------------------------------------------------
+# --- RR_30: fuera de alcance (flora de otro lugar) ------------------------------------
 
 
-class CatalogoQueNoSeUsa:
-    """Falla si alguien lo usa: prueba que no se buscó ninguna especie."""
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿Dónde crece el baobab en África?",
+        "Plantas nativas de México",
+        "¿Qué árboles hay en Estados Unidos?",
+        "Flora de Panamá",
+    ],
+)
+def test_la_flora_de_otro_lugar_esta_fuera_de_alcance(texto):
+    assert fuera_de_costa_rica(texto)
 
-    def __getattr__(self, nombre):
-        raise AssertionError(f"no debía buscarse en el catálogo ({nombre})")
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿El baobab de África crece en Costa Rica?",  # pregunta por Costa Rica
+        "Plantas de Talamanca, en la frontera con Panamá",  # lugar de Costa Rica
+        "¿Dónde crece el chile dulce?",  # "chile" también es una planta
+        "¿Dónde hay almendro de la India?",
+        "planta inventada xyz",
+    ],
+)
+def test_sin_otro_lugar_o_con_costa_rica_no_esta_fuera_de_alcance(texto):
+    assert not fuera_de_costa_rica(texto)
 
 
-@pytest.fixture
-def visitante():
-    token = api.post("/auth/anonimo").json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+# --- por la API (fixtures `visitante` y `catalogo` de conftest.py) -------------------
 
 
 @pytest.fixture
@@ -276,6 +296,34 @@ def test_fuera_de_tema_por_la_api(visitante):
     datos = _consultar(visitante, "¿Quién ganó el mundial?").json()
     assert (datos["estado"], datos["motivo"]) == ("orientacion", "fuera_de_tema")
     assert datos["consultas_restantes"] == config.LIMITE_CONSULTAS_ANONIMO
+
+
+class CatalogoSinEspecies(CatalogoQueNoSeUsa):
+    """No reconoce ninguna especie; falla si se le pide algo más, como armar una respuesta."""
+
+    def buscar_especies(self, texto: str) -> list[EspecieCandidata]:
+        return []
+
+
+@pytest.mark.parametrize("catalogo", [CatalogoSinEspecies], indirect=True)
+@pytest.mark.parametrize("texto", ["¿Dónde crece el baobab en África?", "¿Quién ganó el mundial?"])
+def test_fuera_de_alcance_por_la_api(visitante, catalogo, texto):
+    # RR_30: se identifica (1), se informa (2), no se genera respuesta (3) ni se cobra.
+    datos = _consultar(visitante, texto).json()
+    assert (datos["estado"], datos["motivo"]) == (
+        EstadoConsulta.ORIENTACION,
+        MotivoOrientacion.FUERA_DE_TEMA,
+    )
+    assert datos["mensaje"] == mensaje_de(MotivoOrientacion.FUERA_DE_TEMA, texto)
+    assert datos["respuesta"] is None
+    assert datos["consultas_restantes"] == config.LIMITE_CONSULTAS_ANONIMO
+
+
+@pytest.mark.parametrize("catalogo", [CatalogoDemo], indirect=True)
+def test_con_una_especie_reconocida_otro_pais_no_la_deja_fuera(visitante, catalogo):
+    # RR_30: la respuesta sale del Manual de Costa Rica aunque se nombre otro país.
+    datos = _consultar(visitante, "¿Crece Quercus costaricensis en Panamá?").json()
+    assert datos["estado"] == EstadoConsulta.RESUELTA
 
 
 def test_sin_especie_pero_sobre_plantas_sigue_sin_coincidencias(visitante):

@@ -4,7 +4,14 @@
  * Se escriben una sola vez aquí para que la tabla de registros, el detalle de
  * un punto del mapa, la ficha y las descargas digan lo mismo.
  */
-import type { DatoRespuesta, EstadoConsulta, NombreRol, RegistroPresencia } from "../types";
+import type {
+  DatoRespuesta,
+  EstadoConsulta,
+  NombreRol,
+  RegistroPresencia,
+  RolDeConsulta,
+  TipoPregunta,
+} from "../types";
 
 /** Idioma y región para mostrar fechas y horas (toLocaleString, toLocaleDateString). */
 export const IDIOMA_FECHAS = "es-CR";
@@ -82,6 +89,21 @@ export const ETIQUETAS_ROL: Record<NombreRol, string> = {
   usuario: "Usuario",
   moderador: "Moderador",
   supermoderador: "Supermoderador",
+};
+
+/** RR_77 — los roles a los que se les configuran los tipos de consulta, más el visitante. */
+export const ETIQUETAS_ROL_DE_CONSULTA: Record<RolDeConsulta, string> = {
+  visitante: "Visitante",
+  usuario: ETIQUETAS_ROL.usuario,
+  moderador: ETIQUETAS_ROL.moderador,
+};
+
+/** RR_77 — nombre de cada tipo de pregunta que detecta el backend (TipoPregunta). */
+export const ETIQUETAS_TIPO_PREGUNTA: Record<TipoPregunta, string> = {
+  distribucion: "Distribución",
+  habitat: "Hábitat",
+  descripcion: "Descripción",
+  general: "Información general",
 };
 
 /** Cómo terminó una consulta guardada (columna consultas.estado). */

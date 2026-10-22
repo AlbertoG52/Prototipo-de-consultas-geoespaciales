@@ -1,10 +1,11 @@
 /**
  * Panel de administración
  *
- * "Usuarios" (RR_70 a RR_76, en components/admin/), "Respuestas" (RR_80) y
- * "Auditoría" (RR_00_09) usan datos reales; la ruta está protegida por rol
- * (RR_00_10). Las tarjetas superiores, "Roles y permisos" y "Estadísticas" son
- * de otros requerimientos del módulo 4 (RR_63, RR_78) y siguen con datos de
+ * "Usuarios" (RR_70 a RR_76, en components/admin/), "Respuestas" (RR_80),
+ * los tipos de consulta por rol de "Roles y permisos" (RR_77) y "Auditoría"
+ * (RR_00_09) usan datos reales; la ruta está protegida por rol (RR_00_10). Las
+ * tarjetas superiores, el resto de "Roles y permisos" y "Estadísticas" son de
+ * otros requerimientos del módulo 4 (RR_63, RR_78) y siguen con datos de
  * ejemplo.
  */
 import { useCallback, useEffect, useState } from "react";
@@ -13,6 +14,7 @@ import { ClipboardList } from "lucide-react";
 import { HistorialDeUso } from "../components/admin/HistorialDeUso";
 import { PreferenciasPorDefecto } from "../components/admin/PreferenciasPorDefecto";
 import { TablaUsuarios } from "../components/admin/TablaUsuarios";
+import { TiposDeConsultaPorRol } from "../components/admin/TiposDeConsultaPorRol";
 import { UsoPorRol } from "../components/admin/UsoPorRol";
 import { useAuth } from "../context/AuthContext";
 import * as api from "../services/api";
@@ -22,6 +24,7 @@ import { IDIOMA_FECHAS } from "../config/textos";
 const ACCIONES: Record<string, string> = {
   cambio_rol: "Cambio de rol",
   cambio_estado: "Cambio de estado",
+  cambio_permiso: "Cambio de permisos", // RR_77: afecta a un rol, no a una cuenta
 };
 
 function DatosDeEjemplo() {
@@ -136,6 +139,7 @@ export function AdminPage() {
 
           {activeSection === "roles" && (
             <div className="flex flex-col gap-4">
+              <TiposDeConsultaPorRol />
               <div><DatosDeEjemplo /></div>
               <div className="rounded-2xl p-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
                 <h2 className="font-semibold mb-4" style={{ color: "var(--color-texto)" }}>Límite de consultas por rol</h2>
@@ -286,7 +290,10 @@ export function AdminPage() {
                         <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>{new Date(log.fecha).toLocaleString(IDIOMA_FECHAS)}</span>
                       </div>
                       <div className="text-xs" style={{ color: "var(--color-texto-secundario)" }}>
-                        Usuario afectado: <strong style={{ color: "var(--color-texto-cuerpo)" }}>{log.afectado ?? "—"}</strong> · Por: <strong style={{ color: "var(--color-texto-cuerpo)" }}>{log.actor ?? "Servidor"}</strong>
+                        {log.accion !== "cambio_permiso" && (
+                          <>Usuario afectado: <strong style={{ color: "var(--color-texto-cuerpo)" }}>{log.afectado ?? "—"}</strong> · </>
+                        )}
+                        Por: <strong style={{ color: "var(--color-texto-cuerpo)" }}>{log.actor ?? "Servidor"}</strong>
                       </div>
                       <div className="text-xs mt-0.5 font-mono break-words" style={{ color: "var(--color-texto-tenue)" }}>{log.detalle}</div>
                     </div>
