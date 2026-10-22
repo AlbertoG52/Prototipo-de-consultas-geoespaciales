@@ -374,6 +374,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/estadisticas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estadisticas De Uso
+         * @description RR_78 — total de consultas del periodo, por rol, por día y por tipo de pregunta.
+         */
+        get: operations["estadisticas_de_uso_admin_estadisticas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/estadisticas/resumen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resumen De Uso
+         * @description RR_78 — cifras de las tarjetas del panel: cuentas, consultas de hoy, ayer y 30 días.
+         */
+        get: operations["resumen_de_uso_admin_estadisticas_resumen_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/usuarios/{usuario_id}/estado": {
         parameters: {
             query?: never;
@@ -900,6 +940,33 @@ export interface components {
             consulta_id?: number | null;
         };
         /**
+         * ConsultasDeGrupo
+         * @description Criterio 2: las consultas de un grupo (rol de hoy o visitante).
+         */
+        ConsultasDeGrupo: {
+            grupo: components["schemas"]["GrupoDeUso"];
+            /** Consultas */
+            consultas: number;
+            /** Resueltas */
+            resueltas: number;
+        };
+        /** ConsultasDeTipo */
+        ConsultasDeTipo: {
+            tipo: components["schemas"]["TipoPregunta"];
+            /** Consultas */
+            consultas: number;
+        };
+        /** ConsultasDelDia */
+        ConsultasDelDia: {
+            /**
+             * Fecha
+             * Format: date
+             */
+            fecha: string;
+            /** Consultas */
+            consultas: number;
+        };
+        /**
          * ConteoIntencion
          * @description RR_33: cuántas consultas del periodo tuvieron una intención.
          */
@@ -983,6 +1050,35 @@ export interface components {
             familia: string;
         };
         /**
+         * EstadisticasUso
+         * @description GET /admin/estadisticas: el uso del sistema en un periodo.
+         *
+         *     Las cifras se calculan en cada petición, así que traen las consultas
+         *     nuevas (criterio 3).
+         */
+        EstadisticasUso: {
+            periodo: components["schemas"]["PeriodoEstadisticas"];
+            /** Desde */
+            desde: string | null;
+            /** Total */
+            total: number;
+            /** Resueltas */
+            resueltas: number;
+            /** Tasa Exito */
+            tasa_exito: number | null;
+            /** Por Grupo */
+            por_grupo: components["schemas"]["ConsultasDeGrupo"][];
+            /** Por Dia */
+            por_dia: components["schemas"]["ConsultasDelDia"][];
+            /** Por Tipo */
+            por_tipo: components["schemas"]["ConsultasDeTipo"][];
+            /**
+             * Generado En
+             * Format: date-time
+             */
+            generado_en: string;
+        };
+        /**
          * EstadoConsulta
          * @description Columna consultas.estado.
          *
@@ -1038,6 +1134,15 @@ export interface components {
             /** Procedencia */
             procedencia: components["schemas"]["Procedencia"][];
         };
+        /**
+         * GrupoDeUso
+         * @description Quién hizo las consultas en las estadísticas de uso (RR_78).
+         *
+         *     Una cuenta cuenta con el rol que tiene hoy, como en RR_76; el visitante
+         *     sin cuenta es un grupo aparte.
+         * @enum {string}
+         */
+        GrupoDeUso: "visitante" | "usuario" | "moderador" | "supermoderador";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1119,6 +1224,13 @@ export interface components {
          * @enum {string}
          */
         NombreRol: "usuario" | "moderador" | "supermoderador";
+        /**
+         * PeriodoEstadisticas
+         * @description Periodo de las estadísticas de uso (RR_78). Los días son en UTC, como el
+         *     límite diario (services/uso.py).
+         * @enum {string}
+         */
+        PeriodoEstadisticas: "hoy" | "ultimos_7_dias" | "ultimos_30_dias" | "todo";
         /**
          * PermisosDeRol
          * @description Los tipos de consulta que puede hacer un rol.
@@ -1359,6 +1471,24 @@ export interface components {
             por_intencion: components["schemas"]["ConteoIntencion"][];
             /** Registros */
             registros: components["schemas"]["RegistroTiempo"][];
+        };
+        /**
+         * ResumenUso
+         * @description GET /admin/estadisticas/resumen: las cifras de las tarjetas del panel.
+         */
+        ResumenUso: {
+            /** Usuarios */
+            usuarios: number;
+            /** Usuarios Nuevos 30 Dias */
+            usuarios_nuevos_30_dias: number;
+            /** Consultas Hoy */
+            consultas_hoy: number;
+            /** Consultas Ayer */
+            consultas_ayer: number;
+            /** Consultas 30 Dias */
+            consultas_30_dias: number;
+            /** Tasa Exito 30 Dias */
+            tasa_exito_30_dias: number | null;
         };
         /**
          * RolDeConsulta
@@ -1903,6 +2033,57 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UsoDeRol"][];
+                };
+            };
+        };
+    };
+    estadisticas_de_uso_admin_estadisticas_get: {
+        parameters: {
+            query?: {
+                periodo?: components["schemas"]["PeriodoEstadisticas"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstadisticasUso"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resumen_de_uso_admin_estadisticas_resumen_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResumenUso"];
                 };
             };
         };

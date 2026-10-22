@@ -91,6 +91,29 @@ class RolDeConsulta(StrEnum):
     MODERADOR = NombreRol.MODERADOR.value
 
 
+class GrupoDeUso(StrEnum):
+    """Quién hizo las consultas en las estadísticas de uso (RR_78).
+
+    Una cuenta cuenta con el rol que tiene hoy, como en RR_76; el visitante
+    sin cuenta es un grupo aparte.
+    """
+
+    VISITANTE = "visitante"
+    USUARIO = NombreRol.USUARIO.value
+    MODERADOR = NombreRol.MODERADOR.value
+    SUPERMODERADOR = NombreRol.SUPERMODERADOR.value
+
+
+class PeriodoEstadisticas(StrEnum):
+    """Periodo de las estadísticas de uso (RR_78). Los días son en UTC, como el
+    límite diario (services/uso.py)."""
+
+    HOY = "hoy"
+    ULTIMOS_7_DIAS = "ultimos_7_dias"  # hoy y los 6 días anteriores
+    ULTIMOS_30_DIAS = "ultimos_30_dias"  # hoy y los 29 días anteriores
+    TODO = "todo"
+
+
 class IntencionConsulta(StrEnum):
     """Columna tiempos_respuesta.intencion (RR_33): qué quiso hacer el usuario.
 

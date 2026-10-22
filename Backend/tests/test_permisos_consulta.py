@@ -7,7 +7,9 @@ Tres grupos:
   que no se pueden borrar (RR_00_09), así que corren en la sesión `sesion` de
   conftest.py, que se deshace al final.
 - Por la API: para no cambiar la configuración real, `permisos.de` se
-  reemplaza por una que bloquea lo que pide cada prueba.
+  reemplaza por una que bloquea lo que pide cada prueba. Las demás pruebas del
+  proyecto permiten todo (fixture `todos_los_tipos_permitidos` de conftest.py);
+  las que leen la tabla de verdad llevan la marca `permisos_de_la_bd`.
 
 Se ejecutan con:
     docker compose exec backend python -m pytest tests -q
@@ -82,6 +84,7 @@ def test_el_rol_que_se_configura(rol, esperado):
     assert permisos.rol_de(_identidad(rol)) == esperado
 
 
+@pytest.mark.permisos_de_la_bd
 def test_el_supermoderador_puede_todo_sin_leer_la_bd():
     # La sesión es None: si se consultara la tabla, fallaría.
     assert permisos.de(None, _identidad(NombreRol.SUPERMODERADOR)).permitidos == permisos.TODOS
@@ -125,6 +128,7 @@ def _solo(rol: RolDeConsulta, *permitidos: TipoPregunta) -> CambioPermisos:
     return CambioPermisos.model_validate({"roles": [{"rol": rol, "permitidos": permitidos}]})
 
 
+@pytest.mark.permisos_de_la_bd
 def test_el_supermoderador_define_los_tipos_de_un_rol(sesion):
     # Criterio 1, y aplica desde la siguiente consulta (criterio 2).
     actor = crear_usuario(sesion, "actor.permisos@example.com", NombreRol.SUPERMODERADOR)

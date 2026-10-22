@@ -121,3 +121,17 @@ export type RolDeConsulta = Esquema<"RolDeConsulta">;
 export type PermisosTiposConsulta = Esquema<"PermisosTiposConsulta">;
 
 export type CambioPermisos = Esquema<"CambioPermisos">;
+
+// ─── Estadísticas de uso (RR_78) ───
+
+/** Periodo de las estadísticas: hoy, últimos 7 o 30 días, o todo. */
+export type PeriodoEstadisticas = Esquema<"PeriodoEstadisticas">;
+
+/** Quién hizo las consultas: el rol que la cuenta tiene hoy, o visitante. */
+export type GrupoDeUso = Esquema<"GrupoDeUso">;
+
+/** Total, por grupo, por día (últimos 7) y por tipo de pregunta, de un periodo. */
+export type EstadisticasUso = Esquema<"EstadisticasUso">;
+
+/** Las cifras de las tarjetas del panel. */
+export type ResumenUso = Esquema<"ResumenUso">;

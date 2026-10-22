@@ -2,17 +2,19 @@
  * Panel de administración
  *
  * "Usuarios" (RR_70 a RR_76, en components/admin/), "Respuestas" (RR_80),
- * los tipos de consulta por rol de "Roles y permisos" (RR_77) y "Auditoría"
- * (RR_00_09) usan datos reales; la ruta está protegida por rol (RR_00_10). Las
- * tarjetas superiores, el resto de "Roles y permisos" y "Estadísticas" son de
- * otros requerimientos del módulo 4 (RR_63, RR_78) y siguen con datos de
+ * los tipos de consulta por rol de "Roles y permisos" (RR_77), las tarjetas
+ * superiores y "Estadísticas" (RR_78) y "Auditoría" (RR_00_09) usan datos
+ * reales; la ruta está protegida por rol (RR_00_10). El resto de "Roles y
+ * permisos" (límites y tabla de permisos) es de RR_63 y sigue con datos de
  * ejemplo.
  */
 import { useCallback, useEffect, useState } from "react";
 
 import { ClipboardList } from "lucide-react";
+import { EstadisticasDeUso } from "../components/admin/EstadisticasDeUso";
 import { HistorialDeUso } from "../components/admin/HistorialDeUso";
 import { PreferenciasPorDefecto } from "../components/admin/PreferenciasPorDefecto";
+import { ResumenDeUso } from "../components/admin/ResumenDeUso";
 import { TablaUsuarios } from "../components/admin/TablaUsuarios";
 import { TiposDeConsultaPorRol } from "../components/admin/TiposDeConsultaPorRol";
 import { UsoPorRol } from "../components/admin/UsoPorRol";
@@ -34,13 +36,6 @@ function DatosDeEjemplo() {
     </span>
   );
 }
-
-const STATS = [
-  { label: "Usuarios totales", value: "7", icon: "👥", change: "+2 este mes" },
-  { label: "Consultas hoy", value: "143", icon: "💬", change: "+18 vs ayer" },
-  { label: "Consultas este mes", value: "2,841", icon: "📊", change: "+12%" },
-  { label: "Tasa de éxito", value: "96.4%", icon: "✅", change: "Estable" },
-];
 
 export function AdminPage() {
   const { sesion } = useAuth();
@@ -114,20 +109,7 @@ export function AdminPage() {
             </div>
           )}
 
-          {/* Stats row */}
-          <div className="mb-2"><DatosDeEjemplo /></div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {STATS.map((s) => (
-              <div key={s.label} className="rounded-2xl p-4" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>{s.label}</span>
-                  <span style={{ fontSize: 20 }}>{s.icon}</span>
-                </div>
-                <div className="text-2xl font-bold" style={{ color: "var(--color-texto)" }}>{s.value}</div>
-                <div className="text-xs mt-1" style={{ color: "var(--color-texto-suave)" }}>{s.change}</div>
-              </div>
-            ))}
-          </div>
+          <ResumenDeUso />
 
           {activeSection === "usuarios" && (
             <>
@@ -217,57 +199,7 @@ export function AdminPage() {
 
           {activeSection === "respuestas" && <PreferenciasPorDefecto />}
 
-          {activeSection === "estadisticas" && (
-            <div className="flex flex-col gap-4">
-              <div><DatosDeEjemplo /></div>
-              <div className="rounded-2xl p-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
-                <h2 className="font-semibold mb-4" style={{ color: "var(--color-texto)" }}>Uso del sistema por rol</h2>
-                {[
-                  { role: "supermoderador", count: 87, pct: 87, color: "var(--color-grafico-1)" },
-                  { role: "moderador", count: 85, pct: 85, color: "var(--color-grafico-2)" },
-                  { role: "usuario", count: 57, pct: 57, color: "var(--color-grafico-3)" },
-                ].map((r) => (
-                  <div key={r.role} className="mb-4">
-                    <div className="flex justify-between text-sm mb-1.5">
-                      <span className="capitalize font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>{r.role}</span>
-                      <span style={{ color: "var(--color-texto-secundario)" }}>{r.count} consultas promedio</span>
-                    </div>
-                    <div className="rounded-full overflow-hidden" style={{ height: 8, background: "var(--color-superficie-suave)" }}>
-                      <div className="h-full rounded-full" style={{ width: `${r.pct}%`, background: r.color, transition: "width 0.6s" }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded-2xl p-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
-                  <h3 className="font-semibold mb-4 text-sm" style={{ color: "var(--color-texto)" }}>Consultas por día (última semana)</h3>
-                  <div className="flex items-end gap-2" style={{ height: 80 }}>
-                    {[32, 45, 28, 61, 38, 52, 43].map((h, i) => (
-                      <div key={i} className="flex-1 rounded-t-md transition-all" style={{ height: `${(h / 61) * 100}%`, background: i === 6 ? "var(--color-marca)" : "var(--color-borde-fuerte)" }} title={`${h} consultas`} />
-                    ))}
-                  </div>
-                  <div className="flex justify-between text-xs mt-2" style={{ color: "var(--color-texto-tenue)" }}>
-                    {["L","M","X","J","V","S","D"].map((d) => <span key={d}>{d}</span>)}
-                  </div>
-                </div>
-                <div className="rounded-2xl p-6" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
-                  <h3 className="font-semibold mb-4 text-sm" style={{ color: "var(--color-texto)" }}>Tipos de consulta</h3>
-                  {[
-                    { label: "Distribución geoespacial", pct: 48, color: "var(--color-grafico-2)" },
-                    { label: "Descripción de especie", pct: 31, color: "var(--color-grafico-3)" },
-                    { label: "Hábitat y ecología", pct: 15, color: "var(--color-grafico-4)" },
-                    { label: "Otras", pct: 6, color: "var(--color-grafico-5)" },
-                  ].map((t) => (
-                    <div key={t.label} className="flex items-center gap-2 mb-2 text-xs">
-                      <div className="rounded-sm shrink-0" style={{ width: 10, height: 10, background: t.color }} />
-                      <span style={{ color: "var(--color-texto-cuerpo)", flex: 1 }}>{t.label}</span>
-                      <span className="font-medium" style={{ color: "var(--color-texto)" }}>{t.pct}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          {activeSection === "estadisticas" && <EstadisticasDeUso />}
 
           {activeSection === "auditoria" && (
             <div className="rounded-2xl overflow-hidden" style={{ background: "var(--color-superficie)", border: "1px solid var(--color-borde)" }}>
