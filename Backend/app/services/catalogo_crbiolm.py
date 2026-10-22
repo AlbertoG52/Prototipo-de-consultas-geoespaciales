@@ -98,6 +98,10 @@ MAPAS_EN_MEMORIA = 64
 # especie concreta; "B" es una lista de especies y "B→A" un superlativo.
 MODO_UNA_ESPECIE = "A"
 
+# RR_49: cuando OpenRouter falla (modelo retirado, sin créditos...), CR-BioLM no
+# da error: devuelve como texto "(síntesis no disponible: <excepción>)".
+SINTESIS_NO_DISPONIBLE = "(síntesis no disponible"
+
 # RR_49 y RR_38: segundos que se dejan libres después de la redacción del LLM
 # para terminar la consulta (guardarla y responder) dentro de su tiempo máximo.
 MARGEN_TRAS_REDACCION = 5.0
@@ -429,6 +433,9 @@ def _validar_redaccion(especie: str, sobre: Sobre) -> RedaccionIA | None:
     texto = str(valor.get("text") or "").strip()
     if not sobre.es_suficiente or not texto:
         logger.info("RR_49: el LLM no dio respuesta para %s: %s", especie, sobre.advertencia)
+        return None
+    if texto.startswith(SINTESIS_NO_DISPONIBLE):
+        logger.warning("RR_49: el LLM de CR-BioLM falló para %s: %s", especie, texto)
         return None
     modo = str(valor.get("mode") or "")
     if not modo.startswith(MODO_UNA_ESPECIE):

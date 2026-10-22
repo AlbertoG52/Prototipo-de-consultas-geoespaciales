@@ -32,12 +32,6 @@ class CatalogoLento(CatalogoDemo):
 
 
 @pytest.fixture
-def visitante():
-    token = api.post("/auth/anonimo").json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
-
-
-@pytest.fixture
 def nuevas_filas():
     """Las filas de tiempos_respuesta creadas durante la prueba; al final se borran."""
     desde = sql("SELECT coalesce(max(id), 0) FROM tiempos_respuesta").scalar()
@@ -55,9 +49,9 @@ def _consultar(cabeceras, texto):
 
 
 def test_los_valores_de_intencion_son_los_tipos_y_los_motivos():
-    assert {i.value for i in IntencionConsulta} == {t.value for t in TipoPregunta} | {
-        m.value for m in MotivoOrientacion
-    }
+    # RR_77: de una consulta no permitida se registra el tipo que se pidió.
+    motivos = {m.value for m in MotivoOrientacion} - {MotivoOrientacion.TIPO_NO_PERMITIDO}
+    assert {i.value for i in IntencionConsulta} == {t.value for t in TipoPregunta} | motivos
 
 
 # --- criterio 1: se registra la intención de cada consulta --------------------------

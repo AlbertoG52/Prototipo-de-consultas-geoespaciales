@@ -108,3 +108,16 @@ export type PreferenciasModerador = Esquema<"PreferenciasModerador">;
 
 /** RR_80 — el comportamiento por defecto del sistema y quién lo cambió por última vez. */
 export type PreferenciasPorDefecto = Esquema<"PreferenciasPorDefecto">;
+
+// ─── Tipos de consulta por rol (RR_77) ───
+
+/** Tipo de pregunta que detecta el backend: distribución, hábitat, descripción o general. */
+export type TipoPregunta = Esquema<"TipoPregunta">;
+
+/** Roles que se configuran: visitante, usuario y moderador (el supermoderador puede todo). */
+export type RolDeConsulta = Esquema<"RolDeConsulta">;
+
+/** Los tipos permitidos de cada rol y quién los cambió por última vez. */
+export type PermisosTiposConsulta = Esquema<"PermisosTiposConsulta">;
+
+export type CambioPermisos = Esquema<"CambioPermisos">;

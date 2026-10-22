@@ -41,12 +41,6 @@ class CatalogoSinRespuestaDeCRBioLM(CatalogoDemo):
 
 
 @pytest.fixture
-def visitante():
-    token = api.post("/auth/anonimo").json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
-
-
-@pytest.fixture
 def con_catalogo():
     """Cambia el catálogo de la API durante una prueba."""
 

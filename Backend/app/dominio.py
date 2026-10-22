@@ -55,8 +55,9 @@ class EstadoConsulta(StrEnum):
 class MotivoOrientacion(StrEnum):
     """Columna consultas.motivo: por qué una consulta terminó en ORIENTACION.
 
-    Los detecta services/preprocesamiento.py. Todos menos FUERA_DE_TEMA se
-    detectan antes de buscar especies.
+    Los detecta services/preprocesamiento.py, salvo TIPO_NO_PERMITIDO
+    (services/permisos.py). Todos menos FUERA_DE_TEMA se detectan antes de
+    buscar especies.
     """
 
     SIN_SENTIDO = "sin_sentido"  # RR_32: "asdfgh", "???", "123"
@@ -64,6 +65,7 @@ class MotivoOrientacion(StrEnum):
     AYUDA = "ayuda"  # RR_40: "¿qué puedo preguntar?"
     SALUDO = "saludo"  # RR_37: "hola", "gracias"
     FUERA_DE_TEMA = "fuera_de_tema"  # RR_37: sin especie ni nada sobre plantas
+    TIPO_NO_PERMITIDO = "tipo_no_permitido"  # RR_77: su rol no tiene ese tipo de consulta
 
 
 class TipoPregunta(StrEnum):
@@ -80,12 +82,22 @@ class TipoPregunta(StrEnum):
     GENERAL = "general"
 
 
+class RolDeConsulta(StrEnum):
+    """Columna permisos_tipo_consulta.rol (019, RR_77): a quién se le configuran
+    los tipos de consulta. El supermoderador no está: siempre puede todo."""
+
+    VISITANTE = "visitante"  # sin cuenta (RR_00_11)
+    USUARIO = NombreRol.USUARIO.value
+    MODERADOR = NombreRol.MODERADOR.value
+
+
 class IntencionConsulta(StrEnum):
     """Columna tiempos_respuesta.intencion (RR_33): qué quiso hacer el usuario.
 
     Une los dos casos: una consulta sobre una especie (su TipoPregunta) o un
     mensaje que no es una consulta (su MotivoOrientacion). Los valores son los
-    mismos de esos dos enums.
+    mismos de esos dos enums, salvo TIPO_NO_PERMITIDO (RR_77): de esa consulta
+    se registra el tipo que se pidió.
     """
 
     DISTRIBUCION = TipoPregunta.DISTRIBUCION.value

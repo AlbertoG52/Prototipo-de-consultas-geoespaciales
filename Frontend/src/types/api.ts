@@ -484,6 +484,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/permisos-consulta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Permisos De Consulta
+         * @description RR_77 — los tipos de consulta que puede hacer cada rol.
+         */
+        get: operations["ver_permisos_de_consulta_admin_permisos_consulta_get"];
+        /**
+         * Cambiar Permisos De Consulta
+         * @description RR_77 criterio 1 — define los tipos de consulta de los roles enviados.
+         *
+         *     Aplica desde la siguiente consulta y cada cambio queda en la auditoría.
+         */
+        put: operations["cambiar_permisos_de_consulta_admin_permisos_consulta_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/perfil": {
         parameters: {
             query?: never;
@@ -744,6 +770,20 @@ export interface components {
             password_actual: string;
             /** Password Nueva */
             password_nueva: string;
+        };
+        /**
+         * CambioPermisos
+         * @description PUT /admin/permisos-consulta. Solo cambian los roles que vienen.
+         */
+        CambioPermisos: {
+            /** Roles */
+            roles: components["schemas"]["CambioPermisosDeRol"][];
+        };
+        /** CambioPermisosDeRol */
+        CambioPermisosDeRol: {
+            rol: components["schemas"]["RolDeConsulta"];
+            /** Permitidos */
+            permitidos: components["schemas"]["TipoPregunta"][];
         };
         /**
          * CambioPreferencias
@@ -1022,7 +1062,8 @@ export interface components {
          *
          *     Une los dos casos: una consulta sobre una especie (su TipoPregunta) o un
          *     mensaje que no es una consulta (su MotivoOrientacion). Los valores son los
-         *     mismos de esos dos enums.
+         *     mismos de esos dos enums, salvo TIPO_NO_PERMITIDO (RR_77): de esa consulta
+         *     se registra el tipo que se pidió.
          * @enum {string}
          */
         IntencionConsulta: "distribucion" | "habitat" | "descripcion" | "general" | "sin_sentido" | "idioma" | "ayuda" | "saludo" | "fuera_de_tema";
@@ -1066,17 +1107,41 @@ export interface components {
          * MotivoOrientacion
          * @description Columna consultas.motivo: por qué una consulta terminó en ORIENTACION.
          *
-         *     Los detecta services/preprocesamiento.py. Todos menos FUERA_DE_TEMA se
-         *     detectan antes de buscar especies.
+         *     Los detecta services/preprocesamiento.py, salvo TIPO_NO_PERMITIDO
+         *     (services/permisos.py). Todos menos FUERA_DE_TEMA se detectan antes de
+         *     buscar especies.
          * @enum {string}
          */
-        MotivoOrientacion: "sin_sentido" | "idioma" | "ayuda" | "saludo" | "fuera_de_tema";
+        MotivoOrientacion: "sin_sentido" | "idioma" | "ayuda" | "saludo" | "fuera_de_tema" | "tipo_no_permitido";
         /**
          * NombreRol
          * @description Roles de la tabla 'roles' (001_crear_tabla_roles.sql).
          * @enum {string}
          */
         NombreRol: "usuario" | "moderador" | "supermoderador";
+        /**
+         * PermisosDeRol
+         * @description Los tipos de consulta que puede hacer un rol.
+         */
+        PermisosDeRol: {
+            rol: components["schemas"]["RolDeConsulta"];
+            /** Permitidos */
+            permitidos: components["schemas"]["TipoPregunta"][];
+        };
+        /**
+         * PermisosTiposConsulta
+         * @description GET /admin/permisos-consulta: la configuración de todos los roles y su último cambio.
+         *
+         *     El supermoderador no aparece: siempre puede hacer todos los tipos.
+         */
+        PermisosTiposConsulta: {
+            /** Roles */
+            roles: components["schemas"]["PermisosDeRol"][];
+            /** Actualizado En */
+            actualizado_en: string | null;
+            /** Actualizado Por */
+            actualizado_por: string | null;
+        };
         /**
          * PreferenciasModerador
          * @description RR_67, RR_68 — las preferencias que aplican a las respuestas del moderador.
@@ -1176,7 +1241,12 @@ export interface components {
             /** Fuente */
             fuente: string;
         };
-        /** RegistroRequest */
+        /**
+         * RegistroRequest
+         * @description RR_00_01. RR_61: el rol no se recibe; routers/auth.py asigna siempre 'usuario'.
+         *
+         *     Cualquier campo de más se rechaza (422). Los de rol, con un mensaje propio.
+         */
         RegistroRequest: {
             /** Nombre */
             nombre: string;
@@ -1290,6 +1360,13 @@ export interface components {
             /** Registros */
             registros: components["schemas"]["RegistroTiempo"][];
         };
+        /**
+         * RolDeConsulta
+         * @description Columna permisos_tipo_consulta.rol (019, RR_77): a quién se le configuran
+         *     los tipos de consulta. El supermoderador no está: siempre puede todo.
+         * @enum {string}
+         */
+        RolDeConsulta: "visitante" | "usuario" | "moderador";
         /**
          * SesionOut
          * @description Estado de la sesión actual, sea de un usuario o de un visitante.
@@ -2004,6 +2081,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PreferenciasPorDefecto"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_permisos_de_consulta_admin_permisos_consulta_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermisosTiposConsulta"];
+                };
+            };
+        };
+    };
+    cambiar_permisos_de_consulta_admin_permisos_consulta_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CambioPermisos"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermisosTiposConsulta"];
                 };
             };
             /** @description Validation Error */

@@ -179,9 +179,9 @@ CITA_IA = "Manual de Plantas de Costa Rica, Tomo VI, p. 44 (Myrsine coriacea)"
 pedidos_a_ia: list[str] = []
 
 
-def _respuesta_ia(modo: str, citas: list[str]) -> dict:
+def _respuesta_ia(modo: str, citas: list[str], texto: str = TEXTO_IA) -> dict:
     valor = {
-        "text": TEXTO_IA,
+        "text": texto,
         "mode": modo,
         "constraints": {},
         "selector": None,
@@ -199,6 +199,8 @@ def answer_question(question: str) -> dict:
         raise ValueError("OPENROUTER_API_KEY not configured")
     if "lenta" in question:
         time.sleep(2.5)
+    if "openrouter falla" in question:  # CR-BioLM devuelve la excepción como texto
+        return _respuesta_ia("A (especie)", [CITA_IA], "(síntesis no disponible: 'choices')")
     if "lista" in question:  # respondió con una lista de especies (modo B)
         return _respuesta_ia("B (lista)", [CITA_IA])
     if "otra especie" in question:  # citó el Manual de otra especie (RR_60)
@@ -318,12 +320,6 @@ def crbiolm(monkeypatch, url_falsa):
     pedidos_a_ia.clear()
     fallos_de_gbif.clear()
     return CatalogoCRBioLM()
-
-
-@pytest.fixture
-def visitante():
-    token = api.post("/auth/anonimo").json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
 
 
 # --- id <-> nombre ----------------------------------------------------------------
@@ -814,6 +810,7 @@ def test_la_ficha_no_usa_el_llm(crbiolm):
         "sin llave",  # la herramienta falla (p. ej. sin OPENROUTER_API_KEY)
         "lista",  # respondió una lista de especies, no sobre la pedida
         "otra especie",  # sus citas son de otra especie (RR_60)
+        "openrouter falla",  # OpenRouter no respondió y CR-BioLM lo devuelve como texto
     ],
 )
 def test_si_el_llm_no_sirve_se_usa_el_texto_del_manual(crbiolm, caso):
