@@ -1,5 +1,5 @@
 """Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_23, RR_24, RR_26,
-RR_28, RR_31, RR_39, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_58 y RR_60.
+RR_28, RR_31, RR_36, RR_39, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_58 y RR_60.
 
 Levantan un servidor MCP falso con las herramientas de CR-BioLM que usa el
 catálogo (get_species, search_species, get_vocabulary, get_occurrence_points,
@@ -1014,6 +1014,68 @@ def test_por_genero_se_pide_elegir_y_luego_se_responde(crbiolm, visitante):
     assert elegida["estado"] == "resuelta"
     assert elegida["texto"] == pregunta  # se guarda y muestra lo que escribió
     assert elegida["respuesta"]["especie"]["nombre_cientifico"] == "Quercus oleoides"
+
+
+# --- RR_36: identificación de múltiples especies -----------------------------------
+# Cada especie nombrada se reconoce (buscar_especies) y el frontend las busca
+# todas, una consulta por especie. Aquí: cada búsqueda usa solo su parte de la
+# pregunta.
+
+VARIAS = "¿Dónde crecen Quercus costaricensis en Talamanca y Quercus oleoides en el Valle Central?"
+
+
+def test_cada_especie_nombrada_se_reconoce(crbiolm):
+    """Criterio 1."""
+    especies = crbiolm.buscar_especies(VARIAS)
+    assert [e.id for e in especies] == ["quercus-costaricensis", "quercus-oleoides"]
+
+
+@pytest.mark.parametrize(
+    ("texto", "especie_id", "pregunta"),
+    [
+        (VARIAS, "quercus-costaricensis", "¿Dónde crecen Quercus costaricensis en Talamanca?"),
+        (VARIAS, "quercus-oleoides", "¿Dónde crecen Quercus oleoides en el Valle Central?"),
+        # Lo que va después de la última vale para todas.
+        (
+            "¿Dónde crecen quercus costaricensis y Quercus oleoides en Talamanca?",
+            "quercus-costaricensis",
+            "¿Dónde crecen Quercus costaricensis en Talamanca?",
+        ),
+        (
+            "¿Cómo son las hojas de Quercus costaricensis y de Quercus oleoides?",
+            "quercus-oleoides",
+            "¿Cómo son las hojas de Quercus oleoides?",
+        ),
+        # Con una sola especie, la pregunta queda igual.
+        ("¿Dónde crece Quercus oleoides?", "quercus-oleoides", "¿Dónde crece Quercus oleoides?"),
+    ],
+)
+def test_cr_biolm_recibe_solo_la_parte_de_cada_especie(crbiolm, texto, especie_id, pregunta):
+    """Criterio 3: el Manual y el LLM responden sobre la especie de cada búsqueda."""
+    crbiolm.construir_respuesta(especie_id, texto)
+    assert pedidos_a_ia == [pregunta]
+
+
+def test_cada_especie_se_filtra_con_su_propia_zona(crbiolm):
+    """Criterio 3 con RR_39: Podocarpus solo en la Cordillera Central, no en Talamanca."""
+    texto = "Podocarpus oleifolius en la Cordillera Central y Quercus costaricensis en Talamanca"
+    respuesta = crbiolm.construir_respuesta("podocarpus-oleifolius", texto)
+    assert respuesta.total_registros == 2
+    assert {r.localidad for r in respuesta.registros} == {"Cordillera Central"}
+
+
+def test_cada_especie_se_busca_y_se_cobra_por_separado(crbiolm, visitante):
+    """Criterio 2 por la API: lo que hace "Buscar todas" del frontend."""
+    respuestas = [
+        api.post("/consultas", headers=visitante, json={"texto": VARIAS, "especie_id": e}).json()
+        for e in ("quercus-costaricensis", "quercus-oleoides")
+    ]
+    assert [r["estado"] for r in respuestas] == ["resuelta", "resuelta"]
+    assert [r["respuesta"]["especie"]["id"] for r in respuestas] == [
+        "quercus-costaricensis",
+        "quercus-oleoides",
+    ]
+    assert respuestas[-1]["consultas_restantes"] == config.LIMITE_CONSULTAS_ANONIMO - 2
 
 
 # --- RR_31: validación de contenido reconocible ----------------------------------

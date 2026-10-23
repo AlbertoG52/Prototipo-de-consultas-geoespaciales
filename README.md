@@ -288,6 +288,16 @@ pide elegir una o escribir un nombre más específico. Un género con una sola
 especie no se ofrece. Al elegir, el Manual y el LLM reciben la pregunta con la
 especie elegida en lugar del género.
 
+**RR_36 — varias especies**: si la consulta nombra varias especies ("Quercus
+costaricensis y Quercus oleoides"), sigue llegando como `ambigua` con todas. El
+frontend lo distingue de un género (RR_28) porque cada opción está escrita en la
+consulta (`utils/especies.ts`) y agrega el botón **Buscar todas**: cada especie se
+busca como si se eligiera, una tras otra (el LLM de CR-BioLM falla con dos
+preguntas a la vez; `BUSQUEDAS_SIMULTANEAS` en `ConsultasContext.tsx`), y cada una
+consume una consulta (si no alcanzan para todas, se avisa y no se busca ninguna).
+Cada búsqueda le manda a CR-BioLM solo su parte de la pregunta, así el Manual, el
+LLM y la zona (RR_39) son los de esa especie.
+
 **RR_39 — región o zona**: si la consulta menciona una región botánica del Manual
 ("Cordillera de Talamanca", "Talamanca", "Golfito"…) o una vertiente ("Caribe",
 "Pacífico"), la lista de registros y su conteo son solo los de esa zona

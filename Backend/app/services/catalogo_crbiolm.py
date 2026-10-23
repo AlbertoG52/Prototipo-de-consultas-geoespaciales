@@ -211,6 +211,8 @@ class CatalogoCRBioLM:
             texto_consulta = corregir_nombres(texto_consulta, self._nombres())
             # RR_28: y, si nombró solo el género, con la especie que eligió.
             texto_consulta = _con_especie_del_genero(texto_consulta, nombre)
+        # RR_36: si nombra varias especies, solo la parte de esta.
+        texto_consulta = _pregunta_de_la_especie(texto_consulta, nombre, self._nombres())
         # RR_35: y escrito como en el catálogo, sin importar mayúsculas ni tildes.
         # CR-BioLM reconoce la especie de la pregunta solo si está escrita así
         # ("Quercus costaricensis"); si no, la toma como una pregunta por varias
@@ -385,6 +387,60 @@ def _con_especie_del_genero(texto: str, nombre: str) -> str:
         if normalizar(palabra.group()) == genero:
             return texto[: palabra.start()] + nombre + texto[palabra.end() :]
     return texto
+
+
+def _pregunta_de_la_especie(texto: str, nombre: str, nombres: dict[str, str]) -> str:
+    """RR_36: la parte de la pregunta sobre `nombre`, cuando nombra varias especies.
+
+    "¿Dónde crecen Quercus costaricensis en Talamanca y Quercus oleoides en el
+    Valle Central?" -> para Quercus oleoides, "¿Dónde crecen Quercus oleoides en
+    el Valle Central?": el inicio común y el tramo de la especie, hasta el nombre
+    de la siguiente. Si solo la última tiene algo después de su nombre ("… y
+    Quercus oleoides en Talamanca?"), vale para todas. Así el Manual, el LLM y
+    la zona (RR_39) son los de cada especie. Con una sola especie queda igual.
+    """
+    menciones = _menciones(texto, nombres)
+    if len({canonico for _, _, canonico in menciones}) < 2:
+        return texto
+    buscada = normalizar(nombre)
+    indice = next((i for i, m in enumerate(menciones) if normalizar(m[2]) == buscada), None)
+    if indice is None:
+        return texto
+    tramos = [
+        _sin_conectores(texto[fin : siguiente[0]]) for (_, fin, _), siguiente in pairwise(menciones)
+    ] + [texto[menciones[-1][1] :]]
+    compartido = all(_vacio(t) for t in tramos[:-1]) and not _vacio(tramos[-1])
+    inicio, fin, _ = menciones[indice]
+    pregunta = texto[: menciones[0][0]] + texto[inicio:fin] + tramos[-1 if compartido else indice]
+    if texto.rstrip().endswith("?") and not pregunta.rstrip().endswith("?"):
+        pregunta = pregunta.rstrip() + "?"
+    return pregunta
+
+
+def _menciones(texto: str, nombres: dict[str, str]) -> list[tuple[int, int, str]]:
+    """Dónde nombra `texto` especies del catálogo: (inicio, fin, nombre del catálogo)."""
+    menciones: list[tuple[int, int, str]] = []
+    for genero, epiteto in pairwise(_PALABRA.finditer(texto)):
+        canonico = nombres.get(normalizar(f"{genero.group()} {epiteto.group()}"))
+        if canonico and (not menciones or genero.start() >= menciones[-1][1]):
+            menciones.append((genero.start(), epiteto.end(), canonico))
+    return menciones
+
+
+# Palabras que unen el tramo de una especie con la siguiente ("… en Talamanca y
+# de …"): se quitan del final del tramo.
+_CONECTORES_AL_FINAL = re.compile(
+    r"(?:[\s,;]+|\b(?:y|e|o|u|ni|de|del|la|el|los|las|a|al|con|vs)\b)+$", re.IGNORECASE
+)
+
+
+def _sin_conectores(tramo: str) -> str:
+    return _CONECTORES_AL_FINAL.sub("", tramo)
+
+
+def _vacio(tramo: str) -> bool:
+    """True si el tramo no dice nada además de signos ("?", ", ")."""
+    return not re.sub(r"[\s¿?¡!.,;:]", "", tramo)
 
 
 # --- Manual vectorizado: el fragmento que responde la pregunta (RR_44) --------
