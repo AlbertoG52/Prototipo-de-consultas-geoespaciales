@@ -1,4 +1,4 @@
-"""Endpoints de administración — RR_69 a RR_77, RR_80, RR_00_10, RR_00_09 y RR_57.
+"""Endpoints de administración — RR_69 a RR_78, RR_80, RR_00_10, RR_00_09 y RR_57.
 
 La dependencia de rol está en el router, no en cada endpoint: todo lo que se
 agregue bajo /admin queda restringido al supermoderador sin tener que
@@ -6,15 +6,15 @@ repetirla (RR_69 criterio 1, RR_71 criterio 2). tests/test_roles.py falla si
 alguien la quita.
 
 La lógica vive en services/admin.py (usuarios, roles, estados y auditoría) y
-services/tiempos.py (RR_57), services/preferencias.py (RR_80) y
-services/permisos.py (RR_77).
+services/tiempos.py (RR_57), services/preferencias.py (RR_80),
+services/permisos.py (RR_77) y services/estadisticas.py (RR_78).
 """
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from ..db import get_db
-from ..dominio import NombreRol
+from ..dominio import NombreRol, PeriodoEstadisticas
 from ..models import Usuario
 from ..schemas.admin import (
     CambioEstado,
@@ -24,11 +24,12 @@ from ..schemas.admin import (
     ResumenTiempos,
     UsoDeRol,
 )
+from ..schemas.estadisticas import EstadisticasUso, ResumenUso
 from ..schemas.permisos import CambioPermisos, PermisosTiposConsulta
 from ..schemas.preferencias import CambioPreferenciasPorDefecto, PreferenciasPorDefecto
 from ..schemas.usuario import UsuarioOut
 from ..security import obtener_usuario_actual, requiere_rol
-from ..services import admin, permisos, preferencias, tiempos
+from ..services import admin, estadisticas, permisos, preferencias, tiempos
 from .errores import errores_http
 
 router = APIRouter(
@@ -64,6 +65,21 @@ def historial_de_uso(
 def uso_por_rol(db: Session = Depends(get_db)) -> list[UsoDeRol]:
     """RR_76 criterio 3 — cuentas y consultas guardadas de cada rol."""
     return admin.uso_por_rol(db)
+
+
+@router.get("/estadisticas", response_model=EstadisticasUso)
+def estadisticas_de_uso(
+    periodo: PeriodoEstadisticas = Query(PeriodoEstadisticas.TODO),
+    db: Session = Depends(get_db),
+) -> EstadisticasUso:
+    """RR_78 — total de consultas del periodo, por rol, por día y por tipo de pregunta."""
+    return estadisticas.estadisticas(db, periodo)
+
+
+@router.get("/estadisticas/resumen", response_model=ResumenUso)
+def resumen_de_uso(db: Session = Depends(get_db)) -> ResumenUso:
+    """RR_78 — cifras de las tarjetas del panel: cuentas, consultas de hoy, ayer y 30 días."""
+    return estadisticas.resumen(db)
 
 
 @router.patch("/usuarios/{usuario_id}/estado", response_model=UsuarioOut)

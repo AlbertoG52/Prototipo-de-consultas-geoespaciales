@@ -7,7 +7,9 @@
 import type {
   DatoRespuesta,
   EstadoConsulta,
+  GrupoDeUso,
   NombreRol,
+  PeriodoEstadisticas,
   RegistroPresencia,
   RolDeConsulta,
   TipoPregunta,
@@ -97,6 +99,24 @@ export const ETIQUETAS_ROL_DE_CONSULTA: Record<RolDeConsulta, string> = {
   usuario: ETIQUETAS_ROL.usuario,
   moderador: ETIQUETAS_ROL.moderador,
 };
+
+/** RR_78 — quién hizo las consultas: el rol de la cuenta hoy, o visitante. */
+export const ETIQUETAS_GRUPO_DE_USO: Record<GrupoDeUso, string> = {
+  visitante: ETIQUETAS_ROL_DE_CONSULTA.visitante,
+  ...ETIQUETAS_ROL,
+};
+
+/** RR_78 — periodos de las estadísticas de uso. */
+export const ETIQUETAS_PERIODO: Record<PeriodoEstadisticas, string> = {
+  hoy: "Hoy",
+  ultimos_7_dias: "Últimos 7 días",
+  ultimos_30_dias: "Últimos 30 días",
+  todo: "Todo",
+};
+
+/** Una fracción entre 0 y 1 como porcentaje: 0.964 → "96,4 %". */
+export const formatearPorcentaje = (fraccion: number) =>
+  fraccion.toLocaleString(IDIOMA_FECHAS, { style: "percent", maximumFractionDigits: 1 });
 
 /** RR_77 — nombre de cada tipo de pregunta que detecta el backend (TipoPregunta). */
 export const ETIQUETAS_TIPO_PREGUNTA: Record<TipoPregunta, string> = {

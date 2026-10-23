@@ -68,7 +68,9 @@ Frontend/src/
   pages/           vistas
   components/      piezas reutilizables (Logo, TarjetaRespuesta, Mapa, Formulario…)
     admin/         piezas del panel de administración: usuarios (RR_70 a RR_76),
-                   tipos de consulta por rol (RR_77) y respuestas (RR_80)
+                   tipos de consulta por rol (RR_77), estadísticas (RR_78) y
+                   respuestas (RR_80)
+  hooks/           hooks de React sin interfaz (useRecargaAutomatica, RR_78)
   config/marca.ts  nombre, subtítulo y logo de la aplicación
   config/textos.ts textos y formatos repetidos (idioma de fechas, etiquetas de registros)
   utils/           lógica sin interfaz: descargas, filtro de elevación, mapa de la
@@ -178,6 +180,8 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | GET | `/admin/usuarios` | usuarios registrados | supermoderador |
 | GET | `/admin/usuarios/{id}/consultas` | historial de uso de una cuenta, por páginas (RR_76) | supermoderador |
 | GET | `/admin/uso-por-rol` | cuentas y consultas guardadas de cada rol (RR_76) | supermoderador |
+| GET | `/admin/estadisticas?periodo=` | total de consultas por rol (con visitantes), por día y por tipo; `periodo` = `hoy`, `ultimos_7_dias`, `ultimos_30_dias` o `todo` (por defecto) (RR_78) | supermoderador |
+| GET | `/admin/estadisticas/resumen` | cifras de las tarjetas del panel: cuentas, consultas de hoy, ayer y 30 días, tasa de éxito (RR_78) | supermoderador |
 | PATCH | `/admin/usuarios/{id}/estado` | activar o desactivar (no a sí mismo: 409) | supermoderador |
 | PATCH | `/admin/usuarios/{id}/rol` | cambiar el rol (no a sí mismo: 409) | supermoderador |
 | GET | `/admin/auditoria` | registro de acciones administrativas (RR_00_09) | supermoderador |
@@ -341,6 +345,33 @@ permitido. La lógica está en `services/permisos.py`.
 - Cada cambio de permiso queda en la auditoría (`cambio_permiso`, con quién lo
   hizo), por un trigger de la 019.
 - Solo aplica al chat: la ficha de especie (`GET /especies/{id}`) se ve completa.
+
+### Estadísticas de uso (RR_78)
+
+Administración → Estadísticas muestra el **total de consultas** del periodo
+elegido (Hoy, Últimos 7 días, Últimos 30 días o Todo), **por rol**, por día
+(últimos 7) y por tipo de pregunta. Las tarjetas de arriba del panel (cuentas,
+consultas de hoy y de 30 días, tasa de éxito) salen de los mismos conteos. La
+lógica está en `services/estadisticas.py`; no hay nada precalculado.
+
+- **Qué cuenta** (misma regla que el uso por rol de RR_76): de las cuentas, sus
+  consultas guardadas resueltas, ambiguas y sin coincidencias, no las
+  orientaciones. Cada cuenta cuenta con el **rol que tiene hoy**.
+- **Visitantes**: son un grupo aparte. Como no se guardan sus consultas
+  (RR_00_11), se cuentan sus filas de `tiempos_respuesta` resueltas o sin
+  coincidencias: una ambigua y la especie que elige quedan como dos filas, así
+  que cuenta cuando se resuelve. Hay datos desde la tabla 015.
+- **Tipos de consulta**: la intención registrada (RR_33) de las consultas
+  resueltas o sin coincidencias.
+- **Tasa de éxito**: resueltas ÷ consultas contadas.
+- Los días son en UTC, como el límite diario.
+- **Al día (criterio 3)**: el panel vuelve a pedir las cifras cada 30 s
+  (`hooks/useRecargaAutomatica.ts`) sin mostrar "Cargando…" ni cambiar el
+  periodo, solo mientras se ve esa sección y la pestaña del navegador está
+  visible; también con el botón "Actualizar".
+- Las pruebas que pasan por la API dejan filas de visitante en
+  `tiempos_respuesta` (RR_57), así que en la base local suben las cifras de
+  "Visitante" después de correr pytest.
 
 ### Tiempo de respuesta (RR_57)
 
@@ -605,6 +636,13 @@ auditoría, el perfil, el historial por conversaciones y el adaptador
 MCP (`test_mcp_cliente.py`, con un servidor MCP falso: no necesita CR-BioLM). Las de
 auditoría y conversaciones usan la base de datos del contenedor y borran lo que
 crean al terminar.
+
+Las piezas comunes están en `tests/conftest.py` (fixtures: `visitante`,
+`sesion` que se deshace, `catalogo`…) y `tests/apoyo.py` (`crear_usuario`,
+`iniciar_sesion`, `CatalogoQueNoSeUsa`…). Dos fixtures se aplican solos a todas
+las pruebas, para que no dependan de la configuración local: el catálogo de
+demostración y `todos_los_tipos_permitidos` (RR_77). Una prueba que necesite
+leer los permisos de la BD lleva `@pytest.mark.permisos_de_la_bd`.
 
 ---
 

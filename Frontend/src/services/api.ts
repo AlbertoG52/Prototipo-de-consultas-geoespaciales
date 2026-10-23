@@ -11,14 +11,17 @@ import type {
   ConversacionDetalle,
   ConversacionResumen,
   EspecieCandidata,
+  EstadisticasUso,
   FichaEspecie,
   HistorialUso,
+  PeriodoEstadisticas,
   PermisosTiposConsulta,
   PreferenciasModerador,
   PreferenciasPorDefecto,
   PreferenciasRespuesta,
   RegistroAuditoria,
   RegistroRequest,
+  ResumenUso,
   Sesion,
   TipoSesion,
   TokenOut,
@@ -341,6 +344,13 @@ export const obtenerPermisosDeConsulta = () => pedir<PermisosTiposConsulta>("/ad
 /** RR_77 criterio 1 — deja permitidos solo los tipos enviados de cada rol. */
 export const cambiarPermisosDeConsulta = (cambio: CambioPermisos) =>
   pedir<PermisosTiposConsulta>("/admin/permisos-consulta", "PUT", cambio);
+
+/** RR_78 — total de consultas del periodo, por rol, por día y por tipo de pregunta. */
+export const obtenerEstadisticas = (periodo: PeriodoEstadisticas) =>
+  pedir<EstadisticasUso>(`/admin/estadisticas?periodo=${periodo}`);
+
+/** RR_78 — cifras de las tarjetas del panel (cuentas, consultas de hoy, ayer y 30 días). */
+export const obtenerResumenDeUso = () => pedir<ResumenUso>("/admin/estadisticas/resumen");
 
 /** RR_76 — una página del historial de uso de una cuenta, de lo más reciente a lo más antiguo. */
 export const obtenerHistorialDeUso = (usuarioId: number, limite: number, desplazamiento: number) =>

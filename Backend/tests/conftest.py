@@ -11,6 +11,7 @@ from app import config
 from app.db import SessionLocal
 from app.main import app
 from app.routers import auth
+from app.services import permisos
 from app.services.catalogo import obtener_catalogo
 
 from apoyo import api, sql
@@ -25,6 +26,22 @@ def catalogo_de_demostracion(monkeypatch):
     propio servidor falso.
     """
     monkeypatch.setattr(config, "CATALOGO", "demo")
+
+
+@pytest.fixture(autouse=True)
+def todos_los_tipos_permitidos(request, monkeypatch):
+    """Todas las pruebas pueden hacer cualquier tipo de consulta (RR_77), diga lo
+    que diga la BD.
+
+    La configuración de permisos_tipo_consulta es de quien usa el sistema: las
+    pruebas no deben depender de ella. Las que prueban esa tabla llevan la marca
+    `permisos_de_la_bd`.
+    """
+    if request.node.get_closest_marker("permisos_de_la_bd"):
+        return
+    monkeypatch.setattr(
+        permisos, "de", lambda db, identidad: permisos.Permisos(rol=permisos.rol_de(identidad))
+    )
 
 
 @pytest.fixture
