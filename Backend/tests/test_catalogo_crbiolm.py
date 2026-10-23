@@ -1,5 +1,5 @@
 """Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_23, RR_24, RR_26,
-RR_31, RR_39, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_58 y RR_60.
+RR_28, RR_31, RR_39, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_58 y RR_60.
 
 Levantan un servidor MCP falso con las herramientas de CR-BioLM que usa el
 catálogo (get_species, search_species, get_vocabulary, get_occurrence_points,
@@ -41,7 +41,7 @@ from app import config
 from app.services import catalogo_crbiolm
 from app.services.catalogo import obtener_catalogo
 from app.services.catalogo_crbiolm import CatalogoCRBioLM, a_id, a_nombre
-from app.services.consultas import MENSAJE_SIN_COINCIDENCIAS
+from app.services.consultas import MENSAJE_AMBIGUA, MENSAJE_SIN_COINCIDENCIAS
 from app.tiempo import plazo
 
 from apoyo import api
@@ -115,8 +115,8 @@ def get_vocabulary() -> dict:
 
 @falso.tool()
 def search_species() -> dict:
-    """Sin filtros devuelve todo el catálogo (RR_23)."""
-    especies = [{"species": nombre} for nombre in MANUAL]
+    """Sin filtros devuelve todo el catálogo (RR_23), con la familia (RR_28)."""
+    especies = [{"species": nombre, "family": ficha["family"]} for nombre, ficha in MANUAL.items()]
     return _sobre({"count": len(especies), "species": especies})
 
 
@@ -937,12 +937,83 @@ def test_el_mismo_genero_con_otra_especie_es_otra_especie(crbiolm):
 
 
 @pytest.mark.parametrize(
-    "texto",
-    ["¿Dónde crece Quercus?", "¿Dónde crece costaricensis?", "costaricensis Quercus"],
+    ("texto", "candidatas"),
+    [
+        # Solo el género: no identifica UNA especie; se ofrecen las suyas (RR_28).
+        ("¿Dónde crece Quercus?", 2),
+        ("costaricensis Quercus", 2),
+        ("¿Dónde crece costaricensis?", 0),
+    ],
 )
-def test_el_genero_o_la_especie_solos_no_identifican_una_especie(crbiolm, texto):
+def test_el_genero_o_la_especie_solos_no_identifican_una_especie(crbiolm, texto, candidatas):
     """Criterio 2: el nombre es género y luego especie; uno solo no se confunde con otra."""
-    assert crbiolm.buscar_especies(texto) == []
+    assert len(crbiolm.buscar_especies(texto)) == candidatas
+
+
+# --- RR_28: solicitud de aclaración ante ambigüedad -------------------------------
+# Mostrar las opciones y continuar con la elegida es el flujo de RR_17; aquí, que
+# nombrar solo un género cuenta como ambiguo y se ofrecen sus especies.
+
+
+def test_solo_el_genero_ofrece_sus_especies(crbiolm):
+    """Criterio 1: "Quercus" puede ser cualquiera de las Quercus del Manual."""
+    especies = crbiolm.buscar_especies("¿Dónde crece Quercus?")
+    assert [e.nombre_cientifico for e in especies] == ["Quercus costaricensis", "Quercus oleoides"]
+    assert {e.familia for e in especies} == {"Fagaceae"}
+    assert pedidos_a_gbif == pedidos_de_mapa == []  # no se busca nada hasta que elija
+
+
+def test_se_ofrecen_las_primeras_en_orden_alfabetico(crbiolm, monkeypatch):
+    """Criterio 2: a lo sumo GENERO_OPCIONES_MAXIMAS, para que la lista sea clara."""
+    for nombre in ("Quercus insignis", "Quercus benthamii", "Quercus sp. 1"):
+        monkeypatch.setitem(MANUAL, nombre, {"species": nombre, "family": "Fagaceae"})
+    monkeypatch.setattr(config, "GENERO_OPCIONES_MAXIMAS", 3)
+    especies = crbiolm.buscar_especies("¿Dónde crece Quercus?")
+    assert [e.nombre_cientifico for e in especies] == [
+        "Quercus benthamii",
+        "Quercus costaricensis",
+        "Quercus insignis",
+    ]
+    # Un nombre que no se puede pedir por su id no se ofrece.
+    monkeypatch.setattr(config, "GENERO_OPCIONES_MAXIMAS", 5)
+    especies = crbiolm.buscar_especies("¿Dónde crece Quercus?")
+    assert "Quercus sp. 1" not in {e.nombre_cientifico for e in especies}
+    assert len(especies) == 4
+
+
+def test_un_genero_con_una_sola_especie_no_es_ambiguo(crbiolm):
+    assert crbiolm.buscar_especies("¿Dónde crece Persea?") == []
+
+
+def test_un_nombre_mal_escrito_se_corrige_antes_de_ofrecer_el_genero(crbiolm):
+    """RR_23 va primero: "Quercus oleoidez" es Quercus oleoides, no las Quercus."""
+    [especie] = crbiolm.buscar_especies("¿Dónde crece Quercus oleoidez?")
+    assert especie.id == "quercus-oleoides"
+
+
+def test_cr_biolm_recibe_la_pregunta_con_la_especie_elegida(crbiolm):
+    """Criterio 3: el Manual y el LLM saben de qué especie se habla."""
+    crbiolm.construir_respuesta("quercus-oleoides", "¿Dónde crece el quercus?")
+    assert pedidos_a_ia == ["¿Dónde crece el Quercus oleoides?"]
+
+
+def test_por_genero_se_pide_elegir_y_luego_se_responde(crbiolm, visitante):
+    """Criterios 1 a 3 por la API, con el flujo de RR_17."""
+    pregunta = "¿Dónde crece Quercus?"
+    ambigua = api.post("/consultas", headers=visitante, json={"texto": pregunta}).json()
+    assert ambigua["estado"] == "ambigua"
+    assert ambigua["mensaje"] == MENSAJE_AMBIGUA
+    assert [c["id"] for c in ambigua["candidatos"]] == ["quercus-costaricensis", "quercus-oleoides"]
+    assert ambigua["consultas_restantes"] == config.LIMITE_CONSULTAS_ANONIMO  # aclarar no cuesta
+
+    elegida = api.post(
+        "/consultas",
+        headers=visitante,
+        json={"texto": pregunta, "especie_id": "quercus-oleoides"},
+    ).json()
+    assert elegida["estado"] == "resuelta"
+    assert elegida["texto"] == pregunta  # se guarda y muestra lo que escribió
+    assert elegida["respuesta"]["especie"]["nombre_cientifico"] == "Quercus oleoides"
 
 
 # --- RR_31: validación de contenido reconocible ----------------------------------

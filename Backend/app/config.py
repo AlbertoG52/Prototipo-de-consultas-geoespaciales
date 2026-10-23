@@ -90,6 +90,10 @@ SEGUNDOS_MAXIMOS_CONSULTA = max(float(os.environ.get("SEGUNDOS_MAXIMOS_CONSULTA"
 # nombre científico para corregirlo antes de buscar (services/correccion.py).
 LETRAS_MAXIMAS_CORRECCION = 2
 
+# RR_28 — máximo de especies que se ofrecen cuando la consulta nombra solo un
+# género del Manual ("Quercus"): las primeras en orden alfabético.
+GENERO_OPCIONES_MAXIMAS = 5
+
 # --- CR-BioLM por MCP (services/mcp_cliente.py) -------------------------------
 # Dirección del servidor MCP de CR-BioLM. En desarrollo corre en la máquina
 # anfitriona, fuera de Docker, porque necesita los datos que entregó el cliente

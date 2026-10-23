@@ -21,7 +21,7 @@ import { OrigenDeLosDatos } from "./OrigenDeLosDatos";
 import type { RespuestaConsulta } from "../types";
 import { descargarArchivo, nombreBase, respuestaATexto } from "../utils/descarga";
 import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/elevacion";
-import { origenDeLaInformacion, partirCitas, procedenciaDe } from "../utils/fuentes";
+import { origenDeLaInformacion, partirCitas, partirFormato, procedenciaDe } from "../utils/fuentes";
 import { mapaDeLaEspecie } from "../utils/mapa";
 import { DetallePunto, FiltroElevacion, MapaCRBioLM } from "./Mapa";
 import { CELDA_VACIA, COLUMNAS_TABLA_REGISTROS, formatearCoordenadas, IDIOMA_FECHAS, textoRegistros } from "../config/textos";
@@ -135,11 +135,23 @@ export function TarjetaRespuesta({
         </div>
 
         <div className="px-4 sm:px-6 py-5">
-          <p className="text-sm leading-relaxed" style={{ color: "var(--color-texto-cuerpo)" }}>
+          {/* whitespace-pre-line: respeta los saltos de línea del LLM (sus listas con "- "). */}
+          <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: "var(--color-texto-cuerpo)" }}>
             {/* RR_49 / RR_51: las citas del Manual dentro del texto, con formato de cita. */}
             {partirCitas(respuesta.texto).map((trozo, i) =>
               trozo.tipo === "texto" ? (
-                <span key={i}>{trozo.valor}</span>
+                <span key={i}>
+                  {/* RR_49: la negrita y la cursiva (Markdown) del texto del LLM. */}
+                  {partirFormato(trozo.valor).map((f, j) =>
+                    f.negrita ? (
+                      <strong key={j} className="font-semibold">{f.valor}</strong>
+                    ) : f.cursiva ? (
+                      <em key={j}>{f.valor}</em>
+                    ) : (
+                      <span key={j}>{f.valor}</span>
+                    ),
+                  )}
+                </span>
               ) : (
                 <cite key={i} title={trozo.completa} className="not-italic text-xs ml-0.5" style={{ color: "var(--color-texto-tenue)" }}>
                   ({trozo.valor})

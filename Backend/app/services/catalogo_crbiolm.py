@@ -109,6 +109,9 @@ MARGEN_TRAS_REDACCION = 5.0
 # Rangos infraespecíficos que el id escribe sin punto ("var", no "var.").
 _RANGOS = {"var", "subsp", "f"}
 
+# Una palabra de la consulta: letras y guiones.
+_PALABRA = re.compile(r"[^\W\d_][\w-]*")
+
 
 # --- id <-> nombre científico --------------------------------------------------
 
@@ -135,21 +138,29 @@ class CatalogoCRBioLM:
         self._mapas: OrderedDict[str, MapaGenerado] = OrderedDict()
         self._candado = threading.Lock()  # los endpoints corren en varios hilos
         self._nombres_del_catalogo: dict[str, str] | None = None  # RR_23
+        self._familias_del_catalogo: dict[str, str] = {}  # RR_28
         self._vocabulario_del_catalogo: dict[str, Any] | None = None  # RR_39
 
     def buscar_especies(self, texto: str) -> list[EspecieCandidata]:
         """Especies que menciona la consulta: 0 = ninguna, 2+ = ambigua (RR_17).
 
-        PROVISIONAL: solo reconoce nombres científicos (dos palabras seguidas que
-        sean una especie del catálogo, sin importar mayúsculas). Identificar la
-        especie es del módulo de identificación de Jesús (RR_24, 26, 31, 39 y, en
-        el sprint 3, nombres comunes RR_25, sinónimos RR_27, ambigüedad RR_28 y
-        varias especies RR_36). Cuando esté listo, este método solo lo llama.
-
-        RR_23: si no reconoce ninguna, corrige los nombres con hasta
-        LETRAS_MAXIMAS_CORRECCION letras mal escritas y vuelve a buscar.
+        En orden; cada paso solo si el anterior no reconoció ninguna:
+        1. Nombres científicos: dos palabras seguidas que sean una especie del
+           catálogo, sin importar mayúsculas (RR_26).
+        2. RR_23: los mismos, corrigiendo hasta LETRAS_MAXIMAS_CORRECCION letras
+           mal escritas.
+        3. RR_28: solo un género con varias especies ("Quercus"); se ofrecen
+           algunas para que el usuario elija o sea más específico.
         """
-        palabras = re.findall(r"[^\W\d_][\w-]*", texto)
+        encontradas = self._por_nombre_cientifico(texto)
+        if not encontradas:
+            corregido = corregir_nombres(texto, self._nombres())
+            if corregido != texto:
+                encontradas = self._por_nombre_cientifico(corregido)
+        return encontradas or self._por_genero(texto)
+
+    def _por_nombre_cientifico(self, texto: str) -> list[EspecieCandidata]:
+        palabras = _PALABRA.findall(texto)
         encontradas: dict[str, EspecieCandidata] = {}
         for genero, epiteto in pairwise(palabras):
             # RR_35: los nombres científicos no llevan tildes, así que se quitan
@@ -158,11 +169,32 @@ class CatalogoCRBioLM:
             if manual is not None:
                 candidata = _candidata(manual.valor)
                 encontradas.setdefault(candidata.id, candidata)
-        if not encontradas:
-            corregido = corregir_nombres(texto, self._nombres())
-            if corregido != texto:
-                return self.buscar_especies(corregido)
         return list(encontradas.values())
+
+    def _por_genero(self, texto: str) -> list[EspecieCandidata]:
+        """RR_28: las especies del primer género del Manual que nombra la consulta.
+
+        Solo si el género tiene dos o más especies: con una sola no hay nada que
+        aclarar. Se ofrecen las primeras GENERO_OPCIONES_MAXIMAS en orden
+        alfabético. Los nombres que no se pueden pedir por su id ("Ilex sp. 1")
+        no se ofrecen.
+        """
+        nombres = sorted(n for n in self._nombres().values() if a_nombre(a_id(n)) == n)
+        for palabra in _PALABRA.findall(texto):
+            genero = normalizar(palabra)
+            especies = [n for n in nombres if normalizar(n.split()[0]) == genero]
+            if len(especies) > 1:
+                return [self._de_la_lista(n) for n in especies[: config.GENERO_OPCIONES_MAXIMAS]]
+        return []
+
+    def _de_la_lista(self, nombre: str) -> EspecieCandidata:
+        """Una especie del catálogo, con los datos de search_species (sin pedir su ficha)."""
+        return EspecieCandidata(
+            id=a_id(nombre),
+            nombre_comun=None,
+            nombre_cientifico=nombre,
+            familia=self._familias_del_catalogo.get(nombre) or SIN_DATO,
+        )
 
     def obtener_especie(self, especie_id: str) -> EspecieCandidata | None:
         manual = self._manual(a_nombre(especie_id))
@@ -177,6 +209,8 @@ class CatalogoCRBioLM:
         if texto_consulta and normalizar(nombre) not in normalizar(texto_consulta):
             # RR_23: el Manual y el LLM reciben la pregunta con el nombre corregido.
             texto_consulta = corregir_nombres(texto_consulta, self._nombres())
+            # RR_28: y, si nombró solo el género, con la especie que eligió.
+            texto_consulta = _con_especie_del_genero(texto_consulta, nombre)
         # RR_35: y escrito como en el catálogo, sin importar mayúsculas ni tildes.
         # CR-BioLM reconoce la especie de la pregunta solo si está escrita así
         # ("Quercus costaricensis"); si no, la toma como una pregunta por varias
@@ -283,14 +317,19 @@ class CatalogoCRBioLM:
         Se piden una sola vez: search_species sin filtros (L0) devuelve todo el
         catálogo. Si CR-BioLM no los da, no se corrige y se piden otra vez en la
         siguiente consulta. Si dos hilos los piden a la vez, no pasa nada.
+
+        RR_28: de paso se guarda la familia de cada especie, para ofrecer las de
+        un género sin pedir sus fichas.
         """
         if self._nombres_del_catalogo is None:
             try:
                 especies = mcp_cliente.llamar("search_species").valor["species"]
                 nombres = {normalizar(e["species"]): e["species"] for e in especies}
+                familias = {e["species"]: e.get("family") or SIN_DATO for e in especies}
             except (MCPErrorHerramienta, MCPRespuestaInvalida, KeyError, TypeError):
                 logger.warning("RR_23: CR-BioLM no dio el catálogo de nombres; no se corrige")
                 return {}
+            self._familias_del_catalogo = familias
             self._nombres_del_catalogo = nombres
         return self._nombres_del_catalogo
 
@@ -330,6 +369,22 @@ class CatalogoCRBioLM:
 
 def _url_del_mapa(especie: str) -> str:
     return f"/especies/{a_id(especie)}/mapa"
+
+
+def _con_especie_del_genero(texto: str, nombre: str) -> str:
+    """RR_28: '¿Dónde crece Quercus?' -> '¿Dónde crece Quercus costaricensis?'.
+
+    Cuando el usuario eligió la especie entre las de un género, el Manual y el
+    LLM de CR-BioLM reciben la pregunta con ella: si no, no saben de cuál se
+    habla. Si ya la nombra, o no nombra el género, queda igual.
+    """
+    if normalizar(nombre) in normalizar(texto):
+        return texto
+    genero = normalizar(nombre.split()[0])
+    for palabra in _PALABRA.finditer(texto):
+        if normalizar(palabra.group()) == genero:
+            return texto[: palabra.start()] + nombre + texto[palabra.end() :]
+    return texto
 
 
 # --- Manual vectorizado: el fragmento que responde la pregunta (RR_44) --------
