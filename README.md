@@ -280,6 +280,18 @@ letras mal escritas (2, en `config.py`) contra el catálogo completo de CR-BioLM
 El texto guardado y mostrado no cambia y no se avisa al usuario; el Manual y el
 LLM reciben la pregunta con el nombre corregido.
 
+**RR_25 — nombres comunes**: si no trae ningún nombre científico (ni corregido),
+`CatalogoCRBioLM` le pregunta a CR-BioLM (`resolve_common_name`) por las frases
+de la consulta que podrían ser un nombre común, de la más larga a la más corta
+(`services/nombres_comunes.py`, a lo sumo `NOMBRES_COMUNES_FRASES_MAXIMAS`).
+CR-BioLM ya compara sin tildes ni mayúsculas; si una frase no está, se prueba en
+singular. Si CR-BioLM elige una especie (`unique` o `preferred`), se responde
+con ella y la respuesta lo avisa ("Por «ceiba» se entendió *Ceiba pentandra*…");
+si son varias (`ambiguous`), se ofrecen como en RR_17. El Manual y el LLM
+reciben la pregunta con el nombre científico al lado del común. Requiere la
+tabla de nombres comunes de CR-BioLM (`python -m mpcr_rag.evidence.vernacular
+fetch`); sin ella, no se reconocen nombres comunes.
+
 **RR_28 — ambigüedad**: si, aun corregida, la consulta no trae ningún nombre
 científico pero sí un género del Manual con dos o más especies ("¿Dónde crece
 Quercus?"), se ofrecen sus primeras `GENERO_OPCIONES_MAXIMAS` especies en orden

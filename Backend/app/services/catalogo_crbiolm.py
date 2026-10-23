@@ -4,7 +4,8 @@ Implementa la interfaz `FuenteCatalogo` (services/catalogo.py) con las
 herramientas del servidor de CR-BioLM. Todo es L0/L1 salvo la redacción de la
 respuesta (RR_49), que usa el LLM de CR-BioLM (answer_question, L2).
 
-    buscar_especies      -> get_species (provisional, ver el método)
+    buscar_especies      -> get_species; si no hay nombre científico,
+                            resolve_common_name (RR_25)
     obtener_especie      -> get_species
     construir_respuesta  -> get_species + get_occurrence_points + get_species_map_image
                             + get_relevant_passage (si pregunta algo concreto)
@@ -57,7 +58,7 @@ import re
 import threading
 import time
 from collections import OrderedDict
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from itertools import pairwise
 from typing import Any
 
@@ -82,6 +83,7 @@ from .contexto_especie import (
 from .correccion import corregir_nombres
 from .intencion import analizar
 from .mcp_cliente import MCPErrorHerramienta, MCPRespuestaInvalida, MCPTiempoAgotado, Sobre
+from .nombres_comunes import Frase, en_singular, frases_candidatas
 from .regiones import Zona, extraer_zona
 from .validacion_datos import alcanza_para_mapa, misma_especie, punto_valido
 
@@ -149,7 +151,8 @@ class CatalogoCRBioLM:
            catálogo, sin importar mayúsculas (RR_26).
         2. RR_23: los mismos, corrigiendo hasta LETRAS_MAXIMAS_CORRECCION letras
            mal escritas.
-        3. RR_28: solo un género con varias especies ("Quercus"); se ofrecen
+        3. RR_25: nombres comunes, con resolve_common_name de CR-BioLM.
+        4. RR_28: solo un género con varias especies ("Quercus"); se ofrecen
            algunas para que el usuario elija o sea más específico.
         """
         encontradas = self._por_nombre_cientifico(texto)
@@ -157,7 +160,7 @@ class CatalogoCRBioLM:
             corregido = corregir_nombres(texto, self._nombres())
             if corregido != texto:
                 encontradas = self._por_nombre_cientifico(corregido)
-        return encontradas or self._por_genero(texto)
+        return encontradas or _por_nombre_comun(texto) or self._por_genero(texto)
 
     def _por_nombre_cientifico(self, texto: str) -> list[EspecieCandidata]:
         palabras = _PALABRA.findall(texto)
@@ -206,9 +209,12 @@ class CatalogoCRBioLM:
         RR_49: si hay pregunta, el texto lo redacta el LLM de CR-BioLM.
         """
         nombre = a_nombre(especie_id)
+        interpretacion: list[str] = []
         if texto_consulta and normalizar(nombre) not in normalizar(texto_consulta):
             # RR_23: el Manual y el LLM reciben la pregunta con el nombre corregido.
             texto_consulta = corregir_nombres(texto_consulta, self._nombres())
+            # RR_25: si la nombró por su nombre común, con el científico al lado.
+            texto_consulta, interpretacion = _con_nombre_comun(texto_consulta, nombre)
             # RR_28: y, si nombró solo el género, con la especie que eligió.
             texto_consulta = _con_especie_del_genero(texto_consulta, nombre)
         # RR_36: si nombra varias especies, solo la parte de esta.
@@ -230,7 +236,7 @@ class CatalogoCRBioLM:
             total_registros=contexto.total_registros,
             fuentes=contexto.fuentes(),
             mapa=contexto.mapa_especie(_url_del_mapa(contexto.especie)),
-            avisos=contexto.avisos,
+            avisos=[*interpretacion, *contexto.avisos],
             geoespacial=contexto.geoespacial,
             tipo=contexto.tipo,
             procedencia=contexto.procedencia(),
@@ -371,6 +377,112 @@ class CatalogoCRBioLM:
 
 def _url_del_mapa(especie: str) -> str:
     return f"/especies/{a_id(especie)}/mapa"
+
+
+# --- RR_25: nombres comunes (resolve_common_name) ----------------------------
+
+# Decisiones de resolve_common_name en las que CR-BioLM elige UNA especie.
+_ELIGE_CR_BIOLM = {"unique", "preferred"}
+
+
+@dataclass(frozen=True)
+class _NombreComun:
+    """Lo que CR-BioLM dice de un nombre común de la consulta."""
+
+    nombre: str  # como se encontró: el de la consulta o su singular
+    decision: str  # "unique", "preferred" o "ambiguous"
+    especies: list[dict[str, Any]]  # las candidatas que corresponden
+
+
+def _por_nombre_comun(texto: str) -> list[EspecieCandidata]:
+    """RR_25: las especies de los nombres comunes de la consulta.
+
+    Las frases se prueban de la más larga a la más corta (nombres_comunes.py);
+    una que se cruza con un nombre ya reconocido no se prueba. "unique" o
+    "preferred" dan la especie que eligió CR-BioLM; "ambiguous", todas sus
+    candidatas, para que el usuario elija (RR_17). Si CR-BioLM no puede resolver
+    nombres comunes, no se reconoce ninguno.
+    """
+    encontradas: dict[str, EspecieCandidata] = {}
+    reconocidas: list[Frase] = []
+    for frase in frases_candidatas(texto):
+        if any(frase.se_cruza_con(r) for r in reconocidas):
+            continue
+        try:
+            comun = _nombre_comun(frase.texto)
+        except (MCPErrorHerramienta, MCPRespuestaInvalida) as error:
+            logger.warning("RR_25: CR-BioLM no resolvió nombres comunes: %s", error)
+            break
+        if comun is not None:
+            reconocidas.append(frase)
+            for c in comun.especies:
+                candidata = EspecieCandidata(
+                    id=a_id(c["species"]),
+                    nombre_comun=comun.nombre,
+                    nombre_cientifico=c["species"],
+                    familia=c.get("family") or SIN_DATO,
+                )
+                encontradas.setdefault(candidata.id, candidata)
+    return list(encontradas.values())
+
+
+def _nombre_comun(frase: str) -> _NombreComun | None:
+    """Las especies del catálogo con ese nombre común, también si viene en plural.
+
+    Primero tal cual y, solo si no hay ninguna, en singular (criterio 2). Los
+    nombres que no se pueden pedir por su id ("Ilex sp. 1") no se ofrecen.
+    """
+    for variante in (frase, en_singular(frase)):
+        if variante is None:
+            continue
+        valor = mcp_cliente.llamar("resolve_common_name", name=variante).valor
+        if not isinstance(valor, dict):
+            raise MCPRespuestaInvalida("resolve_common_name", "la respuesta no es un objeto")
+        decision = str(valor.get("decision") or "")
+        especies = [
+            c
+            for c in valor.get("candidates") or []
+            if isinstance(c, dict)
+            and isinstance(c.get("species"), str)
+            and a_nombre(a_id(c["species"])) == c["species"]
+            and (decision not in _ELIGE_CR_BIOLM or c["species"] == valor.get("species"))
+        ]
+        if especies:
+            return _NombreComun(variante, decision, especies)
+    return None
+
+
+def _con_nombre_comun(texto: str, nombre: str) -> tuple[str, list[str]]:
+    """RR_25: la pregunta con `nombre` junto al nombre común que la nombró, y el aviso.
+
+    "¿Dónde crece la ceiba?" -> "¿Dónde crece la ceiba (Ceiba pentandra)?": así
+    el Manual y el LLM de CR-BioLM saben de qué especie se habla. El aviso dice
+    cómo se entendió el nombre cuando lo eligió CR-BioLM; si el usuario eligió
+    entre varias especies, no hace falta. Sin nombre común, queda igual.
+    """
+    if normalizar(nombre) in normalizar(texto):
+        return texto, []
+    for frase in frases_candidatas(texto):
+        try:
+            comun = _nombre_comun(frase.texto)
+        except (MCPErrorHerramienta, MCPRespuestaInvalida):
+            return texto, []
+        if comun is None or all(c["species"] != nombre for c in comun.especies):
+            continue
+        pregunta = f"{texto[: frase.fin]} ({nombre}){texto[frase.fin :]}"
+        return pregunta, _aviso_de_interpretacion(frase.texto, nombre, comun.decision)
+    return texto, []
+
+
+def _aviso_de_interpretacion(frase: str, nombre: str, decision: str) -> list[str]:
+    if decision == "preferred":
+        return [
+            f"Por «{frase}» se entendió {nombre}: es el nombre preferido en Costa Rica "
+            "y la especie mejor documentada."
+        ]
+    if decision == "unique":
+        return [f"Por «{frase}» se entendió {nombre}."]
+    return []
 
 
 def _con_especie_del_genero(texto: str, nombre: str) -> str:

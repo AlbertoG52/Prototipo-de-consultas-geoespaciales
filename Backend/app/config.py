@@ -90,6 +90,11 @@ SEGUNDOS_MAXIMOS_CONSULTA = max(float(os.environ.get("SEGUNDOS_MAXIMOS_CONSULTA"
 # nombre científico para corregirlo antes de buscar (services/correccion.py).
 LETRAS_MAXIMAS_CORRECCION = 2
 
+# RR_25 — máximo de frases de una consulta que se le preguntan a CR-BioLM como
+# posibles nombres comunes (services/nombres_comunes.py). Cada una es una
+# llamada; las más largas van primero.
+NOMBRES_COMUNES_FRASES_MAXIMAS = 20
+
 # RR_28 — máximo de especies que se ofrecen cuando la consulta nombra solo un
 # género del Manual ("Quercus"): las primeras en orden alfabético.
 GENERO_OPCIONES_MAXIMAS = 5
