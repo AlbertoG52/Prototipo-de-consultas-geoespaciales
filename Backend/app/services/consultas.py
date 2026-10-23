@@ -83,7 +83,9 @@ MENSAJE_SIN_COINCIDENCIAS = (
     "No se reconoció ninguna especie en la consulta. "
     "Intenta con el nombre común o científico de una planta."
 )
-MENSAJE_AMBIGUA = "La consulta coincide con más de una especie. Selecciona cuál te interesa."
+MENSAJE_AMBIGUA = (
+    "La consulta coincide con más de una especie. Elige una o escribe un nombre más específico."
+)
 
 
 @dataclass

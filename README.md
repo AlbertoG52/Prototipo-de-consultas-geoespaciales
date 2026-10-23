@@ -280,6 +280,14 @@ letras mal escritas (2, en `config.py`) contra el catálogo completo de CR-BioLM
 El texto guardado y mostrado no cambia y no se avisa al usuario; el Manual y el
 LLM reciben la pregunta con el nombre corregido.
 
+**RR_28 — ambigüedad**: si, aun corregida, la consulta no trae ningún nombre
+científico pero sí un género del Manual con dos o más especies ("¿Dónde crece
+Quercus?"), se ofrecen sus primeras `GENERO_OPCIONES_MAXIMAS` especies en orden
+alfabético (5, en `config.py`) con el estado `ambigua` de RR_17, y el mensaje
+pide elegir una o escribir un nombre más específico. Un género con una sola
+especie no se ofrece. Al elegir, el Manual y el LLM reciben la pregunta con la
+especie elegida en lugar del género.
+
 **RR_39 — región o zona**: si la consulta menciona una región botánica del Manual
 ("Cordillera de Talamanca", "Talamanca", "Golfito"…) o una vertiente ("Caribe",
 "Pacífico"), la lista de registros y su conteo son solo los de esa zona

@@ -51,3 +51,25 @@ export function partirCitas(texto: string): TrozoDeTexto[] {
   if (desde < texto.length) trozos.push({ tipo: "texto", valor: texto.slice(desde) });
   return trozos;
 }
+
+/** Un trozo de texto con su formato. */
+export type TrozoConFormato = { valor: string; negrita: boolean; cursiva: boolean };
+
+/**
+ * RR_49 — el texto que redacta el LLM de CR-BioLM viene en Markdown: "**bosques
+ * nubosos**" es negrita y "*Quercus*" cursiva. Se separan para mostrarlos con ese
+ * formato y sin los asteriscos. Un texto sin marcas queda en un solo trozo.
+ */
+export function partirFormato(texto: string): TrozoConFormato[] {
+  const trozos: TrozoConFormato[] = [];
+  let desde = 0;
+  for (const marca of texto.matchAll(/\*\*([^*]+)\*\*|\*([^*\s][^*]*)\*/g)) {
+    const inicio = marca.index ?? 0;
+    if (inicio > desde) trozos.push({ valor: texto.slice(desde, inicio), negrita: false, cursiva: false });
+    const negrita = marca[1] !== undefined;
+    trozos.push({ valor: negrita ? marca[1] : marca[2], negrita, cursiva: !negrita });
+    desde = inicio + marca[0].length;
+  }
+  if (desde < texto.length) trozos.push({ valor: texto.slice(desde), negrita: false, cursiva: false });
+  return trozos;
+}
