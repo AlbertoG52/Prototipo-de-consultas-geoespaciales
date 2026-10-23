@@ -10,6 +10,7 @@
  *  - RR_17  selección de especie cuando la consulta coincide con varias. Con
  *           cuenta, la consulta ambigua queda guardada y pendiente: se puede
  *           elegir la especie incluso al reabrir la conversación otro día.
+ *  - RR_36  si nombra varias especies, se pueden buscar todas (buscarTodas).
  *  - RR_00_11 al visitante sin cuenta no se le guarda nada
  *  - RR_05  el error de una consulta se explica en lenguaje sencillo
  *  - RR_38  si la consulta supera el tiempo máximo, se avisa y se puede reintentar
@@ -34,6 +35,7 @@ import type {
   EspecieCandidata,
   RespuestaConsulta,
 } from "../types";
+import { consultasInsuficientes } from "../utils/especies";
 import { useAuth } from "./AuthContext";
 
 /** Un elemento de la conversación. */
@@ -52,11 +54,15 @@ export type Mensaje =
       consultaId: number | null;
       /** true cuando ya se eligió una especie: las opciones dejan de poder elegirse. */
       resuelta: boolean;
+      /** RR_36: por qué no se buscaron todas (consultas insuficientes). */
+      aviso?: string;
     }
   | { clase: "aviso"; id: string; mensaje: string }
   /** RR_22, RR_32, RR_37, RR_40: no era una consulta; se orienta con un mensaje y ejemplos. */
   | { clase: "orientacion"; id: string; mensaje: string; ejemplos: string[] }
   | { clase: "error"; id: string; mensaje: string; textoOriginal: string };
+
+export type Opciones = Extract<Mensaje, { clase: "opciones" }>;
 
 interface EstadoConsultas {
   mensajes: Mensaje[];
@@ -74,6 +80,9 @@ interface EstadoConsultas {
    *   el servidor no la cobre dos veces.
    */
   enviar: (texto: string, especieId?: string, consultaId?: number | null) => Promise<void>;
+
+  /** RR_36: busca todas las especies de unas opciones, una consulta por especie. */
+  buscarTodas: (opciones: Opciones) => Promise<void>;
 
   /** Reabre una conversación guardada sin reprocesar sus consultas (RR_09). */
   abrirConversacion: (id: number) => Promise<void>;
@@ -112,6 +121,12 @@ const MENSAJE_FALLO_SERVIDOR =
  * respuesta nunca llega.
  */
 const MARGEN_ESPERA_SEGUNDOS = 10;
+
+/**
+ * RR_36 — cuántas especies busca "Buscar todas" a la vez; las demás esperan su
+ * turno. Una: el LLM de CR-BioLM (RR_49) falla si recibe dos preguntas juntas.
+ */
+const BUSQUEDAS_SIMULTANEAS = 1;
 
 function mensajeTiempoAgotado(segundos?: number): string {
   const limite = segundos ? ` de ${segundos} ${segundos === 1 ? "segundo" : "segundos"}` : "";
@@ -348,6 +363,76 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
   );
 
   /**
+   * RR_36 — "Buscar todas": cada especie de las opciones se busca como si se
+   * eligiera (RR_17), BUSQUEDAS_SIMULTANEAS a la vez y las demás en cola. Cada
+   * una consume una consulta, así que solo se busca si alcanzan para todas; si
+   * no, se avisa y las opciones siguen disponibles. Las respuestas quedan debajo
+   * de las opciones, en el orden de la lista aunque terminen en otro.
+   */
+  const buscarTodas = useCallback(
+    async (opciones: Opciones) => {
+      if (enviando || opciones.resuelta) return;
+      const necesarias = opciones.candidatos.length;
+      const restantes = sesion?.consultas_restantes ?? 0;
+      if (restantes < necesarias) {
+        const aviso = consultasInsuficientes(necesarias, restantes);
+        setMensajes((prev) =>
+          prev.map((m) => (m.id === opciones.id && m.clase === "opciones" ? { ...m, aviso } : m)),
+        );
+        return;
+      }
+
+      // Un lugar por especie debajo de las opciones, en el orden de la lista.
+      const lugares = opciones.candidatos.map(() => nuevoId());
+      setMensajes((prev) =>
+        prev.flatMap((m) =>
+          m.id === opciones.id && m.clase === "opciones"
+            ? [{ ...m, resuelta: true, aviso: undefined }, ...lugares.map((id): Mensaje => ({ clase: "cargando", id }))]
+            : [m],
+        ),
+      );
+      setEnviando(true);
+      const poner = (mensaje: Mensaje) => setMensajes((prev) => prev.map((m) => (m.id === mensaje.id ? mensaje : m)));
+
+      const buscar = async (i: number) => {
+        const id = lugares[i];
+        try {
+          const salida = await api.enviarConsulta(opciones.texto, opciones.candidatos[i].id, {
+            conversacionId: conversacionRef.current,
+            // Con cuenta, la primera resuelve la consulta ambigua guardada y las
+            // demás se guardan como consultas nuevas de la misma conversación.
+            consultaId: i === 0 ? opciones.consultaId : null,
+            esperaMaximaMs:
+              segundosMaximos !== undefined
+                ? (segundosMaximos + MARGEN_ESPERA_SEGUNDOS) * 1000
+                : undefined,
+          });
+          if (salida.conversacion_id !== null) tocarConversacion(salida.conversacion_id, opciones.texto);
+          poner(
+            salida.estado === "resuelta" && salida.respuesta
+              ? { clase: "respuesta", id, consulta: salida.texto, respuesta: salida.respuesta }
+              : { clase: "aviso", id, mensaje: salida.mensaje ?? MENSAJE_SIN_COINCIDENCIAS },
+          );
+        } catch (err) {
+          poner({ clase: "error", id, mensaje: mensajeDeError(err, segundosMaximos), textoOriginal: opciones.texto });
+        }
+      };
+
+      let siguiente = 0;
+      const enTurno = async () => {
+        while (siguiente < necesarias) await buscar(siguiente++);
+      };
+      try {
+        await Promise.all(Array.from({ length: Math.min(BUSQUEDAS_SIMULTANEAS, necesarias) }, enTurno));
+      } finally {
+        setEnviando(false);
+        await refrescarSesion();
+      }
+    },
+    [enviando, sesion?.consultas_restantes, segundosMaximos, refrescarSesion, tocarConversacion],
+  );
+
+  /**
    * RR_09 — reabrir una conversación guardada. Las respuestas vienen del
    * servidor ya armadas, así que no se reprocesa nada ni se consume ninguna
    * consulta. Las ambiguas que quedaron pendientes vuelven a mostrar sus
@@ -384,6 +469,7 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
         conversaciones,
         conversacionActual,
         enviar,
+        buscarTodas,
         abrirConversacion,
         nuevaConsulta,
         ultimoTexto: ultimoTexto.current,
