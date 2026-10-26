@@ -21,6 +21,16 @@ class NombreRol(StrEnum):
     SUPERMODERADOR = "supermoderador"
 
 
+class PeriodoConsultas(StrEnum):
+    """Columna roles.periodo_consultas (020): cada cuánto se restablece el
+    contador de consultas de un rol (RR_64). Los periodos empiezan a las 00:00
+    de Costa Rica; la semana, el lunes; el mes, el día 1."""
+
+    DIA = "dia"
+    SEMANA = "semana"
+    MES = "mes"
+
+
 class EstadoCuenta(StrEnum):
     """Columna usuarios.estado (RR_74, RR_75)."""
 

@@ -1,4 +1,4 @@
-"""Endpoints de administración — RR_69 a RR_78, RR_80, RR_00_10, RR_00_09 y RR_57.
+"""Endpoints de administración — RR_63, RR_69 a RR_78, RR_80, RR_00_10, RR_00_09 y RR_57.
 
 La dependencia de rol está en el router, no en cada endpoint: todo lo que se
 agregue bajo /admin queda restringido al supermoderador sin tener que
@@ -18,10 +18,12 @@ from ..dominio import NombreRol, PeriodoEstadisticas
 from ..models import Usuario
 from ..schemas.admin import (
     CambioEstado,
+    CambioLimite,
     CambioRol,
     HistorialUso,
     RegistroAuditoria,
     ResumenTiempos,
+    RolOut,
     UsoDeRol,
 )
 from ..schemas.estadisticas import EstadisticasUso, ResumenUso
@@ -104,6 +106,31 @@ def cambiar_rol(
     """RR_70 — cambia el rol de una cuenta (no la propia: 409)."""
     with errores_http():
         return admin.cambiar_rol(db, actual, usuario_id, datos.rol)
+
+
+@router.get("/roles", response_model=list[RolOut])
+def listar_roles(db: Session = Depends(get_db)) -> list[RolOut]:
+    """RR_63 — los roles con su límite de consultas y cada cuánto se restablece."""
+    return admin.listar_roles(db)
+
+
+@router.patch("/roles/{rol}", response_model=RolOut)
+def configurar_limite(
+    rol: NombreRol,
+    datos: CambioLimite,
+    actual: Usuario = Depends(obtener_usuario_actual),
+    db: Session = Depends(get_db),
+) -> RolOut:
+    """RR_63 y RR_64 — define el límite de consultas de un rol y su periodo.
+
+    Aplica a las consultas siguientes de las cuentas de ese rol. Responde 400 si
+    el usuario estándar quedaría con tantas consultas como el moderador o con
+    menos que un visitante (RR_62 criterio 3).
+    """
+    with errores_http():
+        return admin.configurar_limite(
+            db, actual, rol, datos.limite_consultas, datos.periodo_consultas
+        )
 
 
 @router.get("/auditoria", response_model=list[RegistroAuditoria])

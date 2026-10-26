@@ -1,6 +1,6 @@
 """Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_23, RR_24, RR_25,
-RR_26, RR_28, RR_31, RR_36, RR_39, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_58 y
-RR_60.
+RR_26, RR_28, RR_31, RR_36, RR_39, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_56, RR_58
+y RR_60.
 
 Levantan un servidor MCP falso con las herramientas de CR-BioLM que usa el
 catálogo (get_species, search_species, get_vocabulary, resolve_common_name,
@@ -27,12 +27,17 @@ el nombre de otra especie; las demás no tienen texto vectorizado.
 answer_question (RR_49) solo responde bien preguntas sobre Myrsine coriacea; con
 ciertas palabras en la pregunta simula los casos que deben usar el Manual (ver
 la herramienta). Las demás preguntas no tienen respuesta del LLM.
+
+get_occurrence_points dice cuándo descargó los registros de GBIF (RR_56) solo
+para Quercus costaricensis y Podocarpus oleifolius; para las demás se comporta
+como una versión de CR-BioLM sin RR_56.
 """
 
 import base64
 import socket
 import threading
 import time
+from datetime import UTC, datetime
 
 import pytest
 import uvicorn
@@ -284,6 +289,13 @@ PUNTOS = {
 # defecto, como cuando una especie tiene más de 500.
 corte_de_puntos: int | None = None
 
+# RR_56: cuándo descargó CR-BioLM los registros de cada especie. A las 03:00 UTC
+# todavía es el día anterior en Costa Rica (21:00 del 18/10).
+ACTUALIZADO = "2026-10-19T03:00:00+00:00"
+ACTUALIZACIONES = {"Quercus costaricensis": ACTUALIZADO, "Podocarpus oleifolius": ACTUALIZADO}
+# RR_56 criterio 2: especies que CR-BioLM no pudo actualizar (entrega las anteriores).
+no_actualizadas: set[str] = set()
+
 
 @falso.tool()
 def get_occurrence_points(species: str, limit: int = 500) -> dict:
@@ -292,13 +304,19 @@ def get_occurrence_points(species: str, limit: int = 500) -> dict:
         fallos_de_gbif[species] -= 1
         raise ConnectionError("GBIF no respondió")
     cita = "GBIF occurrence API — Costa Rica"
+    fecha = {}
+    if species in ACTUALIZACIONES:  # RR_56
+        fecha = {"updated_at": ACTUALIZACIONES[species], "stale": species in no_actualizadas}
     puntos = PUNTOS.get(species, [])
     if not puntos:
-        return _sobre({"n": 0, "truncated": False, "points": []}, "GBIF", cita, "insufficient")
+        return _sobre(
+            {"n": 0, "truncated": False, "points": [], **fecha}, "GBIF", cita, "insufficient"
+        )
     if corte_de_puntos is not None and limit == 500:
         recortados = puntos[:corte_de_puntos]
-        return _sobre({"n": len(puntos), "truncated": True, "points": recortados}, "GBIF", cita)
-    return _sobre({"n": len(puntos), "truncated": False, "points": puntos}, "GBIF", cita)
+        valor = {"n": len(puntos), "truncated": True, "points": recortados, **fecha}
+        return _sobre(valor, "GBIF", cita)
+    return _sobre({"n": len(puntos), "truncated": False, "points": puntos, **fecha}, "GBIF", cita)
 
 
 def _puerto_libre() -> int:
@@ -348,6 +366,7 @@ def crbiolm(monkeypatch, url_falsa):
     pedidos_de_pasaje.clear()
     pedidos_a_ia.clear()
     fallos_de_gbif.clear()
+    no_actualizadas.clear()
     return CatalogoCRBioLM()
 
 
@@ -741,7 +760,7 @@ def test_cada_dato_dice_de_donde_sale(crbiolm):
     assert origen["elevacion"] == ("Manual de Plantas de Costa Rica", "Tomo V, p. 779")
     assert origen["registros"] == (
         "GBIF",
-        "registros de presencia en Costa Rica, consultados en vivo",
+        "registros de presencia en Costa Rica, actualizados el 18/10/2026",  # RR_56
     )
     assert origen["mapa"] == (
         "CR-BioLM",
@@ -1382,3 +1401,81 @@ def test_la_persona_sigue_viendo_lo_que_escribio(crbiolm, visitante):
     assert datos["estado"] == "resuelta"
     assert datos["texto"] == texto  # lo guardado y mostrado no cambia
     assert datos["respuesta"]["texto"] == TEXTO_IA
+
+
+# --- RR_56: fecha de actualización de los registros de GBIF ---------------------------
+# Que CR-BioLM los vuelva a descargar cada cierto tiempo, sin borrar los anteriores
+# hasta tener unos válidos, se prueba en su repositorio (tests/test_gbif_cache.py).
+
+
+def test_la_respuesta_dice_cuando_se_descargaron_los_registros(crbiolm):
+    """Criterio 3."""
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", "")
+    assert respuesta.registros_actualizados_en == datetime(2026, 10, 19, 3, tzinfo=UTC)
+    assert respuesta.avisos == []
+
+
+def test_la_ficha_tambien_trae_la_fecha(crbiolm):
+    ficha = crbiolm.obtener_ficha("quercus-costaricensis")
+    assert ficha.registros_actualizados_en == datetime(2026, 10, 19, 3, tzinfo=UTC)
+    origen = {p.dato: p.detalle for p in ficha.procedencia}
+    assert origen["registros"] == "registros de presencia en Costa Rica, actualizados el 18/10/2026"
+
+
+def test_sin_fecha_de_cr_biolm_no_se_inventa(crbiolm):
+    # Inga edulis: una versión de CR-BioLM que todavía no dice la fecha.
+    respuesta = crbiolm.construir_respuesta("inga-edulis", "")
+    assert respuesta.registros_actualizados_en is None
+    origen = {p.dato: p.detalle for p in respuesta.procedencia}
+    assert origen["registros"] == "registros de presencia en Costa Rica"
+
+
+def test_sin_gbif_no_hay_fecha(crbiolm):
+    fallos_de_gbif["Quercus costaricensis"] = 99  # RR_58: todos los intentos fallan
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", "")
+    assert respuesta.registros_actualizados_en is None
+
+
+def test_si_cr_biolm_no_pudo_actualizarlos_se_avisa_y_se_usan_los_anteriores(crbiolm):
+    """Criterio 2: los registros anteriores se siguen mostrando, con un aviso."""
+    no_actualizadas.add("Quercus costaricensis")
+    respuesta = crbiolm.construir_respuesta("quercus-costaricensis", "")
+    assert respuesta.avisos == [
+        "No se pudieron actualizar los registros de GBIF en este momento; se muestran "
+        "los del 18/10/2026."
+    ]
+    assert respuesta.total_registros == 6 and respuesta.mapa is not None
+    assert respuesta.registros_actualizados_en == datetime(2026, 10, 19, 3, tzinfo=UTC)
+
+
+def test_la_zona_conserva_la_fecha(crbiolm):
+    global corte_de_puntos
+    corte_de_puntos = 4  # RR_39 vuelve a pedir todos los puntos
+    respuesta = crbiolm.construir_respuesta(
+        PODOCARPUS, "¿Dónde crece Podocarpus oleifolius en el Caribe?"
+    )
+    assert respuesta.total_registros == 4
+    assert respuesta.registros_actualizados_en == datetime(2026, 10, 19, 3, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("valor", "esperada"),
+    [
+        ({"updated_at": "2026-10-19T03:00:00+00:00"}, datetime(2026, 10, 19, 3, tzinfo=UTC)),
+        ({"updated_at": "2026-10-19T03:00:00"}, datetime(2026, 10, 19, 3, tzinfo=UTC)),  # UTC
+        ({"updated_at": "ayer"}, None),
+        ({"updated_at": ""}, None),
+        ({"updated_at": None}, None),
+        ({}, None),
+    ],
+)
+def test_lectura_de_la_fecha(valor, esperada):
+    assert catalogo_crbiolm._actualizado_en(valor, "Quercus costaricensis") == esperada
+
+
+def test_la_fecha_llega_por_la_api(crbiolm, visitante):
+    texto = "¿Dónde crece Quercus costaricensis?"
+    datos = api.post("/consultas", headers=visitante, json={"texto": texto}).json()
+    assert datos["estado"] == "resuelta"
+    fecha = datetime.fromisoformat(datos["respuesta"]["registros_actualizados_en"])
+    assert fecha == datetime(2026, 10, 19, 3, tzinfo=UTC)

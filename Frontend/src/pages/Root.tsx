@@ -23,7 +23,8 @@ import { useAuth } from "../context/AuthContext";
 import { useConsultas } from "../context/ConsultasContext";
 import { Logo } from "../components/Logo";
 import { NOMBRE_APP, SUBTITULO_APP } from "../config/marca";
-import { IDIOMA_FECHAS } from "../config/textos";
+import { formatearReinicio, IDIOMA_FECHAS, PERIODO_ACTUAL } from "../config/textos";
+import type { Sesion } from "../types";
 
 // Ancho desde el que la barra lateral deja de ser un panel flotante (md de Tailwind).
 const CONSULTA_PANTALLA_GRANDE = "(min-width: 768px)";
@@ -53,30 +54,35 @@ function iniciales(nombre: string | null, correo: string): string {
 }
 
 /**
- * Consultas restantes del día (RR_00_11: sin cuenta el límite es menor).
- * En rojo cuando ya no quedan.
+ * RR_66 — consultas restantes del periodo del rol (día, semana o mes; RR_64).
+ * Sin cuenta el límite es diario y menor (RR_00_11). En rojo cuando ya no
+ * quedan; al pasar el mouse dice cuándo se restablecen (RR_65). Se actualiza
+ * después de cada consulta resuelta (ConsultasContext refresca la sesión).
  */
-function ContadorConsultas({
-  restantes,
-  limite,
-  cargando = false,
-  conBarra = false,
-}: {
-  restantes: number;
-  limite: number;
-  cargando?: boolean;
-  conBarra?: boolean;
-}) {
+function ContadorConsultas({ sesion, conBarra = false }: { sesion: Sesion | null; conBarra?: boolean }) {
+  const cargando = sesion === null;
+  const restantes = sesion?.consultas_restantes ?? 0;
+  const limite = sesion?.limite_consultas ?? 0;
   const agotadas = !cargando && restantes === 0;
   const porcentaje = limite > 0 ? (restantes / limite) * 100 : 0;
+  const periodo = sesion ? PERIODO_ACTUAL[sesion.periodo_consultas] : "";
+  const reinicio = sesion ? `Se restablecen el ${formatearReinicio(sesion.consultas_se_restablecen_en)}` : undefined;
+  // Junto al nombre de la cuenta hay poco espacio: "5/20 esta semana" en vez de
+  // "5/20 consultas esta semana" (el de hoy cabe completo, como antes).
+  const cantidad = `${restantes}/${limite}`;
+  const texto = conBarra
+    ? `Quedan ${cantidad} consultas ${periodo}`
+    : periodo === PERIODO_ACTUAL.dia
+      ? `${cantidad} consultas ${periodo}`
+      : `${cantidad} ${periodo}`;
   return (
     <span className="block">
       <span
         className="block text-xs truncate"
-        title="Consultas restantes hoy"
+        title={reinicio}
         style={{ color: agotadas ? "var(--color-error)" : "var(--color-texto-secundario)" }}
       >
-        {cargando ? "Consultas restantes: …" : `${conBarra ? "Quedan " : ""}${restantes}/${limite} consultas hoy`}
+        {cargando ? "Consultas restantes: …" : texto}
       </span>
       {conBarra && (
         <span className="block rounded-full overflow-hidden mt-1.5" style={{ height: 3, background: "var(--color-borde-fuerte)" }}>
@@ -222,9 +228,6 @@ export function Root() {
 
   const esAdmin = location.pathname === "/admin";
   const esPerfil = location.pathname === "/profile";
-
-  const limite = sesion?.limite_consultas ?? 0;
-  const restantes = sesion?.consultas_restantes ?? 0;
 
   const irA = (ruta: string) => {
     setMenuCuentaAbierto(false);
@@ -451,14 +454,14 @@ export function Root() {
                     <span className="block text-sm font-medium truncate" style={{ color: "var(--color-texto)" }}>
                       {sesion.usuario.nombre || sesion.usuario.correo}
                     </span>
-                    <ContadorConsultas restantes={restantes} limite={limite} />
+                    <ContadorConsultas sesion={sesion} />
                   </span>
                   <ChevronsUpDown size={16} className="shrink-0" style={{ color: "var(--color-texto-tenue)" }} aria-hidden="true" />
                 </button>
               </div>
             ) : (
               <div className="flex flex-col gap-1.5">
-                <ContadorConsultas restantes={restantes} limite={limite} cargando={!sesion} conBarra />
+                <ContadorConsultas sesion={sesion} conBarra />
                 <div className="flex gap-2 mt-1">
                   <button
                     onClick={() => navigate("/login")}

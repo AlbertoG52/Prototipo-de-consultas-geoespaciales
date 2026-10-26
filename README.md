@@ -113,7 +113,7 @@ al día. Cerrar sesión no deja a nadie fuera, devuelve a la sesión anónima.
 
 | | Visitante | Usuario registrado |
 |---|---|---|
-| Consultas diarias | 5 (`LIMITE_CONSULTAS_ANONIMO`) | 20 (`roles.limite_consultas`) |
+| Consultas | 5 por día (`LIMITE_CONSULTAS_ANONIMO`) | las de su rol: 20 por día por defecto (`roles.limite_consultas` y `roles.periodo_consultas`, ver RR_62 a RR_66) |
 | Historial | en memoria, se pierde al recargar | conversaciones guardadas (`conversaciones` y `consultas`) |
 | Qué se guarda de él | solo un contador diario | correo, consultas y respuestas |
 
@@ -144,6 +144,7 @@ Cada cambio a la base es un archivo SQL numerado en `Backend/migrations/`:
 | `017_intencion_de_consulta.sql` | intención de cada consulta en `tiempos_respuesta`, para RR_33 (y RR_29 criterio 3) |
 | `018_preferencias_de_respuesta.sql` | comportamiento por defecto de mapa y fuentes (`configuracion_respuestas`) y preferencias del moderador con NULL = "la del sistema", para RR_67, RR_68, RR_79 y RR_80 |
 | `019_permisos_tipo_consulta.sql` | tipos de consulta permitidos por rol (`permisos_tipo_consulta`), motivo `tipo_no_permitido` y su registro en la auditoría, para RR_77 |
+| `020_limites_por_rol.sql` | periodo del límite de cada rol (`periodo_consultas`), límites válidos y auditoría de sus cambios, para RR_63 y RR_64 |
 
 Para agregar un cambio:
 1. Se crea un archivo nuevo, p.ej. `011_....sql`.
@@ -180,6 +181,8 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | GET | `/admin/usuarios` | usuarios registrados | supermoderador |
 | GET | `/admin/usuarios/{id}/consultas` | historial de uso de una cuenta, por páginas (RR_76) | supermoderador |
 | GET | `/admin/uso-por-rol` | cuentas y consultas guardadas de cada rol (RR_76) | supermoderador |
+| GET | `/admin/roles` | límite de consultas y periodo de cada rol (RR_63) | supermoderador |
+| PATCH | `/admin/roles/{rol}` | definir el límite y el periodo de un rol (RR_63, RR_64); 400 si rompe la regla entre roles | supermoderador |
 | GET | `/admin/estadisticas?periodo=` | total de consultas por rol (con visitantes), por día y por tipo; `periodo` = `hoy`, `ultimos_7_dias`, `ultimos_30_dias` o `todo` (por defecto) (RR_78) | supermoderador |
 | GET | `/admin/estadisticas/resumen` | cifras de las tarjetas del panel: cuentas, consultas de hoy, ayer y 30 días, tasa de éxito (RR_78) | supermoderador |
 | PATCH | `/admin/usuarios/{id}/estado` | activar o desactivar (no a sí mismo: 409) | supermoderador |
@@ -465,6 +468,41 @@ colores que `habitat_map.py` de CR-BioLM): debajo del mapa se despliega y en el
 visor queda fija encima del mapa. La **escala** está pendiente: hay que
 acordarla con José (que CR-BioLM la dibuje o devuelva los km por píxel).
 
+### Límite de consultas por rol (RR_62 a RR_66)
+
+Cada rol tiene un límite (`roles.limite_consultas`) y un periodo
+(`roles.periodo_consultas`: `dia`, `semana` o `mes`, `dominio.PeriodoConsultas`).
+El visitante tiene `LIMITE_CONSULTAS_ANONIMO` por día. La lógica está en
+`services/uso.py`.
+
+- **RR_62 — restricción por rol**: antes de procesar una consulta se cuentan las
+  resueltas del periodo; con el límite alcanzado se responde 429 sin llamar a
+  CR-BioLM. Solo cobran las resueltas (orientación, ambiguas y sin coincidencias
+  no).
+- **RR_63 — el supermoderador define los límites**: pestaña "Roles y permisos"
+  del panel (`components/admin/LimitesPorRol.tsx`), con `GET /admin/roles` y
+  `PATCH /admin/roles/{rol}`. El límite debe ser un entero entre 1 y 100 000.
+  No se acepta que el usuario estándar quede con tantas consultas como el
+  moderador, ni con menos que un visitante (RR_62 criterio 3, RR_00_11); para
+  comparar periodos distintos se llevan a consultas por día (el mes cuenta como
+  30). El rechazo dice el mínimo o el máximo que sí se acepta con el periodo
+  elegido ("Por semana, el mínimo es 36."), calculado con el
+  `LIMITE_CONSULTAS_ANONIMO` del `.env`. Aplica a la siguiente consulta de cada cuenta y queda en la auditoría
+  como `cambio_limite`, con quién lo hizo (trigger de la tabla 020).
+- **RR_64 — restablecimiento periódico**: no hay contador que reiniciar; se
+  cuentan las consultas resueltas desde el inicio del periodo actual. Los
+  periodos empiezan a las **00:00 de Costa Rica** (la semana, el lunes; el mes,
+  el día 1), no a la medianoche UTC. El contador del visitante también usa el
+  día de Costa Rica.
+- **RR_65 — aviso del límite**: el 429 dice el límite y cuándo se restablece
+  ("Alcanzaste tu límite de 20 consultas por día. Se restablece el 20/10/2026 a
+  las 00:00 (hora de Costa Rica)."). El chat lo avisa antes de enviar, con la
+  misma fecha, y bloquea la caja de texto.
+- **RR_66 — consultas restantes**: `GET /auth/sesion` trae
+  `consultas_restantes`, `periodo_consultas` y `consultas_se_restablecen_en`; la
+  barra lateral muestra "5/20 consultas hoy" (o "esta semana", "este mes") y se
+  actualiza después de cada consulta resuelta.
+
 ---
 
 ## El catálogo de especies
@@ -520,8 +558,19 @@ de armar la respuesta:
   `GBIF_ESPERA_REINTENTO_SEGUNDOS` (2 s) entre intentos y sin pasarse del tiempo
   máximo de la consulta (RR_38). Si todos fallan, la respuesta sale con los datos
   del Manual, sin registros ni mapa.
+- **RR_56 — actualización periódica de los datos de GBIF**: CR-BioLM guarda en
+  disco los registros de GBIF de cada especie (`mpcr_rag/data/gbif_cache/`) y los
+  vuelve a descargar cuando tienen más de `MPCR_GBIF_CACHE_MAX_DAYS` días (en el
+  `.env` **de CR-BioLM**; ver "Levantar el servidor de CR-BioLM"). Los nuevos
+  reemplazan a los anteriores solo si la descarga salió bien; si GBIF falla, se
+  siguen usando los anteriores. `get_occurrence_points` dice cuándo los descargó
+  (`updated_at`) y si son los anteriores porque no pudo actualizarlos (`stale`).
+  La respuesta y la ficha traen esa fecha en `registros_actualizados_en`; el
+  frontend la muestra junto a la cantidad de registros ("GBIF al 18/10/2026") y
+  en "Origen de los datos". Con `stale`, la respuesta lo avisa. La descarga
+  citable del paper de José (DOI 10.15468/dl.8yhee8) no cambia.
 
-En los casos de RR_43 y RR_58 la respuesta y la ficha traen el motivo en
+En los casos de RR_43, RR_56 y RR_58 la respuesta y la ficha traen el motivo en
 `avisos`, que el frontend muestra (`components/Avisos.tsx`) y que también va en
 el archivo descargado.
 
@@ -564,8 +613,8 @@ palabras clave):
   (especie, texto, elevación, registros, mapa). El frontend lo muestra en
   "Origen de los datos" (`components/OrigenDeLosDatos.tsx`) y en la descarga.
   Son textos para el usuario (p. ej. "GBIF — registros de presencia en Costa
-  Rica, consultados en vivo"): las citas técnicas de CR-BioLM, con los filtros de
-  GBIF o los archivos del mapa, no se muestran.
+  Rica, actualizados el 18/10/2026", RR_56): las citas técnicas de CR-BioLM, con
+  los filtros de GBIF o los archivos del mapa, no se muestran.
 - **RR_49 — respuesta en lenguaje natural**: si la consulta trae una pregunta,
   el texto lo redacta el LLM de CR-BioLM (herramienta `answer_question`, L2), con
   las citas del Manual dentro (`【Especie (Tomo V, p.779)】`, que el frontend
@@ -637,6 +686,26 @@ python -c "from mpcr_rag.mcp.server import server; server.run(transport='streama
   antes de arrancarlo: `set -a; source .env; set +a`.
 - Sin esa llave, `answer_question` falla o responde `insufficient`; el backend
   usa entonces el texto del Manual (ver RR_49 arriba).
+- **Actualización de los registros de GBIF (RR_56).** También en el `.env` de
+  CR-BioLM. Con 0 (el valor por defecto de CR-BioLM) los registros guardados no
+  vencen nunca:
+
+  ```
+  MPCR_GBIF_CACHE_MAX_DAYS=30
+  ```
+
+  CR-BioLM los vuelve a descargar cuando alguien consulta una especie con
+  registros vencidos, y esa persona espera la descarga. Para que no pase, se
+  pueden actualizar todos de antemano (p. ej. de noche, con cron o el
+  Programador de tareas de Windows), desde la raíz de CR-BioLM:
+
+  ```bash
+  python -m mpcr_rag.scripts.refresh_gbif            # los que tienen más de MPCR_GBIF_CACHE_MAX_DAYS
+  python -m mpcr_rag.scripts.refresh_gbif --status   # última actualización y los más viejos
+  ```
+
+  Sale con código 1 si alguna especie no se pudo actualizar (se quedan sus
+  registros anteriores). Cada intento queda en `mpcr_rag/data/gbif_cache/_refresh_log.jsonl`.
 
 ### En el deploy
 

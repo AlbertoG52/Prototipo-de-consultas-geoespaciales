@@ -48,7 +48,7 @@ from ..services.tokens import (
     crear_token,
     segundos_desde_ultimo,
 )
-from ..services.uso import consultas_hoy, limite_de
+from ..services.uso import cupo_de
 from .errores import errores_http
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -322,15 +322,17 @@ def estado_sesion(
     """
     exigir_sesion(identidad)
 
-    limite = limite_de(identidad)
-    usadas = consultas_hoy(db, identidad)
+    # RR_66: consultas restantes del periodo; RR_65: cuándo se restablecen.
+    cupo = cupo_de(db, identidad)
 
     return SesionOut(
         tipo=identidad.tipo,
         usuario=UsuarioOut.de_modelo(identidad.usuario) if identidad.usuario else None,
-        limite_consultas=limite,
-        consultas_realizadas=usadas,
-        consultas_restantes=max(limite - usadas, 0),
+        limite_consultas=cupo.limite,
+        consultas_realizadas=cupo.usadas,
+        consultas_restantes=cupo.restantes,
+        periodo_consultas=cupo.periodo,
+        consultas_se_restablecen_en=cupo.se_restablece_en,
         # RR_00_11 criterio 1: al visitante no se le guardan las consultas.
         guarda_historial=not identidad.es_anonimo,
         minutos_inactividad=(
