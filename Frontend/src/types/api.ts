@@ -374,6 +374,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/estadisticas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Estadisticas De Uso
+         * @description RR_78 — total de consultas del periodo, por rol, por día y por tipo de pregunta.
+         */
+        get: operations["estadisticas_de_uso_admin_estadisticas_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/estadisticas/resumen": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Resumen De Uso
+         * @description RR_78 — cifras de las tarjetas del panel: cuentas, consultas de hoy, ayer y 30 días.
+         */
+        get: operations["resumen_de_uso_admin_estadisticas_resumen_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/usuarios/{usuario_id}/estado": {
         parameters: {
             query?: never;
@@ -501,6 +541,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/preferencias-respuesta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Preferencias Por Defecto
+         * @description RR_80 — si las respuestas incluyen el mapa y las fuentes por defecto.
+         */
+        get: operations["ver_preferencias_por_defecto_admin_preferencias_respuesta_get"];
+        /**
+         * Cambiar Preferencias Por Defecto
+         * @description RR_80 criterio 3 — ajusta el comportamiento por defecto del sistema.
+         *
+         *     Aplica a todos los que no han cambiado su preferencia (criterio 2): los
+         *     usuarios, los visitantes y los moderadores sin preferencia propia.
+         */
+        put: operations["cambiar_preferencias_por_defecto_admin_preferencias_respuesta_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/permisos-consulta": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Permisos De Consulta
+         * @description RR_77 — los tipos de consulta que puede hacer cada rol.
+         */
+        get: operations["ver_permisos_de_consulta_admin_permisos_consulta_get"];
+        /**
+         * Cambiar Permisos De Consulta
+         * @description RR_77 criterio 1 — define los tipos de consulta de los roles enviados.
+         *
+         *     Aplica desde la siguiente consulta y cada cambio queda en la auditoría.
+         */
+        put: operations["cambiar_permisos_de_consulta_admin_permisos_consulta_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/perfil": {
         parameters: {
             query?: never;
@@ -565,6 +658,35 @@ export interface paths {
          *     esperar a la siguiente renovación.
          */
         patch: operations["cambiar_inactividad_perfil_inactividad_patch"];
+        trace?: never;
+    };
+    "/perfil/preferencias": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ver Preferencias
+         * @description RR_67, RR_68, RR_79 — si las respuestas del moderador incluyen el mapa y las fuentes.
+         *
+         *     Trae también si cada una es propia o sigue la del sistema (RR_80).
+         */
+        get: operations["ver_preferencias_perfil_preferencias_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Cambiar Preferencias
+         * @description RR_67, RR_68 — activa o desactiva el mapa y las fuentes en las respuestas.
+         *
+         *     Se guarda en la cuenta, así que se conserva entre sesiones y aplica desde
+         *     la consulta siguiente (RR_79). Un campo en null vuelve a la del sistema.
+         */
+        patch: operations["cambiar_preferencias_perfil_preferencias_patch"];
         trace?: never;
     };
     "/especies": {
@@ -742,6 +864,45 @@ export interface components {
             /** Password Nueva */
             password_nueva: string;
         };
+        /**
+         * CambioPermisos
+         * @description PUT /admin/permisos-consulta. Solo cambian los roles que vienen.
+         */
+        CambioPermisos: {
+            /** Roles */
+            roles: components["schemas"]["CambioPermisosDeRol"][];
+        };
+        /** CambioPermisosDeRol */
+        CambioPermisosDeRol: {
+            rol: components["schemas"]["RolDeConsulta"];
+            /** Permitidos */
+            permitidos: components["schemas"]["TipoPregunta"][];
+        };
+        /**
+         * CambioPreferencias
+         * @description Cambio de las preferencias del moderador (PATCH /perfil/preferencias).
+         *
+         *     Cada campo es opcional:
+         *     - ausente: no se cambia;
+         *     - true/false: queda como preferencia propia (RR_67, RR_68);
+         *     - null: vuelve a usar la del sistema (RR_80).
+         */
+        CambioPreferencias: {
+            /** Incluir Mapa */
+            incluir_mapa?: boolean | null;
+            /** Incluir Fuentes */
+            incluir_fuentes?: boolean | null;
+        };
+        /**
+         * CambioPreferenciasPorDefecto
+         * @description RR_80 criterio 3 — el supermoderador fija el comportamiento por defecto.
+         */
+        CambioPreferenciasPorDefecto: {
+            /** Incluir Mapa */
+            incluir_mapa: boolean;
+            /** Incluir Fuentes */
+            incluir_fuentes: boolean;
+        };
         /** CambioRol */
         CambioRol: {
             rol: components["schemas"]["NombreRol"];
@@ -832,6 +993,33 @@ export interface components {
             consulta_id?: number | null;
         };
         /**
+         * ConsultasDeGrupo
+         * @description Criterio 2: las consultas de un grupo (rol de hoy o visitante).
+         */
+        ConsultasDeGrupo: {
+            grupo: components["schemas"]["GrupoDeUso"];
+            /** Consultas */
+            consultas: number;
+            /** Resueltas */
+            resueltas: number;
+        };
+        /** ConsultasDeTipo */
+        ConsultasDeTipo: {
+            tipo: components["schemas"]["TipoPregunta"];
+            /** Consultas */
+            consultas: number;
+        };
+        /** ConsultasDelDia */
+        ConsultasDelDia: {
+            /**
+             * Fecha
+             * Format: date
+             */
+            fecha: string;
+            /** Consultas */
+            consultas: number;
+        };
+        /**
          * ConteoIntencion
          * @description RR_33: cuántas consultas del periodo tuvieron una intención.
          */
@@ -915,6 +1103,35 @@ export interface components {
             familia: string;
         };
         /**
+         * EstadisticasUso
+         * @description GET /admin/estadisticas: el uso del sistema en un periodo.
+         *
+         *     Las cifras se calculan en cada petición, así que traen las consultas
+         *     nuevas (criterio 3).
+         */
+        EstadisticasUso: {
+            periodo: components["schemas"]["PeriodoEstadisticas"];
+            /** Desde */
+            desde: string | null;
+            /** Total */
+            total: number;
+            /** Resueltas */
+            resueltas: number;
+            /** Tasa Exito */
+            tasa_exito: number | null;
+            /** Por Grupo */
+            por_grupo: components["schemas"]["ConsultasDeGrupo"][];
+            /** Por Dia */
+            por_dia: components["schemas"]["ConsultasDelDia"][];
+            /** Por Tipo */
+            por_tipo: components["schemas"]["ConsultasDeTipo"][];
+            /**
+             * Generado En
+             * Format: date-time
+             */
+            generado_en: string;
+        };
+        /**
          * EstadoConsulta
          * @description Columna consultas.estado.
          *
@@ -972,6 +1189,15 @@ export interface components {
             /** Registros Actualizados En */
             registros_actualizados_en: string | null;
         };
+        /**
+         * GrupoDeUso
+         * @description Quién hizo las consultas en las estadísticas de uso (RR_78).
+         *
+         *     Una cuenta cuenta con el rol que tiene hoy, como en RR_76; el visitante
+         *     sin cuenta es un grupo aparte.
+         * @enum {string}
+         */
+        GrupoDeUso: "visitante" | "usuario" | "moderador" | "supermoderador";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -996,7 +1222,8 @@ export interface components {
          *
          *     Une los dos casos: una consulta sobre una especie (su TipoPregunta) o un
          *     mensaje que no es una consulta (su MotivoOrientacion). Los valores son los
-         *     mismos de esos dos enums.
+         *     mismos de esos dos enums, salvo TIPO_NO_PERMITIDO (RR_77): de esa consulta
+         *     se registra el tipo que se pidió.
          * @enum {string}
          */
         IntencionConsulta: "distribucion" | "habitat" | "descripcion" | "general" | "sin_sentido" | "idioma" | "ayuda" | "saludo" | "fuera_de_tema";
@@ -1040,11 +1267,12 @@ export interface components {
          * MotivoOrientacion
          * @description Columna consultas.motivo: por qué una consulta terminó en ORIENTACION.
          *
-         *     Los detecta services/preprocesamiento.py. Todos menos FUERA_DE_TEMA se
-         *     detectan antes de buscar especies.
+         *     Los detecta services/preprocesamiento.py, salvo TIPO_NO_PERMITIDO
+         *     (services/permisos.py). Todos menos FUERA_DE_TEMA se detectan antes de
+         *     buscar especies.
          * @enum {string}
          */
-        MotivoOrientacion: "sin_sentido" | "idioma" | "ayuda" | "saludo" | "fuera_de_tema";
+        MotivoOrientacion: "sin_sentido" | "idioma" | "ayuda" | "saludo" | "fuera_de_tema" | "tipo_no_permitido";
         /**
          * NombreRol
          * @description Roles de la tabla 'roles' (001_crear_tabla_roles.sql).
@@ -1053,12 +1281,85 @@ export interface components {
         NombreRol: "usuario" | "moderador" | "supermoderador";
         /**
          * PeriodoConsultas
-         * @description Columna roles.periodo_consultas (018): cada cuánto se restablece el
+         * @description Columna roles.periodo_consultas (020): cada cuánto se restablece el
          *     contador de consultas de un rol (RR_64). Los periodos empiezan a las 00:00
          *     de Costa Rica; la semana, el lunes; el mes, el día 1.
          * @enum {string}
          */
         PeriodoConsultas: "dia" | "semana" | "mes";
+        /**
+         * PeriodoEstadisticas
+         * @description Periodo de las estadísticas de uso (RR_78). Los días son en UTC, como el
+         *     límite diario (services/uso.py).
+         * @enum {string}
+         */
+        PeriodoEstadisticas: "hoy" | "ultimos_7_dias" | "ultimos_30_dias" | "todo";
+        /**
+         * PermisosDeRol
+         * @description Los tipos de consulta que puede hacer un rol.
+         */
+        PermisosDeRol: {
+            rol: components["schemas"]["RolDeConsulta"];
+            /** Permitidos */
+            permitidos: components["schemas"]["TipoPregunta"][];
+        };
+        /**
+         * PermisosTiposConsulta
+         * @description GET /admin/permisos-consulta: la configuración de todos los roles y su último cambio.
+         *
+         *     El supermoderador no aparece: siempre puede hacer todos los tipos.
+         */
+        PermisosTiposConsulta: {
+            /** Roles */
+            roles: components["schemas"]["PermisosDeRol"][];
+            /** Actualizado En */
+            actualizado_en: string | null;
+            /** Actualizado Por */
+            actualizado_por: string | null;
+        };
+        /**
+         * PreferenciasModerador
+         * @description RR_67, RR_68 — las preferencias que aplican a las respuestas del moderador.
+         *
+         *     `incluir_mapa` e `incluir_fuentes` son las que se aplican. Los campos
+         *     `*_propio` dicen si las cambió él (True) o si sigue la del sistema (False,
+         *     RR_80); `por_defecto` es la del sistema, para mostrarla en el perfil.
+         */
+        PreferenciasModerador: {
+            /** Incluir Mapa */
+            incluir_mapa: boolean;
+            /** Incluir Fuentes */
+            incluir_fuentes: boolean;
+            /** Mapa Propio */
+            mapa_propio: boolean;
+            /** Fuentes Propio */
+            fuentes_propio: boolean;
+            por_defecto: components["schemas"]["PreferenciasRespuesta"];
+        };
+        /**
+         * PreferenciasPorDefecto
+         * @description RR_80 — el comportamiento por defecto del sistema y su último cambio.
+         */
+        PreferenciasPorDefecto: {
+            /** Incluir Mapa */
+            incluir_mapa: boolean;
+            /** Incluir Fuentes */
+            incluir_fuentes: boolean;
+            /** Actualizado En */
+            actualizado_en: string | null;
+            /** Actualizado Por */
+            actualizado_por: string | null;
+        };
+        /**
+         * PreferenciasRespuesta
+         * @description Si las respuestas incluyen el mapa de distribución y la lista de fuentes.
+         */
+        PreferenciasRespuesta: {
+            /** Incluir Mapa */
+            incluir_mapa: boolean;
+            /** Incluir Fuentes */
+            incluir_fuentes: boolean;
+        };
         /**
          * Procedencia
          * @description RR_45 criterio 3: de dónde sale un dato de la respuesta.
@@ -1115,7 +1416,12 @@ export interface components {
             /** Fuente */
             fuente: string;
         };
-        /** RegistroRequest */
+        /**
+         * RegistroRequest
+         * @description RR_00_01. RR_61: el rol no se recibe; routers/auth.py asigna siempre 'usuario'.
+         *
+         *     Cualquier campo de más se rechaza (422). Los de rol, con un mensaje propio.
+         */
         RegistroRequest: {
             /** Nombre */
             nombre: string;
@@ -1231,6 +1537,31 @@ export interface components {
             /** Registros */
             registros: components["schemas"]["RegistroTiempo"][];
         };
+        /**
+         * ResumenUso
+         * @description GET /admin/estadisticas/resumen: las cifras de las tarjetas del panel.
+         */
+        ResumenUso: {
+            /** Usuarios */
+            usuarios: number;
+            /** Usuarios Nuevos 30 Dias */
+            usuarios_nuevos_30_dias: number;
+            /** Consultas Hoy */
+            consultas_hoy: number;
+            /** Consultas Ayer */
+            consultas_ayer: number;
+            /** Consultas 30 Dias */
+            consultas_30_dias: number;
+            /** Tasa Exito 30 Dias */
+            tasa_exito_30_dias: number | null;
+        };
+        /**
+         * RolDeConsulta
+         * @description Columna permisos_tipo_consulta.rol (019, RR_77): a quién se le configuran
+         *     los tipos de consulta. El supermoderador no está: siempre puede todo.
+         * @enum {string}
+         */
+        RolDeConsulta: "visitante" | "usuario" | "moderador";
         /**
          * RolOut
          * @description Un rol con su límite de consultas y cada cuánto se restablece (RR_62, RR_64).
@@ -1789,6 +2120,57 @@ export interface operations {
             };
         };
     };
+    estadisticas_de_uso_admin_estadisticas_get: {
+        parameters: {
+            query?: {
+                periodo?: components["schemas"]["PeriodoEstadisticas"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EstadisticasUso"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resumen_de_uso_admin_estadisticas_resumen_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResumenUso"];
+                };
+            };
+        };
+    };
     cambiar_estado_admin_usuarios__usuario_id__estado_patch: {
         parameters: {
             query?: never;
@@ -1978,6 +2360,112 @@ export interface operations {
             };
         };
     };
+    ver_preferencias_por_defecto_admin_preferencias_respuesta_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciasPorDefecto"];
+                };
+            };
+        };
+    };
+    cambiar_preferencias_por_defecto_admin_preferencias_respuesta_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CambioPreferenciasPorDefecto"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciasPorDefecto"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_permisos_de_consulta_admin_permisos_consulta_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermisosTiposConsulta"];
+                };
+            };
+        };
+    };
+    cambiar_permisos_de_consulta_admin_permisos_consulta_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CambioPermisos"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermisosTiposConsulta"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     cambiar_nombre_perfil_patch: {
         parameters: {
             query?: never;
@@ -2062,6 +2550,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TokenOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ver_preferencias_perfil_preferencias_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciasModerador"];
+                };
+            };
+        };
+    };
+    cambiar_preferencias_perfil_preferencias_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CambioPreferencias"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PreferenciasModerador"];
                 };
             };
             /** @description Validation Error */

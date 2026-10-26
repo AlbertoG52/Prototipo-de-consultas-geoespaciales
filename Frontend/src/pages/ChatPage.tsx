@@ -25,6 +25,7 @@ import { useConsultas, type Mensaje } from "../context/ConsultasContext";
 import * as api from "../services/api";
 import type { EspecieCandidata, Sesion } from "../types";
 import { formatearReinicio, largoConsulta, PERIODO_ACTUAL, textoConsultaLarga } from "../config/textos";
+import { MENSAJE_VARIAS_ESPECIES, nombraVariasEspecies } from "../utils/especies";
 import { incorporarNombre, nombreAInsertar, palabraEnCurso } from "../utils/sugerencias";
 
 // RR_34 — el contador de caracteres aparece desde el 80 % del límite.
@@ -84,7 +85,7 @@ function Cargando() {
 export function ChatPage() {
   const navigate = useNavigate();
   const { sesion, conectando } = useAuth();
-  const { mensajes, enviando, enviar } = useConsultas();
+  const { mensajes, enviando, enviar, buscarTodas } = useConsultas();
   const [entrada, setEntrada] = useState("");
   const finRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -265,18 +266,23 @@ export function ChatPage() {
           />
         );
 
-      case "opciones":
+      case "opciones": {
+        // RR_36 — si nombra varias especies (no un género, RR_28), se pueden buscar todas.
+        const varias = nombraVariasEspecies(m.texto, m.candidatos);
         return (
           <SelectorDeEspecie
             key={m.id}
-            mensaje={m.mensaje}
+            mensaje={varias ? MENSAJE_VARIAS_ESPECIES : m.mensaje}
             candidatos={m.candidatos}
             deshabilitado={enviando || m.resuelta}
             // RR_17la consulta continúa con la especie elegida. Con cuenta se
             // envía también la consulta guardada, para no cobrarla dos veces.
             onElegir={(id) => void enviar(m.texto, id, m.consultaId)}
+            onBuscarTodas={varias ? () => void buscarTodas(m) : undefined}
+            aviso={m.aviso}
           />
         );
+      }
 
       case "aviso":
         return (

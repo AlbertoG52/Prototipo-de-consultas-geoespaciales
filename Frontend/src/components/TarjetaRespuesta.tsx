@@ -21,7 +21,7 @@ import { OrigenDeLosDatos } from "./OrigenDeLosDatos";
 import type { RespuestaConsulta } from "../types";
 import { descargarArchivo, nombreBase, respuestaATexto } from "../utils/descarga";
 import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/elevacion";
-import { origenDeLaInformacion, partirCitas, procedenciaDe } from "../utils/fuentes";
+import { origenDeLaInformacion, partirCitas, partirFormato, procedenciaDe } from "../utils/fuentes";
 import { mapaDeLaEspecie } from "../utils/mapa";
 import { DetallePunto, FiltroElevacion, MapaCRBioLM } from "./Mapa";
 import {
@@ -64,6 +64,10 @@ export function TarjetaRespuesta({
   // RR_51 — de dónde sale el texto, los registros y la respuesta en general.
   const citaTexto = procedenciaDe(respuesta.procedencia, "texto");
   const fuenteRegistros = procedenciaDe(respuesta.procedencia, "registros");
+  // RR_59 con RR_68: si la respuesta viene sin fuentes, tampoco trae la
+  // procedencia de los registros; la cantidad se sigue mostrando si hay.
+  const sinFuentes = respuesta.fuentes.length === 0 && respuesta.procedencia.length === 0;
+  const mostrarCantidad = fuenteRegistros !== undefined || (sinFuentes && respuesta.total_registros > 0);
   const origen = origenDeLaInformacion(respuesta.procedencia);
 
   // RR_12 — lugar del registro abierto entre los visibles, para recorrerlos.
@@ -119,7 +123,7 @@ export function TarjetaRespuesta({
           <div className="flex items-center gap-4 mt-3 flex-wrap">
             {/* RR_59: cantidad de registros encontrados ("Sin registros" si no hay).
                 Se omite solo si GBIF no respondió (RR_58): el aviso lo explica. */}
-            {fuenteRegistros && (
+            {mostrarCantidad && (
               <span
                 className="text-xs px-2 py-1 rounded-full"
                 style={{ background: "var(--color-etiqueta-sobre-marca)", color: "var(--color-sobre-marca-claro)" }}
@@ -149,11 +153,23 @@ export function TarjetaRespuesta({
         </div>
 
         <div className="px-4 sm:px-6 py-5">
-          <p className="text-sm leading-relaxed" style={{ color: "var(--color-texto-cuerpo)" }}>
+          {/* whitespace-pre-line: respeta los saltos de línea del LLM (sus listas con "- "). */}
+          <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: "var(--color-texto-cuerpo)" }}>
             {/* RR_49 / RR_51: las citas del Manual dentro del texto, con formato de cita. */}
             {partirCitas(respuesta.texto).map((trozo, i) =>
               trozo.tipo === "texto" ? (
-                <span key={i}>{trozo.valor}</span>
+                <span key={i}>
+                  {/* RR_49: la negrita y la cursiva (Markdown) del texto del LLM. */}
+                  {partirFormato(trozo.valor).map((f, j) =>
+                    f.negrita ? (
+                      <strong key={j} className="font-semibold">{f.valor}</strong>
+                    ) : f.cursiva ? (
+                      <em key={j}>{f.valor}</em>
+                    ) : (
+                      <span key={j}>{f.valor}</span>
+                    ),
+                  )}
+                </span>
               ) : (
                 <cite key={i} title={trozo.completa} className="not-italic text-xs ml-0.5" style={{ color: "var(--color-texto-tenue)" }}>
                   ({trozo.valor})
@@ -332,7 +348,10 @@ export function TarjetaRespuesta({
 
           <div className={`${origen ? "mt-2" : "mt-4"} flex items-center justify-between flex-wrap gap-2`}>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>Fuentes:</span>
+              {/* RR_68: sin fuentes (preferencia del moderador o del sistema) no hay lista. */}
+              {respuesta.fuentes.length > 0 && (
+                <span className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>Fuentes:</span>
+              )}
               {respuesta.fuentes.map((f) => (
                 <span
                   key={f}

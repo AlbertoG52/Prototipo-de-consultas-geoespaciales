@@ -18,7 +18,7 @@ funciones:
   cuentas de cada rol.
 - RR_00_09: `listar_auditoria` — los cambios de rol y de estado los registra
   el trigger de la BD (003 y 011); aquí solo se indica quién actúa. Los cambios
-  de límite de un rol también (018).
+  de límite de un rol también (020).
 - RR_63: `listar_roles` y `configurar_limite` — el supermoderador define
   cuántas consultas tiene cada rol y cada cuánto se restablecen (RR_64). Aplica
   a la siguiente consulta de cada cuenta, porque el rol y su límite se leen de
@@ -119,7 +119,7 @@ def configurar_limite(
     limites[nombre] = (limite, periodo)
     _validar_limites(limites, cambiado=nombre)
 
-    # El trigger de auditoría (018) lee quién actúa, igual que en los cambios de usuario.
+    # El trigger de auditoría (020) lee quién actúa, igual que en los cambios de usuario.
     db.execute(text("SELECT set_config('app.actor_id', :id, true)"), {"id": str(actor.id)})
     rol.limite_consultas = limite
     rol.periodo_consultas = periodo

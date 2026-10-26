@@ -100,3 +100,44 @@ export type RolOut = Esquema<"RolOut">;
 export type HistorialUso = Esquema<"HistorialUso">;
 
 export type ConsultaDeUsuario = Esquema<"ConsultaDeUsuario">;
+
+// ─── Preferencias de respuesta (RR_67, RR_68, RR_79, RR_80) ───
+
+/** Si las respuestas incluyen el mapa y las fuentes. */
+export type PreferenciasRespuesta = Esquema<"PreferenciasRespuesta">;
+
+/**
+ * Las del moderador (RR_67, RR_68): las que aplican, si cada una es propia
+ * (`*_propio`) o sigue la del sistema, y la del sistema (`por_defecto`, RR_80).
+ */
+export type PreferenciasModerador = Esquema<"PreferenciasModerador">;
+
+/** RR_80 — el comportamiento por defecto del sistema y quién lo cambió por última vez. */
+export type PreferenciasPorDefecto = Esquema<"PreferenciasPorDefecto">;
+
+// ─── Tipos de consulta por rol (RR_77) ───
+
+/** Tipo de pregunta que detecta el backend: distribución, hábitat, descripción o general. */
+export type TipoPregunta = Esquema<"TipoPregunta">;
+
+/** Roles que se configuran: visitante, usuario y moderador (el supermoderador puede todo). */
+export type RolDeConsulta = Esquema<"RolDeConsulta">;
+
+/** Los tipos permitidos de cada rol y quién los cambió por última vez. */
+export type PermisosTiposConsulta = Esquema<"PermisosTiposConsulta">;
+
+export type CambioPermisos = Esquema<"CambioPermisos">;
+
+// ─── Estadísticas de uso (RR_78) ───
+
+/** Periodo de las estadísticas: hoy, últimos 7 o 30 días, o todo. */
+export type PeriodoEstadisticas = Esquema<"PeriodoEstadisticas">;
+
+/** Quién hizo las consultas: el rol que la cuenta tiene hoy, o visitante. */
+export type GrupoDeUso = Esquema<"GrupoDeUso">;
+
+/** Total, por grupo, por día (últimos 7) y por tipo de pregunta, de un periodo. */
+export type EstadisticasUso = Esquema<"EstadisticasUso">;
+
+/** Las cifras de las tarjetas del panel. */
+export type ResumenUso = Esquema<"ResumenUso">;

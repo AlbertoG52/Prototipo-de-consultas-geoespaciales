@@ -1,4 +1,4 @@
-"""Usuario — mapea la tabla creada en 002, 006, 007 y 008."""
+"""Usuario — mapea la tabla creada en 002, 006, 007, 008 y 018."""
 
 from __future__ import annotations
 
@@ -39,9 +39,10 @@ class Usuario(Base):
     # RR_00_04 (migración 012): NULL = valor por defecto, 0 = nunca.
     minutos_inactividad: Mapped[int | None]
 
-    # RR_67 / RR_68.
-    incluir_mapa: Mapped[bool] = mapped_column(default=True)
-    incluir_fuentes: Mapped[bool] = mapped_column(default=True)
+    # RR_67 / RR_68 / RR_79 (migración 018): preferencia propia del moderador.
+    # NULL = no la ha modificado, usa la del sistema (RR_80).
+    incluir_mapa: Mapped[bool | None]
+    incluir_fuentes: Mapped[bool | None]
 
     creado_en: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     actualizado_en: Mapped[datetime] = mapped_column(

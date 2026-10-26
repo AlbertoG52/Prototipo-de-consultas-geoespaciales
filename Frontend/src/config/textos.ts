@@ -4,7 +4,17 @@
  * Se escriben una sola vez aquí para que la tabla de registros, el detalle de
  * un punto del mapa, la ficha y las descargas digan lo mismo.
  */
-import type { DatoRespuesta, EstadoConsulta, NombreRol, PeriodoConsultas, RegistroPresencia } from "../types";
+import type {
+  DatoRespuesta,
+  EstadoConsulta,
+  GrupoDeUso,
+  NombreRol,
+  PeriodoConsultas,
+  PeriodoEstadisticas,
+  RegistroPresencia,
+  RolDeConsulta,
+  TipoPregunta,
+} from "../types";
 
 /** Idioma y región para mostrar fechas y horas (toLocaleString, toLocaleDateString). */
 export const IDIOMA_FECHAS = "es-CR";
@@ -91,7 +101,7 @@ export const ETIQUETAS_DATO: Record<DatoRespuesta, string> = {
 export const formatearNumero = (numero: number) => numero.toLocaleString(IDIOMA_FECHAS);
 
 /** RR_63 y RR_64 — cada cuánto se restablece el contador, junto a un límite: "20 por día". */
-export const ETIQUETAS_PERIODO: Record<PeriodoConsultas, string> = {
+export const ETIQUETAS_PERIODO_CONSULTAS: Record<PeriodoConsultas, string> = {
   dia: "por día",
   semana: "por semana",
   mes: "por mes",
@@ -120,6 +130,39 @@ export const ETIQUETAS_ROL: Record<NombreRol, string> = {
   usuario: "Usuario",
   moderador: "Moderador",
   supermoderador: "Supermoderador",
+};
+
+/** RR_77 — los roles a los que se les configuran los tipos de consulta, más el visitante. */
+export const ETIQUETAS_ROL_DE_CONSULTA: Record<RolDeConsulta, string> = {
+  visitante: "Visitante",
+  usuario: ETIQUETAS_ROL.usuario,
+  moderador: ETIQUETAS_ROL.moderador,
+};
+
+/** RR_78 — quién hizo las consultas: el rol de la cuenta hoy, o visitante. */
+export const ETIQUETAS_GRUPO_DE_USO: Record<GrupoDeUso, string> = {
+  visitante: ETIQUETAS_ROL_DE_CONSULTA.visitante,
+  ...ETIQUETAS_ROL,
+};
+
+/** RR_78 — periodos de las estadísticas de uso. */
+export const ETIQUETAS_PERIODO: Record<PeriodoEstadisticas, string> = {
+  hoy: "Hoy",
+  ultimos_7_dias: "Últimos 7 días",
+  ultimos_30_dias: "Últimos 30 días",
+  todo: "Todo",
+};
+
+/** Una fracción entre 0 y 1 como porcentaje: 0.964 → "96,4 %". */
+export const formatearPorcentaje = (fraccion: number) =>
+  fraccion.toLocaleString(IDIOMA_FECHAS, { style: "percent", maximumFractionDigits: 1 });
+
+/** RR_77 — nombre de cada tipo de pregunta que detecta el backend (TipoPregunta). */
+export const ETIQUETAS_TIPO_PREGUNTA: Record<TipoPregunta, string> = {
+  distribucion: "Distribución",
+  habitat: "Hábitat",
+  descripcion: "Descripción",
+  general: "Información general",
 };
 
 /** Cómo terminó una consulta guardada (columna consultas.estado). */

@@ -9,11 +9,11 @@
  */
 import { useState } from "react";
 
-import { ETIQUETAS_PERIODO, ETIQUETAS_ROL, formatearNumero } from "../../config/textos";
+import { ETIQUETAS_PERIODO_CONSULTAS, ETIQUETAS_ROL, formatearNumero } from "../../config/textos";
 import * as api from "../../services/api";
 import type { PeriodoConsultas, RolOut } from "../../types";
 
-const PERIODOS = Object.keys(ETIQUETAS_PERIODO) as PeriodoConsultas[];
+const PERIODOS = Object.keys(ETIQUETAS_PERIODO_CONSULTAS) as PeriodoConsultas[];
 const LIMITE_MAXIMO = 100_000; // el mismo que valida el servidor (schemas/admin.py)
 
 const DESCRIPCIONES: Record<RolOut["nombre"], string> = {
@@ -112,7 +112,7 @@ function FilaRol({ rol, alGuardar }: { rol: RolOut; alGuardar: () => Promise<voi
             style={{ border: "1.5px solid var(--color-borde-fuerte)", background: "var(--color-superficie)", color: "var(--color-texto)" }}
           >
             {PERIODOS.map((p) => (
-              <option key={p} value={p}>{ETIQUETAS_PERIODO[p]}</option>
+              <option key={p} value={p}>{ETIQUETAS_PERIODO_CONSULTAS[p]}</option>
             ))}
           </select>
           <button

@@ -27,7 +27,7 @@ class CambioRol(BaseModel):
 
 # --- RR_63: límite de consultas por rol -------------------------------------------
 
-# Los mismos que la restricción de la tabla 'roles' (018).
+# Los mismos que la restricción de la tabla 'roles' (020).
 LIMITE_MINIMO_CONSULTAS = 1
 LIMITE_MAXIMO_CONSULTAS = 100_000
 

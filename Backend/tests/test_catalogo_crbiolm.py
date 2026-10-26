@@ -1,10 +1,11 @@
-"""Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_23, RR_24, RR_26,
-RR_31, RR_39, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_56, RR_58 y RR_60.
+"""Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_23, RR_24, RR_25,
+RR_26, RR_28, RR_31, RR_36, RR_39, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_56, RR_58
+y RR_60.
 
 Levantan un servidor MCP falso con las herramientas de CR-BioLM que usa el
-catálogo (get_species, search_species, get_vocabulary, get_occurrence_points,
-get_species_map_image, get_relevant_passage y answer_question), con sus mismas
-respuestas. Las que pasan por la API
+catálogo (get_species, search_species, get_vocabulary, resolve_common_name,
+get_occurrence_points, get_species_map_image, get_relevant_passage y
+answer_question), con sus mismas respuestas. Las que pasan por la API
 necesitan la BD.
 
 Especies del servidor falso:
@@ -43,10 +44,11 @@ import uvicorn
 from mcp.server.fastmcp import FastMCP
 
 from app import config
+from app.sanitizacion import normalizar
 from app.services import catalogo_crbiolm
 from app.services.catalogo import obtener_catalogo
 from app.services.catalogo_crbiolm import CatalogoCRBioLM, a_id, a_nombre
-from app.services.consultas import MENSAJE_SIN_COINCIDENCIAS
+from app.services.consultas import MENSAJE_AMBIGUA, MENSAJE_SIN_COINCIDENCIAS
 from app.tiempo import plazo
 
 from apoyo import api
@@ -120,9 +122,34 @@ def get_vocabulary() -> dict:
 
 @falso.tool()
 def search_species() -> dict:
-    """Sin filtros devuelve todo el catálogo (RR_23)."""
-    especies = [{"species": nombre} for nombre in MANUAL]
+    """Sin filtros devuelve todo el catálogo (RR_23), con la familia (RR_28)."""
+    especies = [{"species": nombre, "family": ficha["family"]} for nombre, ficha in MANUAL.items()]
     return _sobre({"count": len(especies), "species": especies})
+
+
+# RR_25: la tabla de nombres comunes de CR-BioLM: nombre -> (decisión, especies).
+NOMBRES_COMUNES = {
+    "roble negro": ("unique", ["Quercus costaricensis"]),
+    "encino": ("preferred", ["Quercus oleoides", "Quercus costaricensis"]),
+    "roble": ("ambiguous", ["Quercus oleoides", "Quercus costaricensis"]),
+    "guabas": ("unique", ["Inga edulis"]),  # un nombre que ya termina en "s"
+}
+pedidos_de_nombre_comun: list[str] = []
+nombres_comunes_falla = False
+
+
+@falso.tool()
+def resolve_common_name(name: str, region: str | None = None, elev: int | None = None) -> dict:
+    pedidos_de_nombre_comun.append(name)
+    if nombres_comunes_falla:
+        raise RuntimeError("el Postgres de CR-BioLM no está levantado")
+    # Como CR-BioLM: sin importar mayúsculas, primero con tildes y luego sin ellas.
+    clave = name.lower() if name.lower() in NOMBRES_COMUNES else normalizar(name)
+    decision, especies = NOMBRES_COMUNES.get(clave, ("none", []))
+    candidatas = [{"species": e, "family": MANUAL[e]["family"], "n_records": 5} for e in especies]
+    elegida = especies[0] if decision in ("unique", "preferred") else None
+    valor = {"decision": decision, "species": elegida, "candidates": candidatas}
+    return _sobre(valor, "MPCR+GBIF+iNaturalist", confianza="estimated")
 
 
 # PNG de 1x1 que hace de mapa.
@@ -184,9 +211,9 @@ CITA_IA = "Manual de Plantas de Costa Rica, Tomo VI, p. 44 (Myrsine coriacea)"
 pedidos_a_ia: list[str] = []
 
 
-def _respuesta_ia(modo: str, citas: list[str]) -> dict:
+def _respuesta_ia(modo: str, citas: list[str], texto: str = TEXTO_IA) -> dict:
     valor = {
-        "text": TEXTO_IA,
+        "text": texto,
         "mode": modo,
         "constraints": {},
         "selector": None,
@@ -204,6 +231,8 @@ def answer_question(question: str) -> dict:
         raise ValueError("OPENROUTER_API_KEY not configured")
     if "lenta" in question:
         time.sleep(2.5)
+    if "openrouter falla" in question:  # CR-BioLM devuelve la excepción como texto
+        return _respuesta_ia("A (especie)", [CITA_IA], "(síntesis no disponible: 'choices')")
     if "lista" in question:  # respondió con una lista de especies (modo B)
         return _respuesta_ia("B (lista)", [CITA_IA])
     if "otra especie" in question:  # citó el Manual de otra especie (RR_60)
@@ -327,9 +356,11 @@ def crbiolm(monkeypatch, url_falsa):
     monkeypatch.setattr(config, "MINIMO_REGISTROS_MAPA", 5)
     monkeypatch.setattr(config, "GBIF_REINTENTOS", 2)
     monkeypatch.setattr(config, "GBIF_ESPERA_REINTENTO_SEGUNDOS", 0)
-    global pasaje_falla, corte_de_puntos
+    global pasaje_falla, corte_de_puntos, nombres_comunes_falla
     pasaje_falla = False
     corte_de_puntos = None
+    nombres_comunes_falla = False
+    pedidos_de_nombre_comun.clear()
     pedidos_de_mapa.clear()
     pedidos_a_gbif.clear()
     pedidos_de_pasaje.clear()
@@ -337,12 +368,6 @@ def crbiolm(monkeypatch, url_falsa):
     fallos_de_gbif.clear()
     no_actualizadas.clear()
     return CatalogoCRBioLM()
-
-
-@pytest.fixture
-def visitante():
-    token = api.post("/auth/anonimo").json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
 
 
 # --- id <-> nombre ----------------------------------------------------------------
@@ -386,9 +411,8 @@ def test_dos_especies_en_la_pregunta_dan_dos_candidatas(crbiolm):
     assert {e.nombre_cientifico for e in especies} == {"Quercus costaricensis", "Quercus oleoides"}
 
 
-def test_sin_nombre_cientifico_no_reconoce_nada(crbiolm):
-    # Los nombres comunes son del módulo de identificación de Jesús (RR_25).
-    assert crbiolm.buscar_especies("¿Dónde crece el roble negro?") == []
+def test_sin_nombre_cientifico_ni_comun_no_reconoce_nada(crbiolm):
+    assert crbiolm.buscar_especies("¿Dónde crece el guarumo?") == []
 
 
 def test_respuesta_con_manual_y_gbif(crbiolm):
@@ -833,6 +857,7 @@ def test_la_ficha_no_usa_el_llm(crbiolm):
         "sin llave",  # la herramienta falla (p. ej. sin OPENROUTER_API_KEY)
         "lista",  # respondió una lista de especies, no sobre la pedida
         "otra especie",  # sus citas son de otra especie (RR_60)
+        "openrouter falla",  # OpenRouter no respondió y CR-BioLM lo devuelve como texto
     ],
 )
 def test_si_el_llm_no_sirve_se_usa_el_texto_del_manual(crbiolm, caso):
@@ -959,12 +984,253 @@ def test_el_mismo_genero_con_otra_especie_es_otra_especie(crbiolm):
 
 
 @pytest.mark.parametrize(
-    "texto",
-    ["¿Dónde crece Quercus?", "¿Dónde crece costaricensis?", "costaricensis Quercus"],
+    ("texto", "candidatas"),
+    [
+        # Solo el género: no identifica UNA especie; se ofrecen las suyas (RR_28).
+        ("¿Dónde crece Quercus?", 2),
+        ("costaricensis Quercus", 2),
+        ("¿Dónde crece costaricensis?", 0),
+    ],
 )
-def test_el_genero_o_la_especie_solos_no_identifican_una_especie(crbiolm, texto):
+def test_el_genero_o_la_especie_solos_no_identifican_una_especie(crbiolm, texto, candidatas):
     """Criterio 2: el nombre es género y luego especie; uno solo no se confunde con otra."""
-    assert crbiolm.buscar_especies(texto) == []
+    assert len(crbiolm.buscar_especies(texto)) == candidatas
+
+
+# --- RR_25: identificación de nombres comunes ---------------------------------------
+# Qué frases se prueban está en test_nombres_comunes.py; aquí, que el catálogo
+# las resuelve con CR-BioLM.
+
+
+def test_el_nombre_comun_se_asocia_con_su_especie(crbiolm):
+    """Criterios 1 y 3: la asociación es la de CR-BioLM (Manual, iNaturalist, GBIF...)."""
+    [especie] = crbiolm.buscar_especies("¿Dónde crece el roble negro?")
+    assert especie.id == "quercus-costaricensis"
+    assert especie.nombre_comun == "roble negro"
+    assert especie.familia == "Fagaceae"
+    # "roble negro" gana a "roble", que solo sería ambiguo; "Dónde" y "el" no se prueban.
+    assert pedidos_de_nombre_comun == ["roble negro"]
+
+
+def test_si_cr_biolm_prefiere_una_especie_se_usa_esa(crbiolm):
+    [especie] = crbiolm.buscar_especies("¿Dónde crece el encino?")
+    assert especie.id == "quercus-oleoides"
+
+
+def test_un_nombre_comun_de_varias_especies_las_trae_todas(crbiolm):
+    """CR-BioLM no elige entre ellas, así que se le pregunta al usuario (RR_17)."""
+    especies = crbiolm.buscar_especies("Información del roble")
+    assert {e.id for e in especies} == {"quercus-oleoides", "quercus-costaricensis"}
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿Dónde crece el ROBLE NEGRO?",
+        "¿Dónde crece el róble négro?",
+        "¿Dónde crecen los robles negros?",
+    ],
+)
+def test_variaciones_menores_del_nombre_comun(crbiolm, texto):
+    """Criterio 2: mayúsculas, tildes y plural."""
+    [especie] = crbiolm.buscar_especies(texto)
+    assert especie.id == "quercus-costaricensis"
+
+
+def test_un_nombre_que_ya_termina_en_s_se_busca_tal_cual(crbiolm):
+    """El singular es solo un segundo intento: "guabas" no se cambia por "guaba"."""
+    [especie] = crbiolm.buscar_especies("¿Dónde crecen las guabas?")
+    assert especie.id == "inga-edulis"
+    assert pedidos_de_nombre_comun == ["guabas"]
+
+
+def test_con_nombre_cientifico_no_se_buscan_nombres_comunes(crbiolm):
+    crbiolm.buscar_especies("¿Dónde crece el roble Quercus oleoides?")
+    crbiolm.buscar_especies("¿Dónde crece Querus costaricensis?")  # RR_23 va antes
+    assert pedidos_de_nombre_comun == []
+
+
+def test_el_nombre_comun_va_antes_que_el_genero(crbiolm):
+    """El encino es Quercus oleoides; "Quercus" solo ofrecería las dos (RR_28)."""
+    [especie] = crbiolm.buscar_especies("¿Dónde crece el encino, un Quercus?")
+    assert especie.id == "quercus-oleoides"
+
+
+def test_si_cr_biolm_no_resuelve_nombres_comunes_no_se_reconoce_ninguno(crbiolm):
+    global nombres_comunes_falla
+    nombres_comunes_falla = True
+    assert crbiolm.buscar_especies("¿Dónde crece el roble negro en Talamanca?") == []
+    assert len(pedidos_de_nombre_comun) == 1  # no sigue probando frases
+
+
+@pytest.mark.parametrize(
+    ("texto", "especie_id", "pregunta", "aviso"),
+    [
+        (
+            "¿Dónde crece el roble negro?",
+            "quercus-costaricensis",
+            "¿Dónde crece el roble negro (Quercus costaricensis)?",
+            "Por «roble negro» se entendió Quercus costaricensis.",
+        ),
+        (
+            "¿Dónde crece el encino?",
+            "quercus-oleoides",
+            "¿Dónde crece el encino (Quercus oleoides)?",
+            "Por «encino» se entendió Quercus oleoides: es el nombre preferido en Costa Rica "
+            "y la especie mejor documentada.",
+        ),
+        # Ambiguo: el usuario eligió la especie, así que no hace falta avisar.
+        (
+            "Información del roble",
+            "quercus-oleoides",
+            "Información del roble (Quercus oleoides)",
+            None,
+        ),
+    ],
+)
+def test_la_respuesta_dice_como_se_entendio_el_nombre(crbiolm, texto, especie_id, pregunta, aviso):
+    """CR-BioLM recibe la pregunta con el nombre científico, y la respuesta lo avisa."""
+    respuesta = crbiolm.construir_respuesta(especie_id, texto)
+    assert pedidos_a_ia == [pregunta]
+    # El de la interpretación va primero; Quercus oleoides trae además el de RR_43.
+    assert [a for a in respuesta.avisos if a.startswith("Por «")] == ([aviso] if aviso else [])
+
+
+def test_la_consulta_por_nombre_comun_se_responde(crbiolm, visitante):
+    texto = "¿Dónde crece el roble negro?"
+    datos = api.post("/consultas", headers=visitante, json={"texto": texto}).json()
+    assert datos["estado"] == "resuelta"
+    assert datos["texto"] == texto  # se guarda y muestra lo que escribió
+    assert datos["respuesta"]["especie"]["nombre_cientifico"] == "Quercus costaricensis"
+    assert "Por «roble negro» se entendió Quercus costaricensis." in datos["respuesta"]["avisos"]
+
+
+# --- RR_28: solicitud de aclaración ante ambigüedad -------------------------------
+# Mostrar las opciones y continuar con la elegida es el flujo de RR_17; aquí, que
+# nombrar solo un género cuenta como ambiguo y se ofrecen sus especies.
+
+
+def test_solo_el_genero_ofrece_sus_especies(crbiolm):
+    """Criterio 1: "Quercus" puede ser cualquiera de las Quercus del Manual."""
+    especies = crbiolm.buscar_especies("¿Dónde crece Quercus?")
+    assert [e.nombre_cientifico for e in especies] == ["Quercus costaricensis", "Quercus oleoides"]
+    assert {e.familia for e in especies} == {"Fagaceae"}
+    assert pedidos_a_gbif == pedidos_de_mapa == []  # no se busca nada hasta que elija
+
+
+def test_se_ofrecen_las_primeras_en_orden_alfabetico(crbiolm, monkeypatch):
+    """Criterio 2: a lo sumo GENERO_OPCIONES_MAXIMAS, para que la lista sea clara."""
+    for nombre in ("Quercus insignis", "Quercus benthamii", "Quercus sp. 1"):
+        monkeypatch.setitem(MANUAL, nombre, {"species": nombre, "family": "Fagaceae"})
+    monkeypatch.setattr(config, "GENERO_OPCIONES_MAXIMAS", 3)
+    especies = crbiolm.buscar_especies("¿Dónde crece Quercus?")
+    assert [e.nombre_cientifico for e in especies] == [
+        "Quercus benthamii",
+        "Quercus costaricensis",
+        "Quercus insignis",
+    ]
+    # Un nombre que no se puede pedir por su id no se ofrece.
+    monkeypatch.setattr(config, "GENERO_OPCIONES_MAXIMAS", 5)
+    especies = crbiolm.buscar_especies("¿Dónde crece Quercus?")
+    assert "Quercus sp. 1" not in {e.nombre_cientifico for e in especies}
+    assert len(especies) == 4
+
+
+def test_un_genero_con_una_sola_especie_no_es_ambiguo(crbiolm):
+    assert crbiolm.buscar_especies("¿Dónde crece Persea?") == []
+
+
+def test_un_nombre_mal_escrito_se_corrige_antes_de_ofrecer_el_genero(crbiolm):
+    """RR_23 va primero: "Quercus oleoidez" es Quercus oleoides, no las Quercus."""
+    [especie] = crbiolm.buscar_especies("¿Dónde crece Quercus oleoidez?")
+    assert especie.id == "quercus-oleoides"
+
+
+def test_cr_biolm_recibe_la_pregunta_con_la_especie_elegida(crbiolm):
+    """Criterio 3: el Manual y el LLM saben de qué especie se habla."""
+    crbiolm.construir_respuesta("quercus-oleoides", "¿Dónde crece el quercus?")
+    assert pedidos_a_ia == ["¿Dónde crece el Quercus oleoides?"]
+
+
+def test_por_genero_se_pide_elegir_y_luego_se_responde(crbiolm, visitante):
+    """Criterios 1 a 3 por la API, con el flujo de RR_17."""
+    pregunta = "¿Dónde crece Quercus?"
+    ambigua = api.post("/consultas", headers=visitante, json={"texto": pregunta}).json()
+    assert ambigua["estado"] == "ambigua"
+    assert ambigua["mensaje"] == MENSAJE_AMBIGUA
+    assert [c["id"] for c in ambigua["candidatos"]] == ["quercus-costaricensis", "quercus-oleoides"]
+    assert ambigua["consultas_restantes"] == config.LIMITE_CONSULTAS_ANONIMO  # aclarar no cuesta
+
+    elegida = api.post(
+        "/consultas",
+        headers=visitante,
+        json={"texto": pregunta, "especie_id": "quercus-oleoides"},
+    ).json()
+    assert elegida["estado"] == "resuelta"
+    assert elegida["texto"] == pregunta  # se guarda y muestra lo que escribió
+    assert elegida["respuesta"]["especie"]["nombre_cientifico"] == "Quercus oleoides"
+
+
+# --- RR_36: identificación de múltiples especies -----------------------------------
+# Cada especie nombrada se reconoce (buscar_especies) y el frontend las busca
+# todas, una consulta por especie. Aquí: cada búsqueda usa solo su parte de la
+# pregunta.
+
+VARIAS = "¿Dónde crecen Quercus costaricensis en Talamanca y Quercus oleoides en el Valle Central?"
+
+
+def test_cada_especie_nombrada_se_reconoce(crbiolm):
+    """Criterio 1."""
+    especies = crbiolm.buscar_especies(VARIAS)
+    assert [e.id for e in especies] == ["quercus-costaricensis", "quercus-oleoides"]
+
+
+@pytest.mark.parametrize(
+    ("texto", "especie_id", "pregunta"),
+    [
+        (VARIAS, "quercus-costaricensis", "¿Dónde crecen Quercus costaricensis en Talamanca?"),
+        (VARIAS, "quercus-oleoides", "¿Dónde crecen Quercus oleoides en el Valle Central?"),
+        # Lo que va después de la última vale para todas.
+        (
+            "¿Dónde crecen quercus costaricensis y Quercus oleoides en Talamanca?",
+            "quercus-costaricensis",
+            "¿Dónde crecen Quercus costaricensis en Talamanca?",
+        ),
+        (
+            "¿Cómo son las hojas de Quercus costaricensis y de Quercus oleoides?",
+            "quercus-oleoides",
+            "¿Cómo son las hojas de Quercus oleoides?",
+        ),
+        # Con una sola especie, la pregunta queda igual.
+        ("¿Dónde crece Quercus oleoides?", "quercus-oleoides", "¿Dónde crece Quercus oleoides?"),
+    ],
+)
+def test_cr_biolm_recibe_solo_la_parte_de_cada_especie(crbiolm, texto, especie_id, pregunta):
+    """Criterio 3: el Manual y el LLM responden sobre la especie de cada búsqueda."""
+    crbiolm.construir_respuesta(especie_id, texto)
+    assert pedidos_a_ia == [pregunta]
+
+
+def test_cada_especie_se_filtra_con_su_propia_zona(crbiolm):
+    """Criterio 3 con RR_39: Podocarpus solo en la Cordillera Central, no en Talamanca."""
+    texto = "Podocarpus oleifolius en la Cordillera Central y Quercus costaricensis en Talamanca"
+    respuesta = crbiolm.construir_respuesta("podocarpus-oleifolius", texto)
+    assert respuesta.total_registros == 2
+    assert {r.localidad for r in respuesta.registros} == {"Cordillera Central"}
+
+
+def test_cada_especie_se_busca_y_se_cobra_por_separado(crbiolm, visitante):
+    """Criterio 2 por la API: lo que hace "Buscar todas" del frontend."""
+    respuestas = [
+        api.post("/consultas", headers=visitante, json={"texto": VARIAS, "especie_id": e}).json()
+        for e in ("quercus-costaricensis", "quercus-oleoides")
+    ]
+    assert [r["estado"] for r in respuestas] == ["resuelta", "resuelta"]
+    assert [r["respuesta"]["especie"]["id"] for r in respuestas] == [
+        "quercus-costaricensis",
+        "quercus-oleoides",
+    ]
+    assert respuestas[-1]["consultas_restantes"] == config.LIMITE_CONSULTAS_ANONIMO - 2
 
 
 # --- RR_31: validación de contenido reconocible ----------------------------------

@@ -6,16 +6,24 @@
  * lugar.
  */
 import type {
+  CambioPermisos,
   ConsultaOut,
   ConversacionDetalle,
   ConversacionResumen,
   EspecieCandidata,
+  EstadisticasUso,
   FichaEspecie,
   HistorialUso,
   NombreRol,
   PeriodoConsultas,
+  PeriodoEstadisticas,
+  PermisosTiposConsulta,
+  PreferenciasModerador,
+  PreferenciasPorDefecto,
+  PreferenciasRespuesta,
   RegistroAuditoria,
   RegistroRequest,
+  ResumenUso,
   RolOut,
   Sesion,
   TipoSesion,
@@ -269,6 +277,19 @@ export async function cambiarInactividad(minutos: number): Promise<void> {
   await pedirToken("/perfil/inactividad", "PATCH", { minutos });
 }
 
+/** RR_67, RR_68, RR_79 — preferencias de respuesta del moderador (otro rol: 403). */
+export const obtenerPreferencias = () => pedir<PreferenciasModerador>("/perfil/preferencias");
+
+/**
+ * RR_67, RR_68 — cambia si las respuestas del moderador incluyen el mapa o las
+ * fuentes. Solo se envían los campos que cambian; `null` vuelve a la del
+ * sistema (RR_80). Aplica desde la consulta siguiente.
+ */
+export const cambiarPreferencias = (cambio: {
+  incluir_mapa?: boolean | null;
+  incluir_fuentes?: boolean | null;
+}) => pedir<PreferenciasModerador>("/perfil/preferencias", "PATCH", cambio);
+
 // Especies — no consumen consultas del límite diario.
 
 /** RR_20 — ficha completa de una especie, por su id del catálogo. 404 si no existe. */
@@ -311,6 +332,28 @@ export const cambiarUsuario = (id: number, campo: "estado" | "rol", valor: strin
   pedir<Usuario>(`/admin/usuarios/${id}/${campo}`, "PATCH", { [campo]: valor });
 
 export const obtenerAuditoria = () => pedir<RegistroAuditoria[]>("/admin/auditoria");
+
+/** RR_80 — comportamiento por defecto de las respuestas (mapa y fuentes). */
+export const obtenerPreferenciasPorDefecto = () =>
+  pedir<PreferenciasPorDefecto>("/admin/preferencias-respuesta");
+
+/** RR_80 criterio 3 — aplica a todos los que no han cambiado su preferencia. */
+export const cambiarPreferenciasPorDefecto = (preferencias: PreferenciasRespuesta) =>
+  pedir<PreferenciasPorDefecto>("/admin/preferencias-respuesta", "PUT", preferencias);
+
+/** RR_77 — los tipos de consulta que puede hacer cada rol. */
+export const obtenerPermisosDeConsulta = () => pedir<PermisosTiposConsulta>("/admin/permisos-consulta");
+
+/** RR_77 criterio 1 — deja permitidos solo los tipos enviados de cada rol. */
+export const cambiarPermisosDeConsulta = (cambio: CambioPermisos) =>
+  pedir<PermisosTiposConsulta>("/admin/permisos-consulta", "PUT", cambio);
+
+/** RR_78 — total de consultas del periodo, por rol, por día y por tipo de pregunta. */
+export const obtenerEstadisticas = (periodo: PeriodoEstadisticas) =>
+  pedir<EstadisticasUso>(`/admin/estadisticas?periodo=${periodo}`);
+
+/** RR_78 — cifras de las tarjetas del panel (cuentas, consultas de hoy, ayer y 30 días). */
+export const obtenerResumenDeUso = () => pedir<ResumenUso>("/admin/estadisticas/resumen");
 
 /** RR_76 — una página del historial de uso de una cuenta, de lo más reciente a lo más antiguo. */
 export const obtenerHistorialDeUso = (usuarioId: number, limite: number, desplazamiento: number) =>

@@ -5,13 +5,16 @@ falso, sesión de BD que se deshace) son fixtures en conftest.py.
 """
 
 from types import SimpleNamespace
+from typing import NoReturn
 
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
 from app.dominio import NombreRol, TipoSesion
 from app.main import app
+from app.models import Usuario
 from app.security import Identidad, hash_password
 
 # Cliente HTTP contra la API real; las pruebas que lo usan necesitan la BD.
@@ -47,6 +50,36 @@ def crear_cuenta_verificada(correo: str, password: str, rol: str = NombreRol.USU
         h=hash_password(password),
         r=rol,
     )
+
+
+def crear_usuario(db: Session, correo: str, rol: str = NombreRol.USUARIO) -> Usuario:
+    """Inserta una cuenta verificada en la sesión `db` (sin confirmar) y la devuelve.
+
+    Para las pruebas que corren en la sesión que se deshace (fixture `sesion`).
+    """
+    usuario_id = db.execute(
+        text(
+            "INSERT INTO usuarios (correo, password_hash, rol_id, correo_verificado) "
+            "VALUES (:c, 'x', (SELECT id FROM roles WHERE nombre = :r), true) RETURNING id"
+        ),
+        {"c": correo, "r": rol},
+    ).scalar_one()
+    usuario = db.get(Usuario, usuario_id)
+    assert usuario is not None
+    return usuario
+
+
+def iniciar_sesion(correo: str, password: str) -> dict[str, str]:
+    """Las cabeceras con el token de una cuenta ya creada (POST /auth/login)."""
+    token = api.post("/auth/login", json={"correo": correo, "password": password}).json()
+    return {"Authorization": f"Bearer {token['access_token']}"}
+
+
+class CatalogoQueNoSeUsa:
+    """Falla si alguien lo usa: prueba que no se buscó ninguna especie."""
+
+    def __getattr__(self, nombre: str) -> NoReturn:
+        raise AssertionError(f"no debía buscarse en el catálogo ({nombre})")
 
 
 def usuario_falso(

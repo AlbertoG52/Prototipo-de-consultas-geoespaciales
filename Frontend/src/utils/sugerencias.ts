@@ -4,7 +4,7 @@
 import type { EspecieCandidata } from "../types";
 
 /** Minúsculas y sin tildes, igual que la comparación del servidor. */
-const normalizar = (s: string) => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+export const normalizar = (s: string) => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
 
 /** Última palabra que se está escribiendo (letras y guiones al final del texto). */
 export const palabraEnCurso = (texto: string) => texto.match(/[\p{L}\p{M}-]+$/u)?.[0] ?? "";

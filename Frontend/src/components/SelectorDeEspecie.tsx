@@ -1,14 +1,22 @@
-/** RR_17 — lista de especies que coinciden, para que el usuario elija. */
+/**
+ * RR_17 — lista de especies que coinciden, para que el usuario elija.
+ * RR_36 — con `onBuscarTodas`, también se pueden buscar todas; `aviso` dice por
+ * qué no se pudo (consultas insuficientes).
+ */
 export function SelectorDeEspecie({
   mensaje,
   candidatos,
   onElegir,
   deshabilitado,
+  onBuscarTodas,
+  aviso,
 }: {
   mensaje: string;
   candidatos: { id: string; nombre_comun: string | null; nombre_cientifico: string; familia: string }[];
   onElegir: (id: string) => void;
   deshabilitado: boolean;
+  onBuscarTodas?: () => void;
+  aviso?: string;
 }) {
   return (
     <div className="flex justify-start">
@@ -58,6 +66,26 @@ export function SelectorDeEspecie({
               </button>
             ))}
           </div>
+          {onBuscarTodas && (
+            <button
+              onClick={onBuscarTodas}
+              disabled={deshabilitado}
+              className="mt-3 w-full rounded-xl px-4 py-2.5 text-sm font-medium transition-all"
+              style={{
+                border: "none",
+                background: deshabilitado ? "var(--color-marca-deshabilitada)" : "var(--color-marca)",
+                color: "var(--color-sobre-marca)",
+                cursor: deshabilitado ? "default" : "pointer",
+              }}
+            >
+              Buscar todas
+            </button>
+          )}
+          {aviso && (
+            <p role="alert" className="mt-2 text-xs" style={{ color: "var(--color-aviso-texto)" }}>
+              {aviso}
+            </p>
+          )}
         </div>
       </div>
     </div>
