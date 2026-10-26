@@ -12,8 +12,11 @@ import type {
   EspecieCandidata,
   FichaEspecie,
   HistorialUso,
+  NombreRol,
+  PeriodoConsultas,
   RegistroAuditoria,
   RegistroRequest,
+  RolOut,
   Sesion,
   TipoSesion,
   TokenOut,
@@ -317,3 +320,14 @@ export const obtenerHistorialDeUso = (usuarioId: number, limite: number, desplaz
 
 /** RR_76 criterio 3 — cuentas y consultas guardadas de cada rol. */
 export const obtenerUsoPorRol = () => pedir<UsoDeRol[]>("/admin/uso-por-rol");
+
+/** RR_63 — el límite de consultas de cada rol y su periodo. */
+export const listarRoles = () => pedir<RolOut[]>("/admin/roles");
+
+/**
+ * RR_63 y RR_64 — define el límite y el periodo de un rol. Aplica a las
+ * consultas siguientes; el cambio queda en la auditoría (RR_00_09). El servidor
+ * responde con el motivo si el límite no es válido o rompe la regla entre roles.
+ */
+export const configurarLimite = (rol: NombreRol, limite: number, periodo: PeriodoConsultas) =>
+  pedir<RolOut>(`/admin/roles/${rol}`, "PATCH", { limite_consultas: limite, periodo_consultas: periodo });

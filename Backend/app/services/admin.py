@@ -17,7 +17,14 @@ funciones:
   qué especie. `uso_por_rol` (criterio 3) — cuántas consultas hicieron las
   cuentas de cada rol.
 - RR_00_09: `listar_auditoria` — los cambios de rol y de estado los registra
-  el trigger de la BD (003 y 011); aquí solo se indica quién actúa.
+  el trigger de la BD (003 y 011); aquí solo se indica quién actúa. Los cambios
+  de límite de un rol también (018).
+- RR_63: `listar_roles` y `configurar_limite` — el supermoderador define
+  cuántas consultas tiene cada rol y cada cuánto se restablecen (RR_64). Aplica
+  a la siguiente consulta de cada cuenta, porque el rol y su límite se leen de
+  la BD en cada petición (services/uso.py). No se aceptan límites que dejen al
+  usuario estándar con tantas consultas como el moderador o con menos que un
+  visitante (RR_62 criterio 3 y RR_00_11 criterio 3).
 
 RR_72 (búsqueda por correo y filtro por rol) se resuelve en el panel sobre el
 listado completo.
@@ -34,11 +41,18 @@ from sqlalchemy import func, text
 from sqlalchemy.orm import Session, joinedload
 
 from .. import config
-from ..dominio import EstadoConsulta, EstadoCuenta, NombreRol
-from ..errores import Conflicto, NoEncontrado
+from ..dominio import EstadoConsulta, EstadoCuenta, NombreRol, PeriodoConsultas
+from ..errores import Conflicto, NoEncontrado, SolicitudInvalida
 from ..models import Consulta, Rol, Usuario
-from ..schemas.admin import ConsultaDeUsuario, HistorialUso, RegistroAuditoria, UsoDeRol
+from ..schemas.admin import (
+    ConsultaDeUsuario,
+    HistorialUso,
+    RegistroAuditoria,
+    RolOut,
+    UsoDeRol,
+)
 from ..schemas.usuario import UsuarioOut
+from .uso import DIAS_DEL_PERIODO, POR_PERIODO
 
 MENSAJE_SOBRE_SI_MISMO = "No puedes modificar tu propio rol ni tu estado."
 
@@ -77,6 +91,105 @@ def cambiar_estado(
     usuario = _usuario_a_modificar(db, actor, usuario_id)
     usuario.estado = estado
     return _guardar(db, usuario)
+
+
+# --- RR_63: límite de consultas por rol ------------------------------------------
+
+
+def listar_roles(db: Session) -> list[RolOut]:
+    """Los roles con su límite y periodo, en el orden en que se crearon."""
+    return [_rol_out(r) for r in db.query(Rol).order_by(Rol.id).all()]
+
+
+def configurar_limite(
+    db: Session, actor: Usuario, nombre: NombreRol, limite: int, periodo: PeriodoConsultas
+) -> RolOut:
+    """RR_63 — define el límite de consultas de un rol y su periodo (RR_64).
+
+    Los roles se bloquean mientras se valida, para que dos cambios a la vez no
+    dejen límites que juntos no cumplen las reglas.
+    """
+    roles = {r.nombre: r for r in db.query(Rol).with_for_update().all()}
+    rol = roles.get(nombre)
+    if rol is None:
+        raise NoEncontrado("El rol no existe.")
+    limites = {
+        n: (r.limite_consultas, PeriodoConsultas(r.periodo_consultas)) for n, r in roles.items()
+    }
+    limites[nombre] = (limite, periodo)
+    _validar_limites(limites, cambiado=nombre)
+
+    # El trigger de auditoría (018) lee quién actúa, igual que en los cambios de usuario.
+    db.execute(text("SELECT set_config('app.actor_id', :id, true)"), {"id": str(actor.id)})
+    rol.limite_consultas = limite
+    rol.periodo_consultas = periodo
+    db.commit()
+    db.refresh(rol)
+    return _rol_out(rol)
+
+
+def _validar_limites(limites: dict[str, tuple[int, PeriodoConsultas]], cambiado: NombreRol) -> None:
+    """RR_62 criterio 3 y RR_00_11 criterio 3, comparando los límites como consultas por día.
+
+    Así se pueden comparar periodos distintos: 20 por día son más que 100 por semana.
+    Se compara con enteros (a/b < c/d  ⇔  a·d < c·b) para que no haya redondeos y el
+    mínimo o máximo que sugiere el mensaje sea exactamente el que se acepta.
+
+    El mensaje dice qué valor sí se acepta con el periodo elegido, para el rol que se
+    está cambiando (`cambiado`), así el supermoderador no tiene que calcularlo.
+    """
+    usuario = limites.get(NombreRol.USUARIO)
+    if usuario is None:
+        return
+    limite_u, periodo_u = usuario
+    dias_u = DIAS_DEL_PERIODO[periodo_u]
+
+    moderador = limites.get(NombreRol.MODERADOR)
+    if moderador is not None:
+        limite_m, periodo_m = moderador
+        dias_m = DIAS_DEL_PERIODO[periodo_m]
+        if limite_u * dias_m >= limite_m * dias_u:  # usuario por día >= moderador por día
+            if cambiado == NombreRol.MODERADOR:
+                minimo = limite_u * dias_m // dias_u + 1
+                sugerencia = f"{_por(periodo_m)}, el moderador necesita al menos {minimo}."
+            else:
+                maximo = (limite_m * dias_u - 1) // dias_m
+                sugerencia = (
+                    f"{_por(periodo_u)}, el máximo es {maximo}."
+                    if maximo >= 1
+                    else f"{_por(periodo_u)} no hay un límite posible; prueba otro periodo."
+                )
+            raise SolicitudInvalida(
+                f"El límite del usuario estándar ({_texto_limite(*usuario)}) debe ser menor que "
+                f"el del moderador ({_texto_limite(*moderador)}). {sugerencia}"
+            )
+
+    anonimo = config.LIMITE_CONSULTAS_ANONIMO  # por día, del .env
+    if limite_u <= anonimo * dias_u:  # usuario por día <= visitante por día
+        minimo = anonimo * dias_u + 1
+        raise SolicitudInvalida(
+            f"El usuario estándar ({_texto_limite(*usuario)}) debe tener más consultas que un "
+            f"visitante sin cuenta ({anonimo} por día). "
+            f"{_por(periodo_u)}, el mínimo es {minimo}."
+        )
+
+
+def _por(periodo: PeriodoConsultas) -> str:
+    """'Por día', 'Por semana', 'Por mes' (al inicio de una oración)."""
+    return POR_PERIODO[periodo].capitalize()
+
+
+def _texto_limite(limite: int, periodo: PeriodoConsultas) -> str:
+    return f"{limite} {POR_PERIODO[periodo]}"
+
+
+def _rol_out(rol: Rol) -> RolOut:
+    return RolOut(
+        nombre=NombreRol(rol.nombre),
+        descripcion=rol.descripcion,
+        limite_consultas=rol.limite_consultas,
+        periodo_consultas=PeriodoConsultas(rol.periodo_consultas),
+    )
 
 
 def listar_auditoria(db: Session, limite: int) -> list[RegistroAuditoria]:

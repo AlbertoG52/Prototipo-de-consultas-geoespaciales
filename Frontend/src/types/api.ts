@@ -414,6 +414,50 @@ export interface paths {
         patch: operations["cambiar_rol_admin_usuarios__usuario_id__rol_patch"];
         trace?: never;
     };
+    "/admin/roles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Listar Roles
+         * @description RR_63 — los roles con su límite de consultas y cada cuánto se restablece.
+         */
+        get: operations["listar_roles_admin_roles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/roles/{rol}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Configurar Limite
+         * @description RR_63 y RR_64 — define el límite de consultas de un rol y su periodo.
+         *
+         *     Aplica a las consultas siguientes de las cuentas de ese rol. Responde 400 si
+         *     el usuario estándar quedaría con tantas consultas como el moderador o con
+         *     menos que un visitante (RR_62 criterio 3).
+         */
+        patch: operations["configurar_limite_admin_roles__rol__patch"];
+        trace?: never;
+    };
     "/admin/auditoria": {
         parameters: {
             query?: never;
@@ -677,6 +721,15 @@ export interface components {
             /** Minutos */
             minutos: number;
         };
+        /**
+         * CambioLimite
+         * @description PATCH /admin/roles/{rol}: el nuevo límite y su periodo (RR_63, RR_64).
+         */
+        CambioLimite: {
+            /** Limite Consultas */
+            limite_consultas: number;
+            periodo_consultas: components["schemas"]["PeriodoConsultas"];
+        };
         /** CambioNombreRequest */
         CambioNombreRequest: {
             /** Nombre */
@@ -916,6 +969,8 @@ export interface components {
             avisos: string[];
             /** Procedencia */
             procedencia: components["schemas"]["Procedencia"][];
+            /** Registros Actualizados En */
+            registros_actualizados_en: string | null;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -996,6 +1051,14 @@ export interface components {
          * @enum {string}
          */
         NombreRol: "usuario" | "moderador" | "supermoderador";
+        /**
+         * PeriodoConsultas
+         * @description Columna roles.periodo_consultas (018): cada cuánto se restablece el
+         *     contador de consultas de un rol (RR_64). Los periodos empiezan a las 00:00
+         *     de Costa Rica; la semana, el lunes; el mes, el día 1.
+         * @enum {string}
+         */
+        PeriodoConsultas: "dia" | "semana" | "mes";
         /**
          * Procedencia
          * @description RR_45 criterio 3: de dónde sale un dato de la respuesta.
@@ -1122,6 +1185,8 @@ export interface components {
             tipo: components["schemas"]["TipoPregunta"];
             /** Procedencia */
             procedencia: components["schemas"]["Procedencia"][];
+            /** Registros Actualizados En */
+            registros_actualizados_en: string | null;
         };
         /**
          * RestablecerPasswordRequest
@@ -1167,6 +1232,18 @@ export interface components {
             registros: components["schemas"]["RegistroTiempo"][];
         };
         /**
+         * RolOut
+         * @description Un rol con su límite de consultas y cada cuánto se restablece (RR_62, RR_64).
+         */
+        RolOut: {
+            nombre: components["schemas"]["NombreRol"];
+            /** Descripcion */
+            descripcion: string | null;
+            /** Limite Consultas */
+            limite_consultas: number;
+            periodo_consultas: components["schemas"]["PeriodoConsultas"];
+        };
+        /**
          * SesionOut
          * @description Estado de la sesión actual, sea de un usuario o de un visitante.
          *
@@ -1183,6 +1260,12 @@ export interface components {
             consultas_realizadas: number;
             /** Consultas Restantes */
             consultas_restantes: number;
+            periodo_consultas: components["schemas"]["PeriodoConsultas"];
+            /**
+             * Consultas Se Restablecen En
+             * Format: date-time
+             */
+            consultas_se_restablecen_en: string;
             /** Guarda Historial */
             guarda_historial: boolean;
             /** Minutos Inactividad */
@@ -1763,6 +1846,61 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UsuarioOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    listar_roles_admin_roles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolOut"][];
+                };
+            };
+        };
+    };
+    configurar_limite_admin_roles__rol__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rol: components["schemas"]["NombreRol"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CambioLimite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RolOut"];
                 };
             };
             /** @description Validation Error */

@@ -23,8 +23,8 @@ import { TarjetaRespuesta } from "../components/TarjetaRespuesta";
 import { useAuth } from "../context/AuthContext";
 import { useConsultas, type Mensaje } from "../context/ConsultasContext";
 import * as api from "../services/api";
-import type { EspecieCandidata } from "../types";
-import { largoConsulta, textoConsultaLarga } from "../config/textos";
+import type { EspecieCandidata, Sesion } from "../types";
+import { formatearReinicio, largoConsulta, PERIODO_ACTUAL, textoConsultaLarga } from "../config/textos";
 import { incorporarNombre, nombreAInsertar, palabraEnCurso } from "../utils/sugerencias";
 
 // RR_34 — el contador de caracteres aparece desde el 80 % del límite.
@@ -437,7 +437,8 @@ export function ChatPage() {
               className="rounded-xl px-4 py-3 mb-3 text-sm"
               style={{ background: "var(--color-error-fondo)", border: "1px solid var(--color-error-borde)", color: "var(--color-error-texto)" }}
             >
-              Agotaste tus consultas de hoy.{" "}
+              {/* RR_65 — antes de enviar: qué periodo se agotó y cuándo se restablece. */}
+              {sesion && avisoSinConsultas(sesion)}{" "}
               {sesion?.tipo === "anonimo" && (
                 <button
                   onClick={() => navigate("/register")}
@@ -517,4 +518,10 @@ export function ChatPage() {
       <style>{`@keyframes rebote { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }`}</style>
     </>
   );
+}
+
+/** RR_65 — "Agotaste tus consultas de esta semana. Se restablecen el 26/10/2026, 00:00." */
+function avisoSinConsultas(sesion: Sesion): string {
+  const periodo = sesion.periodo_consultas === "dia" ? "de hoy" : `de ${PERIODO_ACTUAL[sesion.periodo_consultas]}`;
+  return `Agotaste tus consultas ${periodo}. Se restablecen el ${formatearReinicio(sesion.consultas_se_restablecen_en)}.`;
 }

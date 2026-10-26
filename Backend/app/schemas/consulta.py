@@ -78,6 +78,9 @@ class RespuestaConsulta(EsquemaSalida):
     # el texto y se registra en tiempos_respuesta.intencion (RR_33).
     tipo: TipoPregunta = TipoPregunta.GENERAL
     procedencia: list[Procedencia] = Field(default_factory=list)  # RR_45
+    # RR_56: cuándo descargó CR-BioLM los registros de GBIF (los guarda y los
+    # actualiza cada cierto tiempo). None si GBIF no respondió o CR-BioLM no lo dice.
+    registros_actualizados_en: datetime | None = None
 
 
 class FichaEspecie(EspecieCandidata):
@@ -96,6 +99,7 @@ class FichaEspecie(EspecieCandidata):
     mapa: MapaEspecie | None = None
     avisos: list[str] = Field(default_factory=list)  # igual que en RespuestaConsulta
     procedencia: list[Procedencia] = Field(default_factory=list)  # RR_45
+    registros_actualizados_en: datetime | None = None  # RR_56, igual que en RespuestaConsulta
 
 
 MENSAJE_CONSULTA_VACIA = "La consulta no puede estar vacía."

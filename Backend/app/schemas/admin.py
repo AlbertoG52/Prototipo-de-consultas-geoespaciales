@@ -1,14 +1,15 @@
-"""Esquemas de administración — RR_00_09, RR_33, RR_57 y RR_76."""
+"""Esquemas de administración — RR_00_09, RR_33, RR_57, RR_63 y RR_76."""
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ..dominio import (
     EstadoConsulta,
     EstadoCuenta,
     IntencionConsulta,
     NombreRol,
+    PeriodoConsultas,
     ResultadoConsulta,
     TipoSesion,
 )
@@ -22,6 +23,44 @@ class CambioEstado(BaseModel):
 
 class CambioRol(BaseModel):
     rol: NombreRol
+
+
+# --- RR_63: límite de consultas por rol -------------------------------------------
+
+# Los mismos que la restricción de la tabla 'roles' (018).
+LIMITE_MINIMO_CONSULTAS = 1
+LIMITE_MAXIMO_CONSULTAS = 100_000
+
+
+class RolOut(EsquemaSalida):
+    """Un rol con su límite de consultas y cada cuánto se restablece (RR_62, RR_64)."""
+
+    nombre: NombreRol
+    descripcion: str | None
+    limite_consultas: int
+    periodo_consultas: PeriodoConsultas
+
+
+class CambioLimite(BaseModel):
+    """PATCH /admin/roles/{rol}: el nuevo límite y su periodo (RR_63, RR_64)."""
+
+    limite_consultas: int
+    periodo_consultas: PeriodoConsultas
+
+    @field_validator("limite_consultas", mode="before")
+    @classmethod
+    def _numero_valido(cls, v: object) -> object:
+        # RR_63 criterio 3, con el mensaje en español (el frontend lo muestra).
+        # bool es un int en Python: true no es un número de consultas.
+        if isinstance(v, bool) or not isinstance(v, int):
+            raise ValueError("El límite debe ser un número entero de consultas.")
+        if not LIMITE_MINIMO_CONSULTAS <= v <= LIMITE_MAXIMO_CONSULTAS:
+            raise ValueError(
+                f"El límite debe estar entre {LIMITE_MINIMO_CONSULTAS} y "
+                f"{LIMITE_MAXIMO_CONSULTAS:,}".replace(",", " ")
+                + " consultas."
+            )
+        return v
 
 
 class RegistroAuditoria(EsquemaSalida):

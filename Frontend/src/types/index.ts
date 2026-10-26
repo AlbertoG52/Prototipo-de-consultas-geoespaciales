@@ -87,6 +87,12 @@ export type RegistroAuditoria = Esquema<"RegistroAuditoria">;
 /** RR_76 criterio 3 — cuentas de un rol y cuántas consultas guardadas tienen. */
 export type UsoDeRol = Esquema<"UsoDeRol">;
 
+/** RR_64 — cada cuánto se restablece el contador de consultas: "dia", "semana" o "mes". */
+export type PeriodoConsultas = Esquema<"PeriodoConsultas">;
+
+/** RR_63 — un rol con su límite de consultas y su periodo. */
+export type RolOut = Esquema<"RolOut">;
+
 /**
  * RR_76 — consultas de una cuenta. Si `texto_visible` es false, el servidor no
  * manda el texto (ADMIN_VE_TEXTO_CONSULTAS) y cada `texto` llega como null.

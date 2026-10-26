@@ -24,7 +24,15 @@ import { RANGO_VACIO, filtrarPorElevacion, type RangoElevacion } from "../utils/
 import { origenDeLaInformacion, partirCitas, procedenciaDe } from "../utils/fuentes";
 import { mapaDeLaEspecie } from "../utils/mapa";
 import { DetallePunto, FiltroElevacion, MapaCRBioLM } from "./Mapa";
-import { CELDA_VACIA, COLUMNAS_TABLA_REGISTROS, formatearCoordenadas, IDIOMA_FECHAS, textoRegistros } from "../config/textos";
+import {
+  AYUDA_ACTUALIZACION_GBIF,
+  CELDA_VACIA,
+  COLUMNAS_TABLA_REGISTROS,
+  formatearCoordenadas,
+  IDIOMA_FECHAS,
+  textoActualizacionGbif,
+  textoRegistros,
+} from "../config/textos";
 
 export function TarjetaRespuesta({
   consulta,
@@ -117,6 +125,16 @@ export function TarjetaRespuesta({
                 style={{ background: "var(--color-etiqueta-sobre-marca)", color: "var(--color-sobre-marca-claro)" }}
               >
                 {textoRegistros(respuesta.total_registros)}
+              </span>
+            )}
+            {/* RR_56: de cuándo son los registros de GBIF (CR-BioLM los actualiza). */}
+            {fuenteRegistros && respuesta.registros_actualizados_en && (
+              <span
+                className="text-xs px-2 py-1 rounded-full"
+                style={{ background: "var(--color-etiqueta-sobre-marca)", color: "var(--color-sobre-marca-claro)" }}
+                title={AYUDA_ACTUALIZACION_GBIF}
+              >
+                {textoActualizacionGbif(respuesta.registros_actualizados_en)}
               </span>
             )}
             {respuesta.elevacion && (

@@ -29,6 +29,10 @@ Antes de armar la respuesta, los datos de cada fuente se validan
 - RR_58: si CR-BioLM no logra consultar GBIF, se reintenta hasta
   GBIF_REINTENTOS veces con una espera entre intentos. Si todos fallan, la
   respuesta sale con los datos del Manual, sin registros ni mapa, y lo avisa.
+- RR_56: CR-BioLM guarda los registros de GBIF de cada especie y los vuelve a
+  descargar cada cierto tiempo (MPCR_GBIF_CACHE_MAX_DAYS, en su .env). Dice
+  cuándo los descargó (`updated_at`), y la respuesta lo muestra. Si no pudo
+  actualizarlos, entrega los anteriores marcados `stale` y la respuesta lo avisa.
 
 Según la pregunta (services/intencion.py):
 
@@ -58,6 +62,7 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import replace
+from datetime import UTC, datetime
 from itertools import pairwise
 from typing import Any
 
@@ -69,7 +74,7 @@ from ..schemas.consulta import (
     RegistroPresencia,
     RespuestaConsulta,
 )
-from ..tiempo import alcanza_para_esperar, plazo, segundos_restantes
+from ..tiempo import alcanza_para_esperar, fecha_para_mostrar, plazo, segundos_restantes
 from . import mcp_cliente
 from .contexto_especie import (
     ContextoEspecie,
@@ -194,6 +199,7 @@ class CatalogoCRBioLM:
             geoespacial=contexto.geoespacial,
             tipo=contexto.tipo,
             procedencia=contexto.procedencia(),
+            registros_actualizados_en=contexto.registros_actualizados_en,
         )
 
     def obtener_ficha(self, especie: str) -> FichaEspecie | None:
@@ -216,6 +222,7 @@ class CatalogoCRBioLM:
             mapa=contexto.mapa_especie(_url_del_mapa(contexto.especie)),
             avisos=contexto.avisos,
             procedencia=contexto.procedencia(con_texto=False),
+            registros_actualizados_en=contexto.registros_actualizados_en,
         )
 
     def obtener_mapa(self, especie_id: str) -> bytes | None:
@@ -246,6 +253,8 @@ class CatalogoCRBioLM:
 
         ocurrencias = _ocurrencias(especie)
         avisos: list[str] = []
+        if ocurrencias.desactualizado:
+            avisos.append(_aviso_registros_anteriores(ocurrencias.actualizado_en))
         mapa = None
         if ocurrencias.sobre is None:
             avisos.append(_aviso_gbif_no_disponible(ocurrencias.intentos))
@@ -464,7 +473,31 @@ def _ocurrencias(especie: str) -> Ocurrencias:
             especie,
         )
     total = max(int(valor.get("n") or 0) - descartados, len(validos))
-    return Ocurrencias(sobre, [_registro(p) for p in validos], total, intentos)
+    return Ocurrencias(
+        sobre,
+        [_registro(p) for p in validos],
+        total,
+        intentos,
+        actualizado_en=_actualizado_en(valor, especie),
+        desactualizado=valor.get("stale") is True,
+    )
+
+
+def _actualizado_en(valor: dict[str, Any], especie: str) -> datetime | None:
+    """RR_56: cuándo descargó CR-BioLM los registros de GBIF ('updated_at', ISO-8601).
+
+    None si no lo dice (una versión de CR-BioLM sin RR_56) o si no se entiende.
+    Una fecha sin zona horaria se toma como UTC, que es como la escribe CR-BioLM.
+    """
+    texto = valor.get("updated_at")
+    if not isinstance(texto, str) or not texto.strip():
+        return None
+    try:
+        momento = datetime.fromisoformat(texto.strip())
+    except ValueError:
+        logger.warning("RR_56: fecha de GBIF de %s no válida: %r", especie, texto)
+        return None
+    return momento if momento.tzinfo else momento.replace(tzinfo=UTC)
 
 
 def _en_zona(ocurrencias: Ocurrencias, zona: Zona, especie: str) -> Ocurrencias:
@@ -520,6 +553,15 @@ def _aviso_gbif_no_disponible(intentos: int) -> str:
     return (
         f"No se pudo consultar GBIF ({veces}). La respuesta incluye solo los datos del "
         "Manual, sin registros de presencia ni mapa. Puedes intentarlo de nuevo más tarde."
+    )
+
+
+def _aviso_registros_anteriores(actualizado_en: datetime | None) -> str:
+    """RR_56 criterio 2: CR-BioLM no pudo actualizar los registros y dio los anteriores."""
+    cuando = f"del {fecha_para_mostrar(actualizado_en)}" if actualizado_en else "anteriores"
+    return (
+        "No se pudieron actualizar los registros de GBIF en este momento; se muestran "
+        f"los {cuando}."
     )
 
 

@@ -22,14 +22,25 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 
 from .errores import TiempoAgotado
+
+# Costa Rica no tiene horario de verano: siempre es UTC-6. Solo se usa para
+# escribir una fecha dentro de un texto para el usuario (p. ej. la procedencia,
+# RR_45); el resto del backend trabaja en UTC y el frontend formatea las fechas
+# en el navegador.
+HORA_COSTA_RICA = timezone(timedelta(hours=-6), "UTC-6")
 
 
 def ahora() -> datetime:
     """Momento actual con zona horaria UTC."""
     return datetime.now(UTC)
+
+
+def fecha_para_mostrar(momento: datetime) -> str:
+    """La fecha de `momento` en Costa Rica, como '19/10/2026', para textos al usuario."""
+    return momento.astimezone(HORA_COSTA_RICA).strftime("%d/%m/%Y")
 
 
 @dataclass(frozen=True)

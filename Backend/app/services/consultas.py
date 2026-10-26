@@ -14,10 +14,14 @@ El router (routers/consultas.py) solo recibe la petición y llama a
   'especie_id' (y 'consulta_id' si es una cuenta registrada).
 - Una sola especie            -> estado "resuelta" con la respuesta completa.
 
-Solo el camino resuelto consume una consulta del límite diario: orientar al
+Solo el camino resuelto consume una consulta del límite: orientar al
 usuario, pedirle que desambigüe o avisarle que no se encontró nada no le
 cuesta. Con el límite alcanzado se le avisa eso, aunque el mensaje sea un
 saludo.
+
+RR_62 y RR_65 — el límite se revisa ANTES de procesar la consulta: con el
+límite alcanzado no se llama a CR-BioLM y se responde 429 con un aviso que dice
+cuál es el límite y cuándo se restablece (services/uso.py, RR_64).
 
 De un usuario registrado se guardan los tres estados dentro de una
 conversación (RR_09), para poder reabrirla completa. Del visitante no se
@@ -33,6 +37,7 @@ RR_57 — el tiempo de cada consulta, termine bien o mal, queda registrado
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
@@ -42,13 +47,20 @@ from ..errores import Conflicto, LimiteAlcanzado, NoEncontrado, SolicitudInvalid
 from ..models import Consulta, Conversacion
 from ..schemas.consulta import ConsultaOut, ConsultaRequest, EspecieCandidata, RespuestaConsulta
 from ..security import Identidad
-from ..tiempo import ahora, plazo, verificar_plazo
+from ..tiempo import ahora, fecha_para_mostrar, plazo, verificar_plazo
 from .catalogo import FuenteCatalogo
 from .intencion import analizar
 from .mcp_cliente import MCPTiempoAgotado
 from .preprocesamiento import EJEMPLOS_DE_CONSULTA, fuera_de_tema, interpretar, mensaje_de
 from .tiempos import medir_consulta
-from .uso import consultas_hoy, limite_de, registrar_consumo_anonimo
+from .uso import (
+    POR_PERIODO,
+    consultas_del_periodo,
+    fin_del_periodo,
+    limite_de,
+    periodo_de,
+    registrar_consumo_anonimo,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -128,14 +140,14 @@ def _procesar(
     catalogo: FuenteCatalogo,
 ) -> ConsultaOut:
     limite = limite_de(identidad)
-    usadas = consultas_hoy(db, identidad)
+    usadas = consultas_del_periodo(db, identidad)
 
     # RR_17 con cuenta: elegir la especie de una consulta ambigua ya guardada.
     if datos.consulta_id is not None:
         return _resolver_pendiente(db, identidad, datos, catalogo, limite, usadas)
 
     if usadas >= limite:
-        raise _limite_alcanzado(identidad)
+        raise _limite_alcanzado(identidad, limite)
 
     resultado = _resolver(datos, catalogo)
 
@@ -268,7 +280,7 @@ def _resolver_pendiente(
         raise SolicitudInvalida("La especie elegida no es una de las opciones de esta consulta.")
 
     if usadas >= limite:
-        raise _limite_alcanzado(identidad, pendiente=True)
+        raise _limite_alcanzado(identidad, limite, pendiente=True)
 
     respuesta = _construir_respuesta(catalogo, datos.especie_id, consulta.texto)
     verificar_plazo()  # RR_38: antes de resolverla y cobrarla
@@ -292,18 +304,30 @@ def _resolver_pendiente(
     )
 
 
-def _limite_alcanzado(identidad: Identidad, pendiente: bool = False) -> LimiteAlcanzado:
+def _limite_alcanzado(
+    identidad: Identidad, limite: int, pendiente: bool = False
+) -> LimiteAlcanzado:
+    """RR_65: el aviso dice cuál es el límite y cuándo se restablece (criterio 2)."""
+    periodo = periodo_de(identidad)
+    cuando = cuando_se_restablece(fin_del_periodo(periodo))
+    consultas = "1 consulta" if limite == 1 else f"{limite} consultas"
     if identidad.es_anonimo:
         return LimiteAlcanzado(
-            "Alcanzaste el límite de consultas disponibles sin cuenta. "
-            "Crea una cuenta para obtener más consultas diarias."
+            f"Alcanzaste el límite de {consultas} por día sin cuenta. Se restablece {cuando}. "
+            "Crea una cuenta para obtener más consultas."
         )
+    alcanzado = f"Alcanzaste tu límite de {consultas} {POR_PERIODO[periodo]}."
     if pendiente:
         return LimiteAlcanzado(
-            "Alcanzaste tu límite de consultas por hoy. La consulta queda pendiente: "
-            "podrás elegir la especie cuando se restablezca tu límite."
+            f"{alcanzado} La consulta queda pendiente: podrás elegir la especie cuando "
+            f"se restablezca tu límite, {cuando}."
         )
-    return LimiteAlcanzado("Alcanzaste tu límite de consultas por hoy.")
+    return LimiteAlcanzado(f"{alcanzado} Se restablece {cuando}.")
+
+
+def cuando_se_restablece(momento: datetime) -> str:
+    """'el 20/10/2026 a las 00:00 (hora de Costa Rica)'. Los periodos empiezan a las 00:00."""
+    return f"el {fecha_para_mostrar(momento)} a las 00:00 (hora de Costa Rica)"
 
 
 def _construir_respuesta(
