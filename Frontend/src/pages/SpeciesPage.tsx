@@ -32,6 +32,7 @@ import {
   formatearCoordenadas,
   IDIOMA_FECHAS,
   SIN_DATO,
+  textoActualizacionGbif,
   textoRegistros,
 } from "../config/textos";
 
@@ -133,6 +134,8 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
   const mapa = mapaDeLaEspecie(ficha.mapa, ficha.id) ? ficha.mapa : null;
   const etiquetas = [
     textoRegistros(ficha.total_registros), // RR_59
+    // RR_56: de cuándo son los registros de GBIF.
+    ficha.registros_actualizados_en ? textoActualizacionGbif(ficha.registros_actualizados_en) : null,
     ficha.elevacion,
   ].filter((e): e is string => Boolean(e));
 

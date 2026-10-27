@@ -1,8 +1,10 @@
 """Esquemas de autenticación y de estado de la sesión."""
 
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
-from ..dominio import TipoSesion
+from ..dominio import PeriodoConsultas, TipoSesion
 from .base import EsquemaSalida
 from .usuario import UsuarioOut, validar_password
 
@@ -60,9 +62,14 @@ class SesionOut(EsquemaSalida):
 
     tipo: TipoSesion
     usuario: UsuarioOut | None = None
+    # RR_62, RR_64 y RR_66: el límite del rol, cuántas lleva y cuántas le quedan
+    # en el periodo actual (día, semana o mes)...
     limite_consultas: int
     consultas_realizadas: int
     consultas_restantes: int
+    periodo_consultas: PeriodoConsultas
+    # ...y RR_65: cuándo empieza el periodo siguiente y se restablece el contador.
+    consultas_se_restablecen_en: datetime
     guarda_historial: bool
     # RR_00_04: minutos sin actividad que cierran la sesión. None para el
     # visitante (no tiene nada que proteger); 0 = "Nunca".

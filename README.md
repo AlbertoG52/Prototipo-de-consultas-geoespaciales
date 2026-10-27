@@ -67,7 +67,10 @@ Frontend/src/
   context/         AuthContext (sesión) y ConsultasContext (conversación)
   pages/           vistas
   components/      piezas reutilizables (Logo, TarjetaRespuesta, Mapa, Formulario…)
-    admin/         usuarios del panel de administración (RR_70 a RR_76)
+    admin/         piezas del panel de administración: usuarios (RR_70 a RR_76),
+                   tipos de consulta por rol (RR_77), estadísticas (RR_78) y
+                   respuestas (RR_80)
+  hooks/           hooks de React sin interfaz (useRecargaAutomatica, RR_78)
   config/marca.ts  nombre, subtítulo y logo de la aplicación
   config/textos.ts textos y formatos repetidos (idioma de fechas, etiquetas de registros)
   utils/           lógica sin interfaz: descargas, filtro de elevación, mapa de la
@@ -110,7 +113,7 @@ al día. Cerrar sesión no deja a nadie fuera, devuelve a la sesión anónima.
 
 | | Visitante | Usuario registrado |
 |---|---|---|
-| Consultas diarias | 5 (`LIMITE_CONSULTAS_ANONIMO`) | 20 (`roles.limite_consultas`) |
+| Consultas | 5 por día (`LIMITE_CONSULTAS_ANONIMO`) | las de su rol: 20 por día por defecto (`roles.limite_consultas` y `roles.periodo_consultas`, ver RR_62 a RR_66) |
 | Historial | en memoria, se pierde al recargar | conversaciones guardadas (`conversaciones` y `consultas`) |
 | Qué se guarda de él | solo un contador diario | correo, consultas y respuestas |
 
@@ -140,6 +143,8 @@ Cada cambio a la base es un archivo SQL numerado en `Backend/migrations/`:
 | `016_consultas_de_orientacion.sql` | estado `orientacion` y columna `motivo` (saludo, ayuda, idioma…), para RR_22, RR_32, RR_37 y RR_40 |
 | `017_intencion_de_consulta.sql` | intención de cada consulta en `tiempos_respuesta`, para RR_33 (y RR_29 criterio 3) |
 | `018_preferencias_de_respuesta.sql` | comportamiento por defecto de mapa y fuentes (`configuracion_respuestas`) y preferencias del moderador con NULL = "la del sistema", para RR_67, RR_68, RR_79 y RR_80 |
+| `019_permisos_tipo_consulta.sql` | tipos de consulta permitidos por rol (`permisos_tipo_consulta`), motivo `tipo_no_permitido` y su registro en la auditoría, para RR_77 |
+| `020_limites_por_rol.sql` | periodo del límite de cada rol (`periodo_consultas`), límites válidos y auditoría de sus cambios, para RR_63 y RR_64 |
 
 Para agregar un cambio:
 1. Se crea un archivo nuevo, p.ej. `011_....sql`.
@@ -155,7 +160,7 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 
 | Método | Ruta | Para qué | Quién puede usarlo |
 |---|---|---|---|
-| POST | `/auth/registro` | crear cuenta | público |
+| POST | `/auth/registro` | crear cuenta; siempre con rol `usuario` (RR_61) | público |
 | POST | `/auth/login` | iniciar sesión | público |
 | POST | `/auth/anonimo` | entrar sin cuenta | público |
 | POST | `/auth/verificar` | verificar el correo con el token del enlace (RR_00_07) | público |
@@ -176,12 +181,18 @@ Regla: **ningún cambio a la BD se hace a mano; todo va en una migración versio
 | GET | `/admin/usuarios` | usuarios registrados | supermoderador |
 | GET | `/admin/usuarios/{id}/consultas` | historial de uso de una cuenta, por páginas (RR_76) | supermoderador |
 | GET | `/admin/uso-por-rol` | cuentas y consultas guardadas de cada rol (RR_76) | supermoderador |
+| GET | `/admin/roles` | límite de consultas y periodo de cada rol (RR_63) | supermoderador |
+| PATCH | `/admin/roles/{rol}` | definir el límite y el periodo de un rol (RR_63, RR_64); 400 si rompe la regla entre roles | supermoderador |
+| GET | `/admin/estadisticas?periodo=` | total de consultas por rol (con visitantes), por día y por tipo; `periodo` = `hoy`, `ultimos_7_dias`, `ultimos_30_dias` o `todo` (por defecto) (RR_78) | supermoderador |
+| GET | `/admin/estadisticas/resumen` | cifras de las tarjetas del panel: cuentas, consultas de hoy, ayer y 30 días, tasa de éxito (RR_78) | supermoderador |
 | PATCH | `/admin/usuarios/{id}/estado` | activar o desactivar (no a sí mismo: 409) | supermoderador |
 | PATCH | `/admin/usuarios/{id}/rol` | cambiar el rol (no a sí mismo: 409) | supermoderador |
 | GET | `/admin/auditoria` | registro de acciones administrativas (RR_00_09) | supermoderador |
 | GET | `/admin/tiempos` | tiempos de respuesta de las consultas; `?solo_lentas=true` filtra las lentas (RR_57); intención de cada una y conteo por intención (RR_33) | supermoderador |
 | GET | `/admin/preferencias-respuesta` | comportamiento por defecto de mapa y fuentes (RR_80) | supermoderador |
 | PUT | `/admin/preferencias-respuesta` | cambiarlo; aplica a todos los que no tienen preferencia propia (RR_80) | supermoderador |
+| GET | `/admin/permisos-consulta` | tipos de consulta que puede hacer cada rol (RR_77) | supermoderador |
+| PUT | `/admin/permisos-consulta` | cambiarlos para los roles enviados; queda en la auditoría (RR_77) | supermoderador |
 
 ### Control de acceso por rol
 
@@ -200,7 +211,9 @@ El texto de las consultas en el historial de uso (RR_76) se entrega solo si
 supermoderador ve cuándo consultó cada cuenta, con qué resultado y de qué
 especie, pero no lo que escribió.
 
-El registro siempre crea cuentas con rol `usuario`. Para asignar otro rol:
+El registro siempre crea cuentas con rol `usuario` (RR_61): si la petición trae
+un campo de rol (`rol`, `rol_id`, `role`…) o cualquier otro campo de más,
+responde **422** y no crea la cuenta. Para asignar otro rol:
 
 ```bash
 docker compose exec backend python cambiar_rol.py <correo> supermoderador
@@ -212,8 +225,9 @@ docker compose exec backend python cambiar_rol.py <correo> supermoderador
 - `ambigua` — trae `candidatos`. El frontend muestra las opciones y reenvía la
   misma consulta con `especie_id` (RR_17). Desambiguar no cuesta una consulta.
 - `sin_coincidencias` — no se reconoció ninguna especie.
-- `orientacion` — no era una consulta (saludo, ayuda, otro idioma…); trae
-  `motivo`, `mensaje` y `ejemplos`. Ver "Mensajes que no son una consulta".
+- `orientacion` — no era una consulta (saludo, ayuda, otro idioma…) o es de un
+  tipo que su rol no tiene; trae `motivo`, `mensaje` y `ejemplos`. Ver
+  "Mensajes que no son una consulta" y "Tipos de consulta por rol".
 
 Con cuenta, los cuatro estados se guardan dentro de una conversación (RR_09):
 `POST /consultas` recibe `conversacion_id` para seguir una conversación, o crea
@@ -269,6 +283,36 @@ letras mal escritas (2, en `config.py`) contra el catálogo completo de CR-BioLM
 El texto guardado y mostrado no cambia y no se avisa al usuario; el Manual y el
 LLM reciben la pregunta con el nombre corregido.
 
+**RR_25 — nombres comunes**: si no trae ningún nombre científico (ni corregido),
+`CatalogoCRBioLM` le pregunta a CR-BioLM (`resolve_common_name`) por las frases
+de la consulta que podrían ser un nombre común, de la más larga a la más corta
+(`services/nombres_comunes.py`, a lo sumo `NOMBRES_COMUNES_FRASES_MAXIMAS`).
+CR-BioLM ya compara sin tildes ni mayúsculas; si una frase no está, se prueba en
+singular. Si CR-BioLM elige una especie (`unique` o `preferred`), se responde
+con ella y la respuesta lo avisa ("Por «ceiba» se entendió *Ceiba pentandra*…");
+si son varias (`ambiguous`), se ofrecen como en RR_17. El Manual y el LLM
+reciben la pregunta con el nombre científico al lado del común. Requiere la
+tabla de nombres comunes de CR-BioLM (`python -m mpcr_rag.evidence.vernacular
+fetch`); sin ella, no se reconocen nombres comunes.
+
+**RR_28 — ambigüedad**: si, aun corregida, la consulta no trae ningún nombre
+científico pero sí un género del Manual con dos o más especies ("¿Dónde crece
+Quercus?"), se ofrecen sus primeras `GENERO_OPCIONES_MAXIMAS` especies en orden
+alfabético (5, en `config.py`) con el estado `ambigua` de RR_17, y el mensaje
+pide elegir una o escribir un nombre más específico. Un género con una sola
+especie no se ofrece. Al elegir, el Manual y el LLM reciben la pregunta con la
+especie elegida en lugar del género.
+
+**RR_36 — varias especies**: si la consulta nombra varias especies ("Quercus
+costaricensis y Quercus oleoides"), sigue llegando como `ambigua` con todas. El
+frontend lo distingue de un género (RR_28) porque cada opción está escrita en la
+consulta (`utils/especies.ts`) y agrega el botón **Buscar todas**: cada especie se
+busca como si se eligiera, una tras otra (el LLM de CR-BioLM falla con dos
+preguntas a la vez; `BUSQUEDAS_SIMULTANEAS` en `ConsultasContext.tsx`), y cada una
+consume una consulta (si no alcanzan para todas, se avisa y no se busca ninguna).
+Cada búsqueda le manda a CR-BioLM solo su parte de la pregunta, así el Manual, el
+LLM y la zona (RR_39) son los de esa especie.
+
 **RR_39 — región o zona**: si la consulta menciona una región botánica del Manual
 ("Cordillera de Talamanca", "Talamanca", "Golfito"…) o una vertiente ("Caribe",
 "Pacífico"), la lista de registros y su conteo son solo los de esa zona
@@ -277,7 +321,7 @@ vez). Una palabra que está en varias regiones las incluye todas. El mapa sigue
 siendo el nacional (las herramientas de mapas de CR-BioLM no reciben una región)
 y se decide con el total del país. Sin zona, o con una provincia, no se filtra.
 
-### Mensajes que no son una consulta (RR_22, RR_32, RR_37, RR_40)
+### Mensajes que no son una consulta (RR_22, RR_30, RR_32, RR_37, RR_40)
 
 `services/preprocesamiento.py` revisa el mensaje **antes de buscar especies**
 (después del límite diario: con el límite alcanzado se avisa eso). Si no es una
@@ -292,11 +336,19 @@ CR-BioLM. En orden:
 | `ayuda` (RR_40) | una frase de ayuda y nada más que cortesía o palabras sobre el agente y sus fuentes | "¿Qué puedo hacer con el manual de plantas?" |
 | `saludo` (RR_37) | solo cortesía | "hola", "¿qué tal todo por allá?" |
 | `fuera_de_tema` (RR_37) | **después** de buscar: ninguna especie y ninguna palabra sobre plantas, geografía o descripción | "¿Quién ganó el mundial?" |
+| `fuera_de_tema` (RR_30) | **después** de buscar: ninguna especie y nombra otro país o continente sin mencionar Costa Rica ni un lugar del país | "¿Dónde crece el baobab en África?" |
 
 "¿Para qué sirve la guaria morada?" o "Hola, ¿dónde crece Quercus…?" siguen
 siendo consultas: sobra el nombre de la planta. El mensaje de fuera de tema
 sugiere el nombre científico, porque CR-BioLM todavía no reconoce nombres
 comunes (RR_25).
+
+RR_30 (`fuera_de_costa_rica`) usa el mismo motivo y mensaje que RR_37. Con una
+especie reconocida no aplica: "¿Crece Quercus costaricensis en Panamá?" se
+responde con los datos de Costa Rica. Una planta que no está en el Manual sigue
+siendo `sin_coincidencias`. La lista de lugares deja fuera los que también son
+nombres comunes de plantas en Costa Rica (chile, china, india, jamaica, brasil,
+guinea).
 
 Una orientación **no descuenta del límite**. De una cuenta registrada se guarda
 en su conversación (tabla 016, con `motivo`), se ve en el historial de uso del
@@ -304,6 +356,55 @@ panel (RR_76) y **no** suma en el uso por rol. Los ejemplos
 (`EJEMPLOS_DE_CONSULTA`, con nombre científico) no se guardan: al reabrir la
 conversación se muestran los actuales. En el chat, tocar un ejemplo lo copia al
 campo de texto.
+
+### Tipos de consulta por rol (RR_77)
+
+El supermoderador decide en Administración → Roles y permisos qué tipos de
+pregunta (`distribucion`, `habitat`, `descripcion`, `general`, los de RR_29)
+puede hacer el visitante, el usuario y el moderador. El supermoderador siempre
+puede todos. Se guarda en `permisos_tipo_consulta` (019); al inicio todo está
+permitido. La lógica está en `services/permisos.py`.
+
+- `POST /consultas` revisa el tipo **antes de buscar especies** (no se llama a
+  CR-BioLM ni se muestran candidatas) y otra vez con el tipo de la respuesta,
+  que puede precisarse con el vocabulario de CR-BioLM.
+- Si no está permitido responde `orientacion` con el motivo
+  `tipo_no_permitido` y un mensaje con los tipos que sí tiene ("Tu rol
+  (usuario) no tiene habilitadas las consultas de descripción. Puedes preguntar
+  por: …"). No descuenta del límite. Los ejemplos que se sugieren, en esta y en
+  cualquier orientación, son solo de tipos permitidos.
+- Una consulta ambigua pendiente cuyo tipo dejó de estar permitido responde
+  **403** al elegir la especie y sigue pendiente.
+- Cada cambio de permiso queda en la auditoría (`cambio_permiso`, con quién lo
+  hizo), por un trigger de la 019.
+- Solo aplica al chat: la ficha de especie (`GET /especies/{id}`) se ve completa.
+
+### Estadísticas de uso (RR_78)
+
+Administración → Estadísticas muestra el **total de consultas** del periodo
+elegido (Hoy, Últimos 7 días, Últimos 30 días o Todo), **por rol**, por día
+(últimos 7) y por tipo de pregunta. Las tarjetas de arriba del panel (cuentas,
+consultas de hoy y de 30 días, tasa de éxito) salen de los mismos conteos. La
+lógica está en `services/estadisticas.py`; no hay nada precalculado.
+
+- **Qué cuenta** (misma regla que el uso por rol de RR_76): de las cuentas, sus
+  consultas guardadas resueltas, ambiguas y sin coincidencias, no las
+  orientaciones. Cada cuenta cuenta con el **rol que tiene hoy**.
+- **Visitantes**: son un grupo aparte. Como no se guardan sus consultas
+  (RR_00_11), se cuentan sus filas de `tiempos_respuesta` resueltas o sin
+  coincidencias: una ambigua y la especie que elige quedan como dos filas, así
+  que cuenta cuando se resuelve. Hay datos desde la tabla 015.
+- **Tipos de consulta**: la intención registrada (RR_33) de las consultas
+  resueltas o sin coincidencias.
+- **Tasa de éxito**: resueltas ÷ consultas contadas.
+- Los días son en UTC, como el límite diario.
+- **Al día (criterio 3)**: el panel vuelve a pedir las cifras cada 30 s
+  (`hooks/useRecargaAutomatica.ts`) sin mostrar "Cargando…" ni cambiar el
+  periodo, solo mientras se ve esa sección y la pestaña del navegador está
+  visible; también con el botón "Actualizar".
+- Las pruebas que pasan por la API dejan filas de visitante en
+  `tiempos_respuesta` (RR_57), así que en la base local suben las cifras de
+  "Visitante" después de correr pytest.
 
 ### Tiempo de respuesta (RR_57)
 
@@ -331,7 +432,8 @@ La misma fila de `tiempos_respuesta` guarda la **intención** (tabla 017,
 
 - Se fija antes de procesar, a partir del texto, así que queda también si la
   consulta se corta por tiempo o falla. Al terminar se precisa con lo que se
-  respondió ("fuera de tema" solo se sabe después de buscar).
+  respondió ("fuera de tema" solo se sabe después de buscar). De una consulta
+  con `tipo_no_permitido` (RR_77) queda el tipo que se pidió.
 - Cada fila tiene su `id` único y, si es de una cuenta, `consulta_id`. Del
   visitante no se guarda el texto.
 - `GET /admin/tiempos` trae la `intencion` de cada registro y `por_intencion`:
@@ -365,6 +467,41 @@ corta. El frontend dibuja otra aparte (`config/leyendaMapa.ts`, con los mismos
 colores que `habitat_map.py` de CR-BioLM): debajo del mapa se despliega y en el
 visor queda fija encima del mapa. La **escala** está pendiente: hay que
 acordarla con José (que CR-BioLM la dibuje o devuelva los km por píxel).
+
+### Límite de consultas por rol (RR_62 a RR_66)
+
+Cada rol tiene un límite (`roles.limite_consultas`) y un periodo
+(`roles.periodo_consultas`: `dia`, `semana` o `mes`, `dominio.PeriodoConsultas`).
+El visitante tiene `LIMITE_CONSULTAS_ANONIMO` por día. La lógica está en
+`services/uso.py`.
+
+- **RR_62 — restricción por rol**: antes de procesar una consulta se cuentan las
+  resueltas del periodo; con el límite alcanzado se responde 429 sin llamar a
+  CR-BioLM. Solo cobran las resueltas (orientación, ambiguas y sin coincidencias
+  no).
+- **RR_63 — el supermoderador define los límites**: pestaña "Roles y permisos"
+  del panel (`components/admin/LimitesPorRol.tsx`), con `GET /admin/roles` y
+  `PATCH /admin/roles/{rol}`. El límite debe ser un entero entre 1 y 100 000.
+  No se acepta que el usuario estándar quede con tantas consultas como el
+  moderador, ni con menos que un visitante (RR_62 criterio 3, RR_00_11); para
+  comparar periodos distintos se llevan a consultas por día (el mes cuenta como
+  30). El rechazo dice el mínimo o el máximo que sí se acepta con el periodo
+  elegido ("Por semana, el mínimo es 36."), calculado con el
+  `LIMITE_CONSULTAS_ANONIMO` del `.env`. Aplica a la siguiente consulta de cada cuenta y queda en la auditoría
+  como `cambio_limite`, con quién lo hizo (trigger de la tabla 020).
+- **RR_64 — restablecimiento periódico**: no hay contador que reiniciar; se
+  cuentan las consultas resueltas desde el inicio del periodo actual. Los
+  periodos empiezan a las **00:00 de Costa Rica** (la semana, el lunes; el mes,
+  el día 1), no a la medianoche UTC. El contador del visitante también usa el
+  día de Costa Rica.
+- **RR_65 — aviso del límite**: el 429 dice el límite y cuándo se restablece
+  ("Alcanzaste tu límite de 20 consultas por día. Se restablece el 20/10/2026 a
+  las 00:00 (hora de Costa Rica)."). El chat lo avisa antes de enviar, con la
+  misma fecha, y bloquea la caja de texto.
+- **RR_66 — consultas restantes**: `GET /auth/sesion` trae
+  `consultas_restantes`, `periodo_consultas` y `consultas_se_restablecen_en`; la
+  barra lateral muestra "5/20 consultas hoy" (o "esta semana", "este mes") y se
+  actualiza después de cada consulta resuelta.
 
 ---
 
@@ -421,8 +558,19 @@ de armar la respuesta:
   `GBIF_ESPERA_REINTENTO_SEGUNDOS` (2 s) entre intentos y sin pasarse del tiempo
   máximo de la consulta (RR_38). Si todos fallan, la respuesta sale con los datos
   del Manual, sin registros ni mapa.
+- **RR_56 — actualización periódica de los datos de GBIF**: CR-BioLM guarda en
+  disco los registros de GBIF de cada especie (`mpcr_rag/data/gbif_cache/`) y los
+  vuelve a descargar cuando tienen más de `MPCR_GBIF_CACHE_MAX_DAYS` días (en el
+  `.env` **de CR-BioLM**; ver "Levantar el servidor de CR-BioLM"). Los nuevos
+  reemplazan a los anteriores solo si la descarga salió bien; si GBIF falla, se
+  siguen usando los anteriores. `get_occurrence_points` dice cuándo los descargó
+  (`updated_at`) y si son los anteriores porque no pudo actualizarlos (`stale`).
+  La respuesta y la ficha traen esa fecha en `registros_actualizados_en`; el
+  frontend la muestra junto a la cantidad de registros ("GBIF al 18/10/2026") y
+  en "Origen de los datos". Con `stale`, la respuesta lo avisa. La descarga
+  citable del paper de José (DOI 10.15468/dl.8yhee8) no cambia.
 
-En los casos de RR_43 y RR_58 la respuesta y la ficha traen el motivo en
+En los casos de RR_43, RR_56 y RR_58 la respuesta y la ficha traen el motivo en
 `avisos`, que el frontend muestra (`components/Avisos.tsx`) y que también va en
 el archivo descargado.
 
@@ -465,8 +613,8 @@ palabras clave):
   (especie, texto, elevación, registros, mapa). El frontend lo muestra en
   "Origen de los datos" (`components/OrigenDeLosDatos.tsx`) y en la descarga.
   Son textos para el usuario (p. ej. "GBIF — registros de presencia en Costa
-  Rica, consultados en vivo"): las citas técnicas de CR-BioLM, con los filtros de
-  GBIF o los archivos del mapa, no se muestran.
+  Rica, actualizados el 18/10/2026", RR_56): las citas técnicas de CR-BioLM, con
+  los filtros de GBIF o los archivos del mapa, no se muestran.
 - **RR_49 — respuesta en lenguaje natural**: si la consulta trae una pregunta,
   el texto lo redacta el LLM de CR-BioLM (herramienta `answer_question`, L2), con
   las citas del Manual dentro (`【Especie (Tomo V, p.779)】`, que el frontend
@@ -474,7 +622,10 @@ palabras clave):
   especie (modo `A`) y todas sus citas son de la especie identificada (RR_60).
   Si la herramienta falla (p. ej. sin llave de OpenRouter), tarda más de
   `SEGUNDOS_MAXIMOS_REDACCION_IA` o responde otra cosa, se usa el texto del
-  Manual de RR_44, sin error para el usuario. La ficha (RR_20) no usa el LLM.
+  Manual de RR_44, sin error para el usuario. También cuando OpenRouter falla y
+  CR-BioLM devuelve el error como texto (`"(síntesis no disponible: …)"`,
+  `SINTESIS_NO_DISPONIBLE` en `catalogo_crbiolm.py`). La ficha (RR_20) no usa
+  el LLM.
 
 ---
 
@@ -523,14 +674,38 @@ python -c "from mpcr_rag.mcp.server import server; server.run(transport='streama
 
   ```
   OPENROUTER_API_KEY=sk-or-v1-...
-  MPCR_ENRICH_MODEL=nvidia/nemotron-3-super-120b-a12b:free
+  MPCR_ENRICH_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
   ```
 
-  Los modelos gratuitos cambian; la guía de hosting de CR-BioLM trae el
-  comando para listar los disponibles. Si CR-BioLM no carga el `.env` solo,
+  Los modelos gratuitos cambian (en octubre de 2026
+  `nvidia/nemotron-3-super-120b-a12b:free` dejó de existir y la respuesta
+  mostraba `(síntesis no disponible: 'choices')`); la guía de hosting de
+  CR-BioLM trae el comando para listar los disponibles. No hay que quitar la
+  línea `MPCR_ENRICH_MODEL`: sin ella CR-BioLM usa `openai/gpt-4o-mini`, que es
+  de pago. Si CR-BioLM no carga el `.env` solo,
   antes de arrancarlo: `set -a; source .env; set +a`.
 - Sin esa llave, `answer_question` falla o responde `insufficient`; el backend
   usa entonces el texto del Manual (ver RR_49 arriba).
+- **Actualización de los registros de GBIF (RR_56).** También en el `.env` de
+  CR-BioLM. Con 0 (el valor por defecto de CR-BioLM) los registros guardados no
+  vencen nunca:
+
+  ```
+  MPCR_GBIF_CACHE_MAX_DAYS=30
+  ```
+
+  CR-BioLM los vuelve a descargar cuando alguien consulta una especie con
+  registros vencidos, y esa persona espera la descarga. Para que no pase, se
+  pueden actualizar todos de antemano (p. ej. de noche, con cron o el
+  Programador de tareas de Windows), desde la raíz de CR-BioLM:
+
+  ```bash
+  python -m mpcr_rag.scripts.refresh_gbif            # los que tienen más de MPCR_GBIF_CACHE_MAX_DAYS
+  python -m mpcr_rag.scripts.refresh_gbif --status   # última actualización y los más viejos
+  ```
+
+  Sale con código 1 si alguna especie no se pudo actualizar (se quedan sus
+  registros anteriores). Cada intento queda en `mpcr_rag/data/gbif_cache/_refresh_log.jsonl`.
 
 ### En el deploy
 
@@ -560,6 +735,13 @@ auditoría, el perfil, el historial por conversaciones y el adaptador
 MCP (`test_mcp_cliente.py`, con un servidor MCP falso: no necesita CR-BioLM). Las de
 auditoría y conversaciones usan la base de datos del contenedor y borran lo que
 crean al terminar.
+
+Las piezas comunes están en `tests/conftest.py` (fixtures: `visitante`,
+`sesion` que se deshace, `catalogo`…) y `tests/apoyo.py` (`crear_usuario`,
+`iniciar_sesion`, `CatalogoQueNoSeUsa`…). Dos fixtures se aplican solos a todas
+las pruebas, para que no dependan de la configuración local: el catálogo de
+demostración y `todos_los_tipos_permitidos` (RR_77). Una prueba que necesite
+leer los permisos de la BD lleva `@pytest.mark.permisos_de_la_bd`.
 
 ---
 

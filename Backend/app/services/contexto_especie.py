@@ -4,7 +4,7 @@
 
     fuente estructurada   la ficha del Manual (familia, elevación, regiones...)
     fuente vectorizada    el fragmento del Manual que responde la pregunta (RR_44)
-    GBIF                  los registros de presencia (RR_42, RR_43, RR_58, RR_60)
+    GBIF                  los registros de presencia (RR_42, RR_43, RR_56, RR_58, RR_60)
     mapa                  el PNG que genera CR-BioLM (RR_41)
     redacción del LLM     la respuesta en lenguaje natural de answer_question (RR_49)
 
@@ -24,10 +24,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from ..dominio import DatoRespuesta, TipoPregunta
 from ..schemas.consulta import MapaEspecie, Procedencia, RegistroPresencia
+from ..tiempo import fecha_para_mostrar
 from .habitat import texto_de_habitat
 from .mcp_cliente import Sobre
 
@@ -55,7 +57,9 @@ SECCIONES = {
 FICHA = "ficha de la especie"
 DE_LA_PREGUNTA = "fragmento más relacionado con la pregunta"  # RR_44
 DETALLE_HABITAT = "hábitat: forma de crecimiento, tipo de bosque, vertiente y elevación"  # RR_29
-DETALLE_REGISTROS = "registros de presencia en Costa Rica, consultados en vivo"
+# RR_56: CR-BioLM guarda los registros de GBIF y los actualiza cada cierto
+# tiempo, así que el detalle dice de cuándo son (ver `_detalle_registros`).
+DETALLE_REGISTROS = "registros de presencia en Costa Rica"
 # Las mismas fuentes que acredita el pie del mapa de CR-BioLM (render_species_map).
 # Si José cambia las capas del mapa, hay que actualizar este texto.
 DETALLE_MAPA = (
@@ -85,6 +89,10 @@ class Ocurrencias:
     # cuenta todos pero entrega como máximo 500 puntos.
     total: int
     intentos: int
+    # RR_56: cuándo descargó CR-BioLM estos registros de GBIF (None si no lo dice)
+    # y si son los anteriores porque no pudo actualizarlos.
+    actualizado_en: datetime | None = None
+    desactualizado: bool = False
 
 
 @dataclass(frozen=True)
@@ -146,6 +154,11 @@ class ContextoEspecie:
         """El sobre de GBIF, o None si GBIF no respondió (RR_58)."""
         return self.ocurrencias.sobre
 
+    @property
+    def registros_actualizados_en(self) -> datetime | None:
+        """RR_56: cuándo se descargaron de GBIF los registros; None sin registros de GBIF."""
+        return self.ocurrencias.actualizado_en if self.gbif is not None else None
+
     def texto(self) -> str:
         """El texto de la respuesta del chat."""
         return self._texto()[0]
@@ -187,9 +200,8 @@ class ContextoEspecie:
         if self.ficha.get("elev_min") is not None or self.ficha.get("elev_max") is not None:
             origen.append(Procedencia(dato=DatoRespuesta.ELEVACION, fuente=MANUAL, detalle=ficha))
         if self.gbif is not None:
-            origen.append(
-                Procedencia(dato=DatoRespuesta.REGISTROS, fuente=GBIF, detalle=DETALLE_REGISTROS)
-            )
+            detalle = _detalle_registros(self.registros_actualizados_en)
+            origen.append(Procedencia(dato=DatoRespuesta.REGISTROS, fuente=GBIF, detalle=detalle))
         if self.mapa is not None:
             origen.append(
                 Procedencia(dato=DatoRespuesta.MAPA, fuente=CR_BIOLM, detalle=DETALLE_MAPA)
@@ -218,6 +230,13 @@ class ContextoEspecie:
         if self.ficha.get("distribution_paragraph"):
             return str(self.ficha["distribution_paragraph"]), SECCIONES["distribution"]
         return SIN_TEXTO, "sin texto en el Manual"
+
+
+def _detalle_registros(actualizado_en: datetime | None) -> str:
+    """RR_45 y RR_56: 'registros de presencia en Costa Rica, actualizados el 19/10/2026'."""
+    if actualizado_en is None:
+        return DETALLE_REGISTROS
+    return f"{DETALLE_REGISTROS}, actualizados el {fecha_para_mostrar(actualizado_en)}"
 
 
 def _ubicacion_en_el_manual(cita: str) -> str:

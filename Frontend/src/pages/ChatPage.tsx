@@ -23,8 +23,9 @@ import { TarjetaRespuesta } from "../components/TarjetaRespuesta";
 import { useAuth } from "../context/AuthContext";
 import { useConsultas, type Mensaje } from "../context/ConsultasContext";
 import * as api from "../services/api";
-import type { EspecieCandidata } from "../types";
-import { largoConsulta, textoConsultaLarga } from "../config/textos";
+import type { EspecieCandidata, Sesion } from "../types";
+import { formatearReinicio, largoConsulta, PERIODO_ACTUAL, textoConsultaLarga } from "../config/textos";
+import { MENSAJE_VARIAS_ESPECIES, nombraVariasEspecies } from "../utils/especies";
 import { incorporarNombre, nombreAInsertar, palabraEnCurso } from "../utils/sugerencias";
 
 // RR_34 — el contador de caracteres aparece desde el 80 % del límite.
@@ -84,7 +85,7 @@ function Cargando() {
 export function ChatPage() {
   const navigate = useNavigate();
   const { sesion, conectando } = useAuth();
-  const { mensajes, enviando, enviar } = useConsultas();
+  const { mensajes, enviando, enviar, buscarTodas } = useConsultas();
   const [entrada, setEntrada] = useState("");
   const finRef = useRef<HTMLDivElement>(null);
   const areaRef = useRef<HTMLTextAreaElement>(null);
@@ -265,18 +266,23 @@ export function ChatPage() {
           />
         );
 
-      case "opciones":
+      case "opciones": {
+        // RR_36 — si nombra varias especies (no un género, RR_28), se pueden buscar todas.
+        const varias = nombraVariasEspecies(m.texto, m.candidatos);
         return (
           <SelectorDeEspecie
             key={m.id}
-            mensaje={m.mensaje}
+            mensaje={varias ? MENSAJE_VARIAS_ESPECIES : m.mensaje}
             candidatos={m.candidatos}
             deshabilitado={enviando || m.resuelta}
             // RR_17la consulta continúa con la especie elegida. Con cuenta se
             // envía también la consulta guardada, para no cobrarla dos veces.
             onElegir={(id) => void enviar(m.texto, id, m.consultaId)}
+            onBuscarTodas={varias ? () => void buscarTodas(m) : undefined}
+            aviso={m.aviso}
           />
         );
+      }
 
       case "aviso":
         return (
@@ -437,7 +443,8 @@ export function ChatPage() {
               className="rounded-xl px-4 py-3 mb-3 text-sm"
               style={{ background: "var(--color-error-fondo)", border: "1px solid var(--color-error-borde)", color: "var(--color-error-texto)" }}
             >
-              Agotaste tus consultas de hoy.{" "}
+              {/* RR_65 — antes de enviar: qué periodo se agotó y cuándo se restablece. */}
+              {sesion && avisoSinConsultas(sesion)}{" "}
               {sesion?.tipo === "anonimo" && (
                 <button
                   onClick={() => navigate("/register")}
@@ -517,4 +524,10 @@ export function ChatPage() {
       <style>{`@keyframes rebote { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }`}</style>
     </>
   );
+}
+
+/** RR_65 — "Agotaste tus consultas de esta semana. Se restablecen el 26/10/2026, 00:00." */
+function avisoSinConsultas(sesion: Sesion): string {
+  const periodo = sesion.periodo_consultas === "dia" ? "de hoy" : `de ${PERIODO_ACTUAL[sesion.periodo_consultas]}`;
+  return `Agotaste tus consultas ${periodo}. Se restablecen el ${formatearReinicio(sesion.consultas_se_restablecen_en)}.`;
 }

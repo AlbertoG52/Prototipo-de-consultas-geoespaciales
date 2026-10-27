@@ -4,8 +4,8 @@ Dos grupos:
 
 - Las del servicio (services/admin.py) cambian roles y estados o crean consultas. Una cuenta con
   registros en 'auditoria' no se puede borrar (RR_00_09), así que corren en la
-  sesión `db`, que se deshace al final, con `commit` reemplazado por `flush`:
-  nada queda confirmado.
+  sesión `sesion` de conftest.py, que se deshace al final, con `commit`
+  reemplazado por `flush`: nada queda confirmado.
 - Las de la API (/admin) solo leen o reciben un rechazo, así que pueden crear
   cuentas confirmadas que `correos_de_prueba` borra al terminar.
 
@@ -32,32 +32,12 @@ from app.services import admin
 from app.services.uso import limite_de
 from app.tiempo import ahora
 
-from apoyo import api, crear_cuenta_verificada
+from apoyo import api, crear_cuenta_verificada, crear_usuario
 
 PASSWORD = "Prueba123!"
 
 
 # --- apoyo ---------------------------------------------------------------------
-
-
-@pytest.fixture
-def sesion(db, monkeypatch):
-    """La sesión `db` sin confirmar nada: commit solo envía los cambios a la BD."""
-    monkeypatch.setattr(db, "commit", db.flush)
-    return db
-
-
-def _crear(db: Session, correo: str, rol: NombreRol = NombreRol.USUARIO) -> Usuario:
-    usuario_id = db.execute(
-        text(
-            "INSERT INTO usuarios (correo, password_hash, rol_id, correo_verificado) "
-            "VALUES (:c, 'x', (SELECT id FROM roles WHERE nombre = :r), true) RETURNING id"
-        ),
-        {"c": correo, "r": rol},
-    ).scalar_one()
-    usuario = db.get(Usuario, usuario_id)
-    assert usuario is not None
-    return usuario
 
 
 def _peticion(usuario: Usuario) -> Request:
@@ -82,7 +62,7 @@ def _cabeceras(correo: str) -> dict[str, str]:
 
 
 def test_listado_trae_correo_rol_y_estado(sesion):
-    _crear(sesion, "listado.prueba@example.com", NombreRol.MODERADOR)
+    crear_usuario(sesion, "listado.prueba@example.com", NombreRol.MODERADOR)
 
     listado = {u.correo: u for u in admin.listar_usuarios(sesion)}
 
@@ -95,8 +75,8 @@ def test_listado_trae_correo_rol_y_estado(sesion):
 
 
 def test_cambio_de_rol_aplica_en_la_siguiente_peticion(sesion):
-    actor = _crear(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
-    afectado = _crear(sesion, "afectado.prueba@example.com")
+    actor = crear_usuario(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
+    afectado = crear_usuario(sesion, "afectado.prueba@example.com")
 
     salida = admin.cambiar_rol(sesion, actor, afectado.id, NombreRol.MODERADOR)
 
@@ -109,8 +89,8 @@ def test_cambio_de_rol_aplica_en_la_siguiente_peticion(sesion):
 
 def test_el_nuevo_rol_decide_los_permisos(sesion):
     """RR_70 criterio 3: permisos de /admin y límite diario del nuevo rol."""
-    actor = _crear(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
-    afectado = _crear(sesion, "afectado.prueba@example.com")
+    actor = crear_usuario(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
+    afectado = crear_usuario(sesion, "afectado.prueba@example.com")
     solo_supermoderador = requiere_rol(NombreRol.SUPERMODERADOR)
     with pytest.raises(HTTPException):
         solo_supermoderador(afectado)
@@ -132,7 +112,7 @@ def test_el_nuevo_rol_decide_los_permisos(sesion):
 )
 def test_no_puede_modificarse_a_si_mismo(sesion, cambiar, valor):
     """RR_70 criterio 2: ni su rol ni su estado, para no quedarse sin acceso."""
-    actor = _crear(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
+    actor = crear_usuario(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
 
     with pytest.raises(Conflicto):
         cambiar(sesion, actor, actor.id, valor)
@@ -143,15 +123,15 @@ def test_no_puede_modificarse_a_si_mismo(sesion, cambiar, valor):
 
 
 def test_usuario_inexistente(sesion):
-    actor = _crear(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
+    actor = crear_usuario(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
     with pytest.raises(NoEncontrado):
         admin.cambiar_rol(sesion, actor, -1, NombreRol.MODERADOR)
 
 
 def test_el_cambio_queda_en_la_auditoria_con_quien_lo_hizo(sesion):
     """RR_00_09: el servicio le dice al trigger quién actúa."""
-    actor = _crear(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
-    afectado = _crear(sesion, "afectado.prueba@example.com")
+    actor = crear_usuario(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
+    afectado = crear_usuario(sesion, "afectado.prueba@example.com")
 
     admin.cambiar_rol(sesion, actor, afectado.id, NombreRol.MODERADOR)
 
@@ -167,8 +147,8 @@ def test_el_cambio_queda_en_la_auditoria_con_quien_lo_hizo(sesion):
 
 
 def test_cuenta_desactivada_queda_fuera_en_su_siguiente_peticion(sesion):
-    actor = _crear(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
-    afectado = _crear(sesion, "afectado.prueba@example.com")
+    actor = crear_usuario(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
+    afectado = crear_usuario(sesion, "afectado.prueba@example.com")
 
     salida = admin.cambiar_estado(sesion, actor, afectado.id, EstadoCuenta.INACTIVO)
 
@@ -185,8 +165,8 @@ def test_enviar_una_consulta_pasa_por_la_identidad():
 
 
 def test_cuenta_reactivada_recupera_su_rol(sesion):
-    actor = _crear(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
-    afectado = _crear(sesion, "afectado.prueba@example.com", NombreRol.MODERADOR)
+    actor = crear_usuario(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
+    afectado = crear_usuario(sesion, "afectado.prueba@example.com", NombreRol.MODERADOR)
     admin.cambiar_estado(sesion, actor, afectado.id, EstadoCuenta.INACTIVO)
 
     salida = admin.cambiar_estado(sesion, actor, afectado.id, EstadoCuenta.ACTIVO)
@@ -281,11 +261,11 @@ def _consultar(
 @pytest.fixture
 def con_historial(sesion):
     """Una cuenta con tres consultas (hoy, ayer y anteayer) y otra con una."""
-    usuario = _crear(sesion, "historial.prueba@example.com")
+    usuario = crear_usuario(sesion, "historial.prueba@example.com")
     _consultar(sesion, usuario, "dónde crece el roble", EstadoConsulta.RESUELTA)
     _consultar(sesion, usuario, "cedro", EstadoConsulta.AMBIGUA, dias_atras=1)
     _consultar(sesion, usuario, "asdf", EstadoConsulta.SIN_COINCIDENCIAS, dias_atras=2)
-    otro = _crear(sesion, "otro.prueba@example.com")
+    otro = crear_usuario(sesion, "otro.prueba@example.com")
     _consultar(sesion, otro, "consulta de otra persona")
     return usuario
 
@@ -346,9 +326,9 @@ def test_uso_por_rol_suma_cuentas_y_consultas_de_cada_rol(sesion):
     usuarios_antes = _uso(sesion, NombreRol.USUARIO)
     moderadores_antes = _uso(sesion, NombreRol.MODERADOR)
 
-    moderador = _crear(sesion, "mod.prueba@example.com", NombreRol.MODERADOR)
-    usuario = _crear(sesion, "usu.prueba@example.com")
-    _crear(sesion, "sin-consultas.prueba@example.com")
+    moderador = crear_usuario(sesion, "mod.prueba@example.com", NombreRol.MODERADOR)
+    usuario = crear_usuario(sesion, "usu.prueba@example.com")
+    crear_usuario(sesion, "sin-consultas.prueba@example.com")
     _consultar(sesion, moderador, "roble")
     _consultar(sesion, usuario, "cedro amargo")
     _consultar(sesion, usuario, "asdf", EstadoConsulta.SIN_COINCIDENCIAS)
@@ -362,7 +342,7 @@ def test_uso_por_rol_suma_cuentas_y_consultas_de_cada_rol(sesion):
 
 def test_las_orientaciones_se_ven_en_el_historial_pero_no_cuentan_como_uso(sesion):
     """RR_37 y RR_40: un saludo o un pedido de ayuda no es uso del agente."""
-    usuario = _crear(sesion, "orientacion.prueba@example.com")
+    usuario = crear_usuario(sesion, "orientacion.prueba@example.com")
     antes = _uso(sesion, NombreRol.USUARIO)
     _consultar(sesion, usuario, "roble")
     _consultar(sesion, usuario, "hola", EstadoConsulta.ORIENTACION, motivo=MotivoOrientacion.SALUDO)

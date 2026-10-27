@@ -21,6 +21,16 @@ class NombreRol(StrEnum):
     SUPERMODERADOR = "supermoderador"
 
 
+class PeriodoConsultas(StrEnum):
+    """Columna roles.periodo_consultas (020): cada cuánto se restablece el
+    contador de consultas de un rol (RR_64). Los periodos empiezan a las 00:00
+    de Costa Rica; la semana, el lunes; el mes, el día 1."""
+
+    DIA = "dia"
+    SEMANA = "semana"
+    MES = "mes"
+
+
 class EstadoCuenta(StrEnum):
     """Columna usuarios.estado (RR_74, RR_75)."""
 
@@ -55,8 +65,9 @@ class EstadoConsulta(StrEnum):
 class MotivoOrientacion(StrEnum):
     """Columna consultas.motivo: por qué una consulta terminó en ORIENTACION.
 
-    Los detecta services/preprocesamiento.py. Todos menos FUERA_DE_TEMA se
-    detectan antes de buscar especies.
+    Los detecta services/preprocesamiento.py, salvo TIPO_NO_PERMITIDO
+    (services/permisos.py). Todos menos FUERA_DE_TEMA se detectan antes de
+    buscar especies.
     """
 
     SIN_SENTIDO = "sin_sentido"  # RR_32: "asdfgh", "???", "123"
@@ -64,6 +75,7 @@ class MotivoOrientacion(StrEnum):
     AYUDA = "ayuda"  # RR_40: "¿qué puedo preguntar?"
     SALUDO = "saludo"  # RR_37: "hola", "gracias"
     FUERA_DE_TEMA = "fuera_de_tema"  # RR_37: sin especie ni nada sobre plantas
+    TIPO_NO_PERMITIDO = "tipo_no_permitido"  # RR_77: su rol no tiene ese tipo de consulta
 
 
 class TipoPregunta(StrEnum):
@@ -80,12 +92,45 @@ class TipoPregunta(StrEnum):
     GENERAL = "general"
 
 
+class RolDeConsulta(StrEnum):
+    """Columna permisos_tipo_consulta.rol (019, RR_77): a quién se le configuran
+    los tipos de consulta. El supermoderador no está: siempre puede todo."""
+
+    VISITANTE = "visitante"  # sin cuenta (RR_00_11)
+    USUARIO = NombreRol.USUARIO.value
+    MODERADOR = NombreRol.MODERADOR.value
+
+
+class GrupoDeUso(StrEnum):
+    """Quién hizo las consultas en las estadísticas de uso (RR_78).
+
+    Una cuenta cuenta con el rol que tiene hoy, como en RR_76; el visitante
+    sin cuenta es un grupo aparte.
+    """
+
+    VISITANTE = "visitante"
+    USUARIO = NombreRol.USUARIO.value
+    MODERADOR = NombreRol.MODERADOR.value
+    SUPERMODERADOR = NombreRol.SUPERMODERADOR.value
+
+
+class PeriodoEstadisticas(StrEnum):
+    """Periodo de las estadísticas de uso (RR_78). Los días son en UTC, como el
+    límite diario (services/uso.py)."""
+
+    HOY = "hoy"
+    ULTIMOS_7_DIAS = "ultimos_7_dias"  # hoy y los 6 días anteriores
+    ULTIMOS_30_DIAS = "ultimos_30_dias"  # hoy y los 29 días anteriores
+    TODO = "todo"
+
+
 class IntencionConsulta(StrEnum):
     """Columna tiempos_respuesta.intencion (RR_33): qué quiso hacer el usuario.
 
     Une los dos casos: una consulta sobre una especie (su TipoPregunta) o un
     mensaje que no es una consulta (su MotivoOrientacion). Los valores son los
-    mismos de esos dos enums.
+    mismos de esos dos enums, salvo TIPO_NO_PERMITIDO (RR_77): de esa consulta
+    se registra el tipo que se pidió.
     """
 
     DISTRIBUCION = TipoPregunta.DISTRIBUCION.value

@@ -8,16 +8,25 @@ El router (routers/consultas.py) solo recibe la petición y llama a
   antes de buscar especies (services/preprocesamiento.py), así que no llama a
   CR-BioLM.
 - Ninguna especie reconocida  -> estado "sin_coincidencias", u "orientacion"
-  (fuera de tema, RR_37) si además nada en el texto habla de plantas.
+  (fuera de tema, RR_37) si además nada en el texto habla de plantas o si
+  pregunta por la flora de otro país (fuera de alcance, RR_30).
 - Varias especies reconocidas -> estado "ambigua" y la lista de candidatas
   (RR_17). El usuario elige una y el frontend reenvía la consulta con
   'especie_id' (y 'consulta_id' si es una cuenta registrada).
 - Una sola especie            -> estado "resuelta" con la respuesta completa.
+- Un tipo de consulta que su rol no tiene (RR_77, services/permisos.py)
+                              -> estado "orientacion" con el motivo
+  "tipo_no_permitido". Se revisa antes de buscar especies y otra vez con el
+  tipo de la respuesta.
 
-Solo el camino resuelto consume una consulta del límite diario: orientar al
+Solo el camino resuelto consume una consulta del límite: orientar al
 usuario, pedirle que desambigüe o avisarle que no se encontró nada no le
 cuesta. Con el límite alcanzado se le avisa eso, aunque el mensaje sea un
 saludo.
+
+RR_62 y RR_65 — el límite se revisa ANTES de procesar la consulta: con el
+límite alcanzado no se llama a CR-BioLM y se responde 429 con un aviso que dice
+cuál es el límite y cuándo se restablece (services/uso.py, RR_64).
 
 De un usuario registrado se guardan los tres estados dentro de una
 conversación (RR_09), para poder reabrirla completa. Del visitante no se
@@ -37,23 +46,45 @@ de guardarla, así la conversación muestra lo mismo que se respondió.
 
 import logging
 from dataclasses import dataclass, field
+from datetime import datetime
 
 from sqlalchemy.orm import Session
 
 from .. import config
-from ..dominio import EstadoConsulta, IntencionConsulta, MotivoOrientacion
-from ..errores import Conflicto, LimiteAlcanzado, NoEncontrado, SolicitudInvalida, TiempoAgotado
+from ..dominio import EstadoConsulta, IntencionConsulta, MotivoOrientacion, TipoPregunta
+from ..errores import (
+    AccesoDenegado,
+    Conflicto,
+    LimiteAlcanzado,
+    NoEncontrado,
+    SolicitudInvalida,
+    TiempoAgotado,
+)
 from ..models import Consulta, Conversacion
 from ..schemas.consulta import ConsultaOut, ConsultaRequest, EspecieCandidata, RespuestaConsulta
 from ..security import Identidad
-from ..tiempo import ahora, plazo, verificar_plazo
-from . import preferencias
+from ..tiempo import ahora, fecha_para_mostrar, plazo, verificar_plazo
+from . import permisos, preferencias
 from .catalogo import FuenteCatalogo
 from .intencion import analizar
 from .mcp_cliente import MCPTiempoAgotado
-from .preprocesamiento import EJEMPLOS_DE_CONSULTA, fuera_de_tema, interpretar, mensaje_de
+from .permisos import Permisos
+from .preprocesamiento import (
+    EJEMPLOS_DE_CONSULTA,
+    fuera_de_costa_rica,
+    fuera_de_tema,
+    interpretar,
+    mensaje_de,
+)
 from .tiempos import medir_consulta
-from .uso import consultas_hoy, limite_de, registrar_consumo_anonimo
+from .uso import (
+    POR_PERIODO,
+    consultas_del_periodo,
+    fin_del_periodo,
+    limite_de,
+    periodo_de,
+    registrar_consumo_anonimo,
+)
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -64,7 +95,9 @@ MENSAJE_SIN_COINCIDENCIAS = (
     "No se reconoció ninguna especie en la consulta. "
     "Intenta con el nombre común o científico de una planta."
 )
-MENSAJE_AMBIGUA = "La consulta coincide con más de una especie. Selecciona cuál te interesa."
+MENSAJE_AMBIGUA = (
+    "La consulta coincide con más de una especie. Elige una o escribe un nombre más específico."
+)
 
 
 @dataclass
@@ -76,15 +109,37 @@ class _Resultado:
     candidatas: list[EspecieCandidata] = field(default_factory=list)  # solo en AMBIGUA
     mensaje: str | None = None
     motivo: MotivoOrientacion | None = None  # solo en ORIENTACION
+    # RR_77: los tipos de consulta de quien pregunta, para no sugerirle otros.
+    permitidos: frozenset[TipoPregunta] = permisos.TODOS
 
     @property
     def ejemplos(self) -> list[str]:
-        """RR_40 criterio 3: consultas de ejemplo para quien recibe una orientación."""
-        return list(EJEMPLOS_DE_CONSULTA) if self.motivo else []
+        """RR_40 criterio 3: consultas de ejemplo para quien recibe una orientación.
+
+        RR_77: solo las de los tipos que puede hacer.
+        """
+        if not self.motivo:
+            return []
+        return [e for e in EJEMPLOS_DE_CONSULTA if analizar(e).tipo in self.permitidos]
 
 
-def _orientacion(motivo: MotivoOrientacion, texto: str) -> _Resultado:
-    return _Resultado(EstadoConsulta.ORIENTACION, mensaje=mensaje_de(motivo, texto), motivo=motivo)
+def _orientacion(motivo: MotivoOrientacion, texto: str, permisos_: Permisos) -> _Resultado:
+    return _Resultado(
+        EstadoConsulta.ORIENTACION,
+        mensaje=mensaje_de(motivo, texto),
+        motivo=motivo,
+        permitidos=permisos_.permitidos,
+    )
+
+
+def _no_permitido(tipo: TipoPregunta, permisos_: Permisos) -> _Resultado:
+    """RR_77 criterios 2 y 3: no se responde y se dice qué tipos sí tiene su rol."""
+    return _Resultado(
+        EstadoConsulta.ORIENTACION,
+        mensaje=permisos_.mensaje(tipo),
+        motivo=MotivoOrientacion.TIPO_NO_PERMITIDO,
+        permitidos=permisos_.permitidos,
+    )
 
 
 def procesar_consulta(
@@ -133,16 +188,16 @@ def _procesar(
     catalogo: FuenteCatalogo,
 ) -> ConsultaOut:
     limite = limite_de(identidad)
-    usadas = consultas_hoy(db, identidad)
+    usadas = consultas_del_periodo(db, identidad)
 
     # RR_17 con cuenta: elegir la especie de una consulta ambigua ya guardada.
     if datos.consulta_id is not None:
         return _resolver_pendiente(db, identidad, datos, catalogo, limite, usadas)
 
     if usadas >= limite:
-        raise _limite_alcanzado(identidad)
+        raise _limite_alcanzado(identidad, limite)
 
-    resultado = _resolver(datos, catalogo)
+    resultado = _resolver(datos, catalogo, permisos.de(db, identidad))
 
     # RR_38: si el tiempo se acabó mientras se buscaba, se corta aquí, antes de
     # guardar o cobrar nada.
@@ -205,24 +260,34 @@ def _procesar(
     )
 
 
-def _resolver(datos: ConsultaRequest, catalogo: FuenteCatalogo) -> _Resultado:
+def _resolver(datos: ConsultaRequest, catalogo: FuenteCatalogo, permisos_: Permisos) -> _Resultado:
     """Qué se responde: orientación, sin coincidencias, ambigua o resuelta."""
     # RR_22, RR_32, RR_37, RR_40: si no es una consulta, se orienta sin buscar.
     # Con 'especie_id' el usuario eligió entre candidatas: ya es una consulta.
     motivo = None if datos.especie_id else interpretar(datos.texto)
     if motivo is not None:
-        return _orientacion(motivo, datos.texto)
+        return _orientacion(motivo, datos.texto, permisos_)
+
+    # RR_77: un tipo de consulta que su rol no tiene no se busca, así no se
+    # llama a CR-BioLM ni se le hace elegir entre candidatas para nada.
+    tipo = analizar(datos.texto).tipo
+    if not permisos_.permite(tipo):
+        return _no_permitido(tipo, permisos_)
 
     candidatas = _identificar_especies(datos, catalogo)
     if not candidatas:
         # RR_37: sin especie y sin nada sobre plantas, está fuera de tema.
-        if fuera_de_tema(datos.texto):
-            return _orientacion(MotivoOrientacion.FUERA_DE_TEMA, datos.texto)
+        # RR_30: sin especie y sobre la flora de otro país, está fuera de alcance.
+        if fuera_de_tema(datos.texto) or fuera_de_costa_rica(datos.texto):
+            return _orientacion(MotivoOrientacion.FUERA_DE_TEMA, datos.texto, permisos_)
         return _Resultado(EstadoConsulta.SIN_COINCIDENCIAS, mensaje=MENSAJE_SIN_COINCIDENCIAS)
     if len(candidatas) > 1:
         # RR_17 criterios 1 y 2: presentar las coincidencias para que elija.
         return _Resultado(EstadoConsulta.AMBIGUA, candidatas=candidatas, mensaje=MENSAJE_AMBIGUA)
     respuesta = _construir_respuesta(catalogo, candidatas[0].id, datos.texto)
+    # RR_77: con el vocabulario de CR-BioLM el tipo puede precisarse (RR_29).
+    if not permisos_.permite(respuesta.tipo):
+        return _no_permitido(respuesta.tipo, permisos_)
     return _Resultado(EstadoConsulta.RESUELTA, respuesta=respuesta)
 
 
@@ -258,26 +323,11 @@ def _resolver_pendiente(
         raise SolicitudInvalida("Solo las cuentas registradas guardan consultas pendientes.")
     if not datos.especie_id:
         raise SolicitudInvalida("Falta la especie elegida.")
-
-    consulta = (
-        db.query(Consulta)
-        .filter(Consulta.id == datos.consulta_id, Consulta.usuario_id == identidad.usuario.id)
-        .with_for_update()
-        .first()
-    )
-    if consulta is None:
-        raise NoEncontrado("La consulta no existe.")
-    if consulta.estado != EstadoConsulta.AMBIGUA:
-        raise Conflicto("Esta consulta ya se resolvió.")
-
-    ofrecidas = {c["id"] for c in (consulta.candidatos or [])}
-    if datos.especie_id not in ofrecidas:
-        raise SolicitudInvalida("La especie elegida no es una de las opciones de esta consulta.")
-
+    consulta = _consulta_pendiente(db, identidad.usuario.id, datos.consulta_id, datos.especie_id)
     if usadas >= limite:
-        raise _limite_alcanzado(identidad, pendiente=True)
+        raise _limite_alcanzado(identidad, limite, pendiente=True)
 
-    respuesta = _construir_respuesta(catalogo, datos.especie_id, consulta.texto)
+    respuesta = _respuesta_permitida(db, identidad, catalogo, datos.especie_id, consulta.texto)
     respuesta = preferencias.aplicar(respuesta, preferencias.de(db, identidad.usuario))
     verificar_plazo()  # RR_38: antes de resolverla y cobrarla
     momento = ahora()
@@ -300,18 +350,70 @@ def _resolver_pendiente(
     )
 
 
-def _limite_alcanzado(identidad: Identidad, pendiente: bool = False) -> LimiteAlcanzado:
+def _consulta_pendiente(
+    db: Session, usuario_id: int, consulta_id: int | None, especie_id: str
+) -> Consulta:
+    """La consulta ambigua de esta cuenta, bloqueada, si `especie_id` es una de sus opciones."""
+    consulta = (
+        db.query(Consulta)
+        .filter(Consulta.id == consulta_id, Consulta.usuario_id == usuario_id)
+        .with_for_update()
+        .first()
+    )
+    if consulta is None:
+        raise NoEncontrado("La consulta no existe.")
+    if consulta.estado != EstadoConsulta.AMBIGUA:
+        raise Conflicto("Esta consulta ya se resolvió.")
+    ofrecidas = {c["id"] for c in (consulta.candidatos or [])}
+    if especie_id not in ofrecidas:
+        raise SolicitudInvalida("La especie elegida no es una de las opciones de esta consulta.")
+    return consulta
+
+
+def _respuesta_permitida(
+    db: Session, identidad: Identidad, catalogo: FuenteCatalogo, especie_id: str, texto: str
+) -> RespuestaConsulta:
+    """La respuesta de una pendiente, si su tipo sigue permitido (RR_77).
+
+    Los permisos pueden haber cambiado desde que se guardó: si ya no está
+    permitida se rechaza sin resolverla ni cobrarla, y queda pendiente por si
+    vuelven a permitirla. Como en `_resolver`, se revisa antes y después de
+    armar la respuesta.
+    """
+    permisos_ = permisos.de(db, identidad)
+    tipo = analizar(texto).tipo
+    if not permisos_.permite(tipo):
+        raise AccesoDenegado(permisos_.mensaje(tipo))
+    respuesta = _construir_respuesta(catalogo, especie_id, texto)
+    if not permisos_.permite(respuesta.tipo):
+        raise AccesoDenegado(permisos_.mensaje(respuesta.tipo))
+    return respuesta
+
+
+def _limite_alcanzado(
+    identidad: Identidad, limite: int, pendiente: bool = False
+) -> LimiteAlcanzado:
+    """RR_65: el aviso dice cuál es el límite y cuándo se restablece (criterio 2)."""
+    periodo = periodo_de(identidad)
+    cuando = cuando_se_restablece(fin_del_periodo(periodo))
+    consultas = "1 consulta" if limite == 1 else f"{limite} consultas"
     if identidad.es_anonimo:
         return LimiteAlcanzado(
-            "Alcanzaste el límite de consultas disponibles sin cuenta. "
-            "Crea una cuenta para obtener más consultas diarias."
+            f"Alcanzaste el límite de {consultas} por día sin cuenta. Se restablece {cuando}. "
+            "Crea una cuenta para obtener más consultas."
         )
+    alcanzado = f"Alcanzaste tu límite de {consultas} {POR_PERIODO[periodo]}."
     if pendiente:
         return LimiteAlcanzado(
-            "Alcanzaste tu límite de consultas por hoy. La consulta queda pendiente: "
-            "podrás elegir la especie cuando se restablezca tu límite."
+            f"{alcanzado} La consulta queda pendiente: podrás elegir la especie cuando "
+            f"se restablezca tu límite, {cuando}."
         )
-    return LimiteAlcanzado("Alcanzaste tu límite de consultas por hoy.")
+    return LimiteAlcanzado(f"{alcanzado} Se restablece {cuando}.")
+
+
+def cuando_se_restablece(momento: datetime) -> str:
+    """'el 20/10/2026 a las 00:00 (hora de Costa Rica)'. Los periodos empiezan a las 00:00."""
+    return f"el {fecha_para_mostrar(momento)} a las 00:00 (hora de Costa Rica)"
 
 
 def _construir_respuesta(

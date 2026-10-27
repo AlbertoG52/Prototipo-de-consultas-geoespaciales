@@ -8,6 +8,7 @@ from .configuracion_respuestas import ConfiguracionRespuestas
 from .consulta import Consulta
 from .consumo_anonimo import ConsumoAnonimo
 from .conversacion import Conversacion
+from .permiso_tipo_consulta import PermisoTipoConsulta
 from .rol import Rol
 from .tiempo_respuesta import TiempoRespuesta
 from .token import Token
@@ -18,6 +19,7 @@ __all__ = [
     "Consulta",
     "ConsumoAnonimo",
     "Conversacion",
+    "PermisoTipoConsulta",
     "Rol",
     "TiempoRespuesta",
     "Token",

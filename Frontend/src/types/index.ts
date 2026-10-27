@@ -87,6 +87,12 @@ export type RegistroAuditoria = Esquema<"RegistroAuditoria">;
 /** RR_76 criterio 3 — cuentas de un rol y cuántas consultas guardadas tienen. */
 export type UsoDeRol = Esquema<"UsoDeRol">;
 
+/** RR_64 — cada cuánto se restablece el contador de consultas: "dia", "semana" o "mes". */
+export type PeriodoConsultas = Esquema<"PeriodoConsultas">;
+
+/** RR_63 — un rol con su límite de consultas y su periodo. */
+export type RolOut = Esquema<"RolOut">;
+
 /**
  * RR_76 — consultas de una cuenta. Si `texto_visible` es false, el servidor no
  * manda el texto (ADMIN_VE_TEXTO_CONSULTAS) y cada `texto` llega como null.
@@ -108,3 +114,30 @@ export type PreferenciasModerador = Esquema<"PreferenciasModerador">;
 
 /** RR_80 — el comportamiento por defecto del sistema y quién lo cambió por última vez. */
 export type PreferenciasPorDefecto = Esquema<"PreferenciasPorDefecto">;
+
+// ─── Tipos de consulta por rol (RR_77) ───
+
+/** Tipo de pregunta que detecta el backend: distribución, hábitat, descripción o general. */
+export type TipoPregunta = Esquema<"TipoPregunta">;
+
+/** Roles que se configuran: visitante, usuario y moderador (el supermoderador puede todo). */
+export type RolDeConsulta = Esquema<"RolDeConsulta">;
+
+/** Los tipos permitidos de cada rol y quién los cambió por última vez. */
+export type PermisosTiposConsulta = Esquema<"PermisosTiposConsulta">;
+
+export type CambioPermisos = Esquema<"CambioPermisos">;
+
+// ─── Estadísticas de uso (RR_78) ───
+
+/** Periodo de las estadísticas: hoy, últimos 7 o 30 días, o todo. */
+export type PeriodoEstadisticas = Esquema<"PeriodoEstadisticas">;
+
+/** Quién hizo las consultas: el rol que la cuenta tiene hoy, o visitante. */
+export type GrupoDeUso = Esquema<"GrupoDeUso">;
+
+/** Total, por grupo, por día (últimos 7) y por tipo de pregunta, de un periodo. */
+export type EstadisticasUso = Esquema<"EstadisticasUso">;
+
+/** Las cifras de las tarjetas del panel. */
+export type ResumenUso = Esquema<"ResumenUso">;

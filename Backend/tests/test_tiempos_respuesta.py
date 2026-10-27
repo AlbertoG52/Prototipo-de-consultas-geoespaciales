@@ -49,12 +49,6 @@ def nuevos_tiempos():
 
 
 @pytest.fixture
-def visitante():
-    token = api.post("/auth/anonimo").json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
-
-
-@pytest.fixture
 def cuenta(correos_de_prueba):
     correo = correos_de_prueba("tiempos")
     crear_cuenta_verificada(correo, PASSWORD)

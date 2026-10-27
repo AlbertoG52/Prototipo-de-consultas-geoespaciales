@@ -8,6 +8,7 @@ from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..db import Base
+from ..dominio import PeriodoConsultas
 
 if TYPE_CHECKING:
     from .usuario import Usuario
@@ -20,8 +21,10 @@ class Rol(Base):
     nombre: Mapped[str] = mapped_column(String(50), unique=True)
     descripcion: Mapped[str | None] = mapped_column(String(200))
 
-    # Cuántas consultas puede hacer al día quien tenga este rol.
-    # El supermoderador lo configura (RR_63), que es de otro sprint.
+    # Cuántas consultas puede hacer quien tenga este rol en cada periodo, y
+    # cada cuánto se restablece el contador (RR_62, RR_64). El supermoderador
+    # los configura en el panel (RR_63, services/admin.py).
     limite_consultas: Mapped[int] = mapped_column(default=20)
+    periodo_consultas: Mapped[str] = mapped_column(String(10), default=PeriodoConsultas.DIA)
 
     usuarios: Mapped[list[Usuario]] = relationship(back_populates="rol")

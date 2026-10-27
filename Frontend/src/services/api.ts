@@ -6,17 +6,25 @@
  * lugar.
  */
 import type {
+  CambioPermisos,
   ConsultaOut,
   ConversacionDetalle,
   ConversacionResumen,
   EspecieCandidata,
+  EstadisticasUso,
   FichaEspecie,
   HistorialUso,
+  NombreRol,
+  PeriodoConsultas,
+  PeriodoEstadisticas,
+  PermisosTiposConsulta,
   PreferenciasModerador,
   PreferenciasPorDefecto,
   PreferenciasRespuesta,
   RegistroAuditoria,
   RegistroRequest,
+  ResumenUso,
+  RolOut,
   Sesion,
   TipoSesion,
   TokenOut,
@@ -333,6 +341,20 @@ export const obtenerPreferenciasPorDefecto = () =>
 export const cambiarPreferenciasPorDefecto = (preferencias: PreferenciasRespuesta) =>
   pedir<PreferenciasPorDefecto>("/admin/preferencias-respuesta", "PUT", preferencias);
 
+/** RR_77 — los tipos de consulta que puede hacer cada rol. */
+export const obtenerPermisosDeConsulta = () => pedir<PermisosTiposConsulta>("/admin/permisos-consulta");
+
+/** RR_77 criterio 1 — deja permitidos solo los tipos enviados de cada rol. */
+export const cambiarPermisosDeConsulta = (cambio: CambioPermisos) =>
+  pedir<PermisosTiposConsulta>("/admin/permisos-consulta", "PUT", cambio);
+
+/** RR_78 — total de consultas del periodo, por rol, por día y por tipo de pregunta. */
+export const obtenerEstadisticas = (periodo: PeriodoEstadisticas) =>
+  pedir<EstadisticasUso>(`/admin/estadisticas?periodo=${periodo}`);
+
+/** RR_78 — cifras de las tarjetas del panel (cuentas, consultas de hoy, ayer y 30 días). */
+export const obtenerResumenDeUso = () => pedir<ResumenUso>("/admin/estadisticas/resumen");
+
 /** RR_76 — una página del historial de uso de una cuenta, de lo más reciente a lo más antiguo. */
 export const obtenerHistorialDeUso = (usuarioId: number, limite: number, desplazamiento: number) =>
   pedir<HistorialUso>(
@@ -341,3 +363,14 @@ export const obtenerHistorialDeUso = (usuarioId: number, limite: number, desplaz
 
 /** RR_76 criterio 3 — cuentas y consultas guardadas de cada rol. */
 export const obtenerUsoPorRol = () => pedir<UsoDeRol[]>("/admin/uso-por-rol");
+
+/** RR_63 — el límite de consultas de cada rol y su periodo. */
+export const listarRoles = () => pedir<RolOut[]>("/admin/roles");
+
+/**
+ * RR_63 y RR_64 — define el límite y el periodo de un rol. Aplica a las
+ * consultas siguientes; el cambio queda en la auditoría (RR_00_09). El servidor
+ * responde con el motivo si el límite no es válido o rompe la regla entre roles.
+ */
+export const configurarLimite = (rol: NombreRol, limite: number, periodo: PeriodoConsultas) =>
+  pedir<RolOut>(`/admin/roles/${rol}`, "PATCH", { limite_consultas: limite, periodo_consultas: periodo });
