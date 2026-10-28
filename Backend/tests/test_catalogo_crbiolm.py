@@ -1,10 +1,10 @@
 """Pruebas de CatalogoCRBioLM (services/catalogo_crbiolm.py): RR_23, RR_24, RR_25,
-RR_26, RR_28, RR_31, RR_36, RR_39, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_56, RR_58
+RR_26, RR_27, RR_28, RR_31, RR_36, RR_39, RR_41, RR_43, RR_44, RR_45, RR_49, RR_54, RR_56, RR_58
 y RR_60.
 
 Levantan un servidor MCP falso con las herramientas de CR-BioLM que usa el
 catálogo (get_species, search_species, get_vocabulary, resolve_common_name,
-get_occurrence_points, get_species_map_image, get_relevant_passage y
+list_synonyms, get_occurrence_points, get_species_map_image, get_relevant_passage y
 answer_question), con sus mismas respuestas. Las que pasan por la API
 necesitan la BD.
 
@@ -150,6 +150,30 @@ def resolve_common_name(name: str, region: str | None = None, elev: int | None =
     elegida = especies[0] if decision in ("unique", "preferred") else None
     valor = {"decision": decision, "species": elegida, "candidates": candidatas}
     return _sobre(valor, "MPCR+GBIF+iNaturalist", confianza="estimated")
+
+
+# RR_27: la tabla de sinónimos de CR-BioLM (sinónimo -> especie del Manual).
+SINONIMOS = [
+    ("Pasania oleoides", "Quercus oleoides"),
+    ("Quercus tonduzii", "Quercus costaricensis"),
+    ("Bellota costaricensis", "Persea americana"),
+    ("Bellota costaricensis", "Ocotea insularis"),
+    ("Quercus copeyensis", "Quercus sp. 1"),  # no se puede pedir por su id
+]
+pedidos_de_sinonimos: list[str] = []
+sinonimos_falla = False
+
+
+@falso.tool()
+def list_synonyms() -> dict:
+    pedidos_de_sinonimos.append("list_synonyms")
+    if sinonimos_falla:
+        raise RuntimeError("la tabla de sinónimos no existe")
+    filas = [
+        {"synonym": s, "species": e, "family": MANUAL.get(e, {}).get("family"), "source": "GBIF"}
+        for s, e in SINONIMOS
+    ]
+    return _sobre(filas, "GBIF", confianza="estimated")
 
 
 # PNG de 1x1 que hace de mapa.
@@ -356,11 +380,13 @@ def crbiolm(monkeypatch, url_falsa):
     monkeypatch.setattr(config, "MINIMO_REGISTROS_MAPA", 5)
     monkeypatch.setattr(config, "GBIF_REINTENTOS", 2)
     monkeypatch.setattr(config, "GBIF_ESPERA_REINTENTO_SEGUNDOS", 0)
-    global pasaje_falla, corte_de_puntos, nombres_comunes_falla
+    global pasaje_falla, corte_de_puntos, nombres_comunes_falla, sinonimos_falla
     pasaje_falla = False
     corte_de_puntos = None
     nombres_comunes_falla = False
+    sinonimos_falla = False
     pedidos_de_nombre_comun.clear()
+    pedidos_de_sinonimos.clear()
     pedidos_de_mapa.clear()
     pedidos_a_gbif.clear()
     pedidos_de_pasaje.clear()
@@ -1103,6 +1129,98 @@ def test_la_consulta_por_nombre_comun_se_responde(crbiolm, visitante):
     assert datos["texto"] == texto  # se guarda y muestra lo que escribió
     assert datos["respuesta"]["especie"]["nombre_cientifico"] == "Quercus costaricensis"
     assert "Por «roble negro» se entendió Quercus costaricensis." in datos["respuesta"]["avisos"]
+
+
+# --- RR_27: manejo de sinónimos de especies ---------------------------------------
+# Los sinónimos comunes son los nombres comunes de RR_25; aquí, los científicos.
+
+
+def test_el_sinonimo_se_asocia_con_su_especie(crbiolm):
+    """Criterio 1."""
+    [especie] = crbiolm.buscar_especies("¿Dónde crece Pasania oleoides?")
+    assert especie.id == "quercus-oleoides"
+    assert especie.familia == "Fagaceae"
+
+
+def test_un_sinonimo_de_varias_especies_las_trae_todas(crbiolm):
+    especies = crbiolm.buscar_especies("¿Dónde crece bellota costaricensis?")
+    assert {e.id for e in especies} == {"persea-americana", "ocotea-insularis"}
+
+
+def test_un_sinonimo_que_no_se_puede_pedir_no_se_ofrece(crbiolm):
+    especies = crbiolm.buscar_especies("¿Dónde crece Quercus copeyensis?")
+    assert "Quercus sp. 1" not in {e.nombre_cientifico for e in especies}
+
+
+def test_el_sinonimo_va_antes_que_el_genero(crbiolm):
+    """Quercus tonduzii es Quercus costaricensis; "Quercus" solo ofrecería las dos (RR_28)."""
+    [especie] = crbiolm.buscar_especies("¿Dónde crece Quercus tonduzii?")
+    assert especie.id == "quercus-costaricensis"
+
+
+def test_con_nombre_cientifico_no_se_piden_sinonimos(crbiolm):
+    crbiolm.buscar_especies("¿Dónde crece Quercus oleoides?")
+    crbiolm.buscar_especies("¿Dónde crece el roble negro?")  # RR_25 va antes
+    assert pedidos_de_sinonimos == []
+
+
+def test_los_sinonimos_se_piden_una_sola_vez(crbiolm):
+    crbiolm.buscar_especies("¿Dónde crece Pasania oleoides?")
+    crbiolm.buscar_especies("¿Dónde crece Quercus tonduzii?")
+    assert pedidos_de_sinonimos == ["list_synonyms"]
+
+
+def test_si_cr_biolm_no_da_sinonimos_no_se_reconoce_ninguno(crbiolm):
+    global sinonimos_falla
+    sinonimos_falla = True
+    assert crbiolm.buscar_especies("¿Dónde crece Pasania oleoides?") == []
+    sinonimos_falla = False
+    [especie] = crbiolm.buscar_especies("¿Dónde crece Pasania oleoides?")  # se piden otra vez
+    assert especie.id == "quercus-oleoides"
+
+
+@pytest.mark.parametrize(
+    ("texto", "especie_id", "pregunta", "aviso"),
+    [
+        (
+            "¿Dónde crece Pasania oleoides?",
+            "quercus-oleoides",
+            "¿Dónde crece Pasania oleoides (Quercus oleoides)?",
+            "Por «Pasania oleoides» se entendió Quercus oleoides: es un sinónimo según GBIF.",
+        ),
+        # De varias especies: el usuario eligió, así que no hace falta avisar.
+        (
+            "¿Dónde crece Bellota costaricensis?",
+            "ocotea-insularis",
+            "¿Dónde crece Bellota costaricensis (Ocotea insularis)?",
+            None,
+        ),
+    ],
+)
+def test_la_respuesta_dice_como_se_entendio_el_sinonimo(
+    crbiolm, texto, especie_id, pregunta, aviso
+):
+    respuesta = crbiolm.construir_respuesta(especie_id, texto)
+    assert pedidos_a_ia == [pregunta]
+    assert [a for a in respuesta.avisos if a.startswith("Por «")] == ([aviso] if aviso else [])
+
+
+def test_el_resultado_no_cambia_segun_el_sinonimo(crbiolm):
+    """Criterio 2: la misma especie, los mismos registros y las mismas fuentes."""
+    con_sinonimo = crbiolm.construir_respuesta("quercus-costaricensis", "Quercus tonduzii")
+    con_nombre = crbiolm.construir_respuesta("quercus-costaricensis", "Quercus costaricensis")
+    assert con_sinonimo.especie == con_nombre.especie
+    assert con_sinonimo.registros == con_nombre.registros
+    assert con_sinonimo.total_registros == con_nombre.total_registros
+    assert con_sinonimo.fuentes == con_nombre.fuentes
+
+
+def test_la_consulta_por_sinonimo_se_responde(crbiolm, visitante):
+    texto = "¿Dónde crece Pasania oleoides?"
+    datos = api.post("/consultas", headers=visitante, json={"texto": texto}).json()
+    assert datos["estado"] == "resuelta"
+    assert datos["texto"] == texto  # se guarda y muestra lo que escribió
+    assert datos["respuesta"]["especie"]["nombre_cientifico"] == "Quercus oleoides"
 
 
 # --- RR_28: solicitud de aclaración ante ambigüedad -------------------------------
