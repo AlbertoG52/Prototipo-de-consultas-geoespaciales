@@ -5,7 +5,7 @@ herramientas del servidor de CR-BioLM. Todo es L0/L1 salvo la redacción de la
 respuesta (RR_49), que usa el LLM de CR-BioLM (answer_question, L2).
 
     buscar_especies      -> get_species; si no hay nombre científico,
-                            resolve_common_name (RR_25)
+                            resolve_common_name (RR_25) y list_synonyms (RR_27)
     obtener_especie      -> get_species
     construir_respuesta  -> get_species + get_occurrence_points + get_species_map_image
                             + get_relevant_passage (si pregunta algo concreto)
@@ -147,6 +147,7 @@ class CatalogoCRBioLM:
         self._nombres_del_catalogo: dict[str, str] | None = None  # RR_23
         self._familias_del_catalogo: dict[str, str] = {}  # RR_28
         self._vocabulario_del_catalogo: dict[str, Any] | None = None  # RR_39
+        self._sinonimos_del_catalogo: dict[str, list[EspecieCandidata]] | None = None  # RR_27
 
     def buscar_especies(self, texto: str) -> list[EspecieCandidata]:
         """Especies que menciona la consulta: 0 = ninguna, 2+ = ambigua (RR_17).
@@ -157,7 +158,8 @@ class CatalogoCRBioLM:
         2. RR_23: los mismos, corrigiendo hasta LETRAS_MAXIMAS_CORRECCION letras
            mal escritas.
         3. RR_25: nombres comunes, con resolve_common_name de CR-BioLM.
-        4. RR_28: solo un género con varias especies ("Quercus"); se ofrecen
+        4. RR_27: sinónimos científicos ("Bombax pentandrum"), con list_synonyms.
+        5. RR_28: solo un género con varias especies ("Quercus"); se ofrecen
            algunas para que el usuario elija o sea más específico.
         """
         encontradas = self._por_nombre_cientifico(texto)
@@ -165,7 +167,12 @@ class CatalogoCRBioLM:
             corregido = corregir_nombres(texto, self._nombres())
             if corregido != texto:
                 encontradas = self._por_nombre_cientifico(corregido)
-        return encontradas or _por_nombre_comun(texto) or self._por_genero(texto)
+        return (
+            encontradas
+            or _por_nombre_comun(texto)
+            or self._por_sinonimo(texto)
+            or self._por_genero(texto)
+        )
 
     def _por_nombre_cientifico(self, texto: str) -> list[EspecieCandidata]:
         palabras = _PALABRA.findall(texto)
@@ -195,6 +202,31 @@ class CatalogoCRBioLM:
                 return [self._de_la_lista(n) for n in especies[: config.GENERO_OPCIONES_MAXIMAS]]
         return []
 
+    def _por_sinonimo(self, texto: str) -> list[EspecieCandidata]:
+        """RR_27: las especies de los sinónimos científicos de la consulta."""
+        sinonimos = self._sinonimos()
+        encontradas: dict[str, EspecieCandidata] = {}
+        for genero, epiteto in pairwise(_PALABRA.findall(texto)):
+            for candidata in sinonimos.get(normalizar(f"{genero} {epiteto}"), []):
+                encontradas.setdefault(candidata.id, candidata)
+        return list(encontradas.values())
+
+    def _con_sinonimo(self, texto: str, nombre: str) -> tuple[str, list[str]]:
+        """RR_27: la pregunta con `nombre` junto al sinónimo que la nombró, y el aviso.
+
+        Sin aviso si el sinónimo es de varias especies: el usuario eligió.
+        """
+        if normalizar(nombre) in normalizar(texto):
+            return texto, []
+        sinonimos = self._sinonimos()
+        for genero, epiteto in pairwise(_PALABRA.finditer(texto)):
+            especies = sinonimos.get(normalizar(f"{genero.group()} {epiteto.group()}"), [])
+            if any(c.nombre_cientifico == nombre for c in especies):
+                pregunta = f"{texto[: epiteto.end()]} ({nombre}){texto[epiteto.end() :]}"
+                frase = texto[genero.start() : epiteto.end()]
+                return pregunta, [_aviso_de_sinonimo(frase, nombre)] if len(especies) == 1 else []
+        return texto, []
+
     def _de_la_lista(self, nombre: str) -> EspecieCandidata:
         """Una especie del catálogo, con los datos de search_species (sin pedir su ficha)."""
         return EspecieCandidata(
@@ -220,6 +252,9 @@ class CatalogoCRBioLM:
             texto_consulta = corregir_nombres(texto_consulta, self._nombres())
             # RR_25: si la nombró por su nombre común, con el científico al lado.
             texto_consulta, interpretacion = _con_nombre_comun(texto_consulta, nombre)
+            # RR_27: si la nombró por un sinónimo, con el nombre del Manual al lado.
+            texto_consulta, aviso_sinonimo = self._con_sinonimo(texto_consulta, nombre)
+            interpretacion += aviso_sinonimo
             # RR_28: y, si nombró solo el género, con la especie que eligió.
             texto_consulta = _con_especie_del_genero(texto_consulta, nombre)
         # RR_36: si nombra varias especies, solo la parte de esta.
@@ -349,6 +384,23 @@ class CatalogoCRBioLM:
             self._familias_del_catalogo = familias
             self._nombres_del_catalogo = nombres
         return self._nombres_del_catalogo
+
+    def _sinonimos(self) -> dict[str, list[EspecieCandidata]]:
+        """RR_27: los sinónimos del catálogo (normalizado -> sus especies), una sola vez.
+
+        Si CR-BioLM no los da, no se reconocen y se piden otra vez después.
+        """
+        if self._sinonimos_del_catalogo is None:
+            try:
+                filas = mcp_cliente.llamar("list_synonyms").valor
+                sinonimos = _sinonimos_por_nombre(filas)
+            except (MCPErrorHerramienta, MCPRespuestaInvalida, KeyError, TypeError):
+                logger.warning("RR_27: CR-BioLM no dio los sinónimos; no se reconocen")
+                return {}
+            if not sinonimos:
+                return {}
+            self._sinonimos_del_catalogo = sinonimos
+        return self._sinonimos_del_catalogo
 
     def _vocabulario(self) -> dict[str, Any] | None:
         """RR_39: las regiones y vertientes del Manual (get_vocabulary, L0), una sola vez.
@@ -492,6 +544,39 @@ def _aviso_de_interpretacion(frase: str, nombre: str, decision: str) -> list[str
     if decision == "unique":
         return [f"Por «{frase}» se entendió {nombre}."]
     return []
+
+
+# --- RR_27: sinónimos científicos (list_synonyms) -----------------------------
+
+
+def _sinonimos_por_nombre(filas: Any) -> dict[str, list[EspecieCandidata]]:
+    """Las filas de list_synonyms agrupadas por sinónimo normalizado.
+
+    Los nombres que no se pueden pedir por su id ("Ilex sp. 1") no se ofrecen.
+    """
+    if not isinstance(filas, list):
+        raise MCPRespuestaInvalida("list_synonyms", "la respuesta no es una lista")
+    sinonimos: dict[str, list[EspecieCandidata]] = {}
+    for fila in filas:
+        if not isinstance(fila, dict) or not all(
+            isinstance(fila.get(campo), str) for campo in ("synonym", "species")
+        ):
+            continue
+        especie = fila["species"]
+        if a_nombre(a_id(especie)) != especie:
+            continue
+        candidata = EspecieCandidata(
+            id=a_id(especie),
+            nombre_comun=None,
+            nombre_cientifico=especie,
+            familia=fila.get("family") or SIN_DATO,
+        )
+        sinonimos.setdefault(normalizar(fila["synonym"]), []).append(candidata)
+    return sinonimos
+
+
+def _aviso_de_sinonimo(frase: str, nombre: str) -> str:
+    return f"Por «{frase}» se entendió {nombre}: es un sinónimo según GBIF."
 
 
 def _con_especie_del_genero(texto: str, nombre: str) -> str:

@@ -295,6 +295,17 @@ reciben la pregunta con el nombre científico al lado del común. Requiere la
 tabla de nombres comunes de CR-BioLM (`python -m mpcr_rag.evidence.vernacular
 fetch`); sin ella, no se reconocen nombres comunes.
 
+**RR_27 — sinónimos**: los comunes son los de RR_25. Para los científicos, si
+tampoco hay nombre común, se buscan los pares de palabras de la consulta en la
+lista de sinónimos de CR-BioLM (`list_synonyms`), que se pide una sola vez. Un
+sinónimo de una especie se responde con ella y la respuesta lo avisa ("Por
+«Bombax pentandrum» se entendió *Ceiba pentandra*: es un sinónimo según GBIF");
+si es de varias, se ofrecen como en RR_17. El Manual y el LLM reciben la
+pregunta con el nombre del Manual al lado. Los sinónimos son los de GBIF, no los
+del Manual, y pueden no coincidir con él. Requiere la tabla de sinónimos de
+CR-BioLM (`python -m mpcr_rag.evidence.synonyms fetch`); sin ella, no se
+reconocen sinónimos científicos.
+
 **RR_28 — ambigüedad**: si, aun corregida, la consulta no trae ningún nombre
 científico pero sí un género del Manual con dos o más especies ("¿Dónde crece
 Quercus?"), se ofrecen sus primeras `GENERO_OPCIONES_MAXIMAS` especies en orden
