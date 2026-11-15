@@ -26,7 +26,7 @@ from app.dominio import (
 from app.models import Consulta, Conversacion, Rol, TiempoRespuesta, Usuario
 from app.services import admin, estadisticas
 from app.services.estadisticas import Conteo
-from app.tiempo import ahora
+from app.tiempo import HORA_COSTA_RICA, ahora
 
 from apoyo import api, crear_cuenta_verificada, crear_usuario, iniciar_sesion
 
@@ -93,12 +93,20 @@ def test_la_tasa_de_exito_es_resueltas_entre_consultas():
     assert Conteo(1, 1) + Conteo(2, 0) == Conteo(3, 1)
 
 
-def test_cada_periodo_empieza_a_medianoche_utc():
-    hoy = datetime.combine(ahora().date(), time.min, tzinfo=UTC)
+def test_cada_periodo_empieza_a_medianoche_de_costa_rica():
+    hoy = datetime.combine(ahora().astimezone(HORA_COSTA_RICA).date(), time.min, HORA_COSTA_RICA)
     assert estadisticas.desde_de(PeriodoEstadisticas.HOY) == hoy
     assert estadisticas.desde_de(PeriodoEstadisticas.ULTIMOS_7_DIAS) == hoy - timedelta(days=6)
     assert estadisticas.desde_de(PeriodoEstadisticas.ULTIMOS_30_DIAS) == hoy - timedelta(days=29)
     assert estadisticas.desde_de(PeriodoEstadisticas.TODO) is None
+
+
+def test_de_noche_en_costa_rica_hoy_sigue_siendo_hoy(monkeypatch):
+    """DEF-05: a las 7 p. m. de Costa Rica ya es el día siguiente en UTC."""
+    siete_pm = datetime(2026, 11, 14, 19, 0, tzinfo=HORA_COSTA_RICA)  # 01:00 UTC del 15
+    monkeypatch.setattr(estadisticas, "ahora", lambda: siete_pm.astimezone(UTC))
+    assert estadisticas.inicio_del_dia() == datetime(2026, 11, 14, tzinfo=HORA_COSTA_RICA)
+    assert estadisticas.inicio_del_dia(1) == datetime(2026, 11, 13, tzinfo=HORA_COSTA_RICA)
 
 
 # --- criterios 1 y 2: qué se cuenta y cómo se agrupa -----------------------------------
@@ -192,7 +200,7 @@ def test_las_consultas_por_dia_son_los_ultimos_siete(sesion):
     _tiempo(sesion, ResultadoConsulta.SIN_COINCIDENCIAS, hace_dias=3)
 
     despues = estadisticas.estadisticas(sesion, PeriodoEstadisticas.TODO).por_dia
-    hoy = ahora().date()
+    hoy = ahora().astimezone(HORA_COSTA_RICA).date()  # DEF-05: días de Costa Rica
     assert [d.fecha for d in despues] == [hoy - timedelta(days=d) for d in range(6, -1, -1)]
     cambio = [d.consultas - a.consultas for a, d in zip(antes, despues, strict=True)]
     assert cambio == [0, 0, 0, 1, 0, 0, 1]

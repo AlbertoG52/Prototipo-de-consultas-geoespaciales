@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 
 from ..config import LONGITUD_MAXIMA_CONSULTA
 from ..dominio import DatoRespuesta, EstadoConsulta, MotivoOrientacion, TipoPregunta
@@ -30,6 +30,18 @@ class EspecieCandidata(EsquemaSalida):
     nombre_comun: str | None = None
     nombre_cientifico: str
     familia: str
+    # DEF-14: la frase de la consulta que no se encontró completa ("cedro amargo")
+    # cuando la especie salió solo de un pedazo de ella ("amargo"). Es interna:
+    # no va en la respuesta ni en la BD; con ella se pregunta antes de responder.
+    _frase_incompleta: str | None = PrivateAttr(default=None)
+
+    @property
+    def frase_incompleta(self) -> str | None:
+        return self._frase_incompleta
+
+    def con_frase_incompleta(self, frase: str) -> "EspecieCandidata":
+        self._frase_incompleta = frase
+        return self
 
 
 class MapaEspecie(EsquemaSalida):

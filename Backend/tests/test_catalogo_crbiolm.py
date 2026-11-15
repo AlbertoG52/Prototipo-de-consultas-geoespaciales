@@ -48,7 +48,14 @@ from app.sanitizacion import normalizar
 from app.services import catalogo_crbiolm
 from app.services.catalogo import obtener_catalogo
 from app.services.catalogo_crbiolm import CatalogoCRBioLM, a_id, a_nombre
-from app.services.consultas import MENSAJE_AMBIGUA, MENSAJE_SIN_COINCIDENCIAS
+from app.services.consultas import (
+    MENSAJE_AMBIGUA,
+    MENSAJE_NOMBRE_INCOMPLETO,
+    MENSAJE_SIN_COINCIDENCIAS,
+)
+from app.services.contexto_especie import ContextoEspecie, Fragmento, Ocurrencias
+from app.services.intencion import TipoPregunta
+from app.services.mcp_cliente import Sobre
 from app.tiempo import plazo
 
 from apoyo import api
@@ -133,7 +140,11 @@ NOMBRES_COMUNES = {
     "encino": ("preferred", ["Quercus oleoides", "Quercus costaricensis"]),
     "roble": ("ambiguous", ["Quercus oleoides", "Quercus costaricensis"]),
     "guabas": ("unique", ["Inga edulis"]),  # un nombre que ya termina en "s"
+    "aguacate": ("unique", ["Persea americana"]),
 }
+# DEF-16: de dónde sale cada nombre (los `sources` de CR-BioLM). Los demás nombres
+# vienen sin fuentes, como una versión de CR-BioLM que no las da.
+FUENTES_DE_NOMBRES = {"aguacate": ["INAT_CR", "MPCR"]}
 pedidos_de_nombre_comun: list[str] = []
 nombres_comunes_falla = False
 
@@ -147,6 +158,9 @@ def resolve_common_name(name: str, region: str | None = None, elev: int | None =
     clave = name.lower() if name.lower() in NOMBRES_COMUNES else normalizar(name)
     decision, especies = NOMBRES_COMUNES.get(clave, ("none", []))
     candidatas = [{"species": e, "family": MANUAL[e]["family"], "n_records": 5} for e in especies]
+    if clave in FUENTES_DE_NOMBRES:
+        for candidata in candidatas:
+            candidata["sources"] = FUENTES_DE_NOMBRES[clave]
     elegida = especies[0] if decision in ("unique", "preferred") else None
     valor = {"decision": decision, "species": elegida, "candidates": candidatas}
     return _sobre(valor, "MPCR+GBIF+iNaturalist", confianza="estimated")
@@ -1070,10 +1084,14 @@ def test_un_nombre_que_ya_termina_en_s_se_busca_tal_cual(crbiolm):
     assert pedidos_de_nombre_comun == ["guabas"]
 
 
-def test_con_nombre_cientifico_no_se_buscan_nombres_comunes(crbiolm):
-    crbiolm.buscar_especies("¿Dónde crece el roble Quercus oleoides?")
+def test_un_nombre_comun_de_la_misma_especie_no_la_vuelve_ambigua(crbiolm):
+    """DEF-07: con nombre científico se buscan los nombres comunes del resto de la
+    consulta, pero "el roble Quercus oleoides" es la misma planta dicha dos veces."""
+    [especie] = crbiolm.buscar_especies("¿Dónde crece el roble Quercus oleoides?")
+    assert especie.id == "quercus-oleoides"
+    assert pedidos_de_nombre_comun == ["roble"]  # el nombre científico no se prueba
     crbiolm.buscar_especies("¿Dónde crece Querus costaricensis?")  # RR_23 va antes
-    assert pedidos_de_nombre_comun == []
+    assert pedidos_de_nombre_comun == ["roble"]  # no queda otra frase que probar
 
 
 def test_el_nombre_comun_va_antes_que_el_genero(crbiolm):
@@ -1129,6 +1147,130 @@ def test_la_consulta_por_nombre_comun_se_responde(crbiolm, visitante):
     assert datos["texto"] == texto  # se guarda y muestra lo que escribió
     assert datos["respuesta"]["especie"]["nombre_cientifico"] == "Quercus costaricensis"
     assert "Por «roble negro» se entendió Quercus costaricensis." in datos["respuesta"]["avisos"]
+
+
+# --- DEF-14: un nombre común que solo se encontró en parte --------------------------
+
+
+def test_un_pedazo_del_nombre_marca_la_frase_que_no_se_encontro(crbiolm):
+    """ "encino rojo" no está; "encino" sí. La candidata lo dice, para preguntar."""
+    [especie] = crbiolm.buscar_especies("¿Dónde crece el encino rojo?")
+    assert especie.id == "quercus-oleoides"
+    assert especie.frase_incompleta == "encino rojo"
+
+
+@pytest.mark.parametrize(
+    "texto",
+    ["¿Dónde crece el encino?", "¿Dónde crece el roble negro en Talamanca?"],
+)
+def test_el_nombre_completo_no_se_marca(crbiolm, texto):
+    assert all(e.frase_incompleta is None for e in crbiolm.buscar_especies(texto))
+
+
+def test_con_un_pedazo_del_nombre_se_pregunta_antes_de_responder(crbiolm, visitante):
+    """RR_17: aunque haya una sola candidata, el usuario confirma la especie."""
+    texto = "¿Dónde crece el encino rojo?"
+    datos = api.post("/consultas", headers=visitante, json={"texto": texto}).json()
+    assert datos["estado"] == "ambigua"
+    assert datos["mensaje"] == MENSAJE_NOMBRE_INCOMPLETO.format(frase="encino rojo")
+    assert [c["id"] for c in datos["candidatos"]] == ["quercus-oleoides"]
+    assert "frase_incompleta" not in datos["candidatos"][0]  # es interna
+
+
+# --- DEF-07: nombres científicos y comunes en la misma consulta -----------------------
+
+
+def test_con_nombre_cientifico_tambien_se_buscan_los_nombres_comunes(crbiolm):
+    especies = crbiolm.buscar_especies("¿Dónde crecen el roble negro y Quercus oleoides?")
+    assert [e.id for e in especies] == ["quercus-oleoides", "quercus-costaricensis"]
+
+
+def test_la_pregunta_de_una_especie_no_lleva_la_otra_dicha_por_su_nombre_comun(crbiolm):
+    """DEF-07 y RR_36: el LLM recibe solo la parte de la especie elegida."""
+    crbiolm.construir_respuesta(
+        "quercus-oleoides", "¿Dónde crecen el roble negro y Quercus oleoides en Guanacaste?"
+    )
+    [pregunta] = pedidos_a_ia
+    assert "roble negro" not in pregunta
+    assert "Quercus oleoides en Guanacaste" in pregunta
+
+
+# --- DEF-08 y DEF-16: el nombre común en la respuesta, con su fuente ------------------
+
+
+def test_la_respuesta_trae_el_nombre_comun_con_que_se_busco(crbiolm):
+    respuesta = crbiolm.construir_respuesta("quercus-oleoides", "¿Dónde crece el ENCINO?")
+    assert respuesta.especie.nombre_comun == "Encino"
+
+
+def test_sin_nombre_comun_en_la_consulta_se_usa_el_de_la_ficha(crbiolm):
+    respuesta = crbiolm.construir_respuesta(
+        "quercus-costaricensis", "¿Dónde crece Quercus costaricensis?"
+    )
+    assert respuesta.especie.nombre_comun == "roble negro"
+
+
+def test_el_aviso_dice_de_donde_sale_el_nombre_comun(crbiolm):
+    respuesta = crbiolm.construir_respuesta("persea-americana", "¿Dónde crece el aguacate?")
+    assert (
+        "Por «aguacate» se entendió Persea americana (nombre común según el Manual de "
+        "Plantas de Costa Rica e iNaturalist (Costa Rica))." in respuesta.avisos
+    )
+
+
+@pytest.mark.parametrize(
+    ("fuentes", "segun"),
+    [
+        ([], ""),
+        (["INAT_CR"], " (nombre común según iNaturalist (Costa Rica))"),
+        (["GBIF", "MPCR"], " (nombre común según el Manual de Plantas de Costa Rica y GBIF)"),
+        (["INAT_ES", "INAT_CR"], " (nombre común según iNaturalist (Costa Rica))"),
+    ],
+)
+def test_las_fuentes_del_nombre_se_citan_en_orden(fuentes, segun):
+    assert catalogo_crbiolm._segun(fuentes) == segun
+
+
+# --- DEF-09 y DEF-10 ------------------------------------------------------------------
+
+
+def test_si_el_manual_no_describe_la_especie_se_avisa(crbiolm):
+    respuesta = crbiolm.construir_respuesta(
+        "quercus-oleoides", "¿Cómo son las hojas de Quercus oleoides?"
+    )
+    assert respuesta.texto == "Bosque seco del Pacífico norte."
+    assert (
+        "El Manual de Plantas de Costa Rica no trae la descripción de esta especie; "
+        "se muestra lo que dice de su distribución." in respuesta.avisos
+    )
+
+
+def test_con_descripcion_en_el_manual_no_hay_aviso(crbiolm):
+    respuesta = crbiolm.construir_respuesta(
+        "quercus-costaricensis", "¿Cómo es Quercus costaricensis?"
+    )
+    assert not any("no trae la descripción" in a for a in respuesta.avisos)
+
+
+def test_con_un_fragmento_de_descripcion_no_hay_aviso():
+    """DEF-09: la ficha no trae morfología, pero el texto vectorizado sí (RR_44)."""
+    contexto = ContextoEspecie(
+        manual=Sobre(valor={"species": "Agave wercklei"}, fuente="MPCR"),
+        ocurrencias=Ocurrencias(sobre=None, registros=[], total=0, intentos=1),
+        mapa=None,
+        fragmento=Fragmento(texto="Hojas en roseta, carnosas.", seccion="description"),
+        avisos=[],
+        tipo=TipoPregunta.DESCRIPCION,
+    )
+    assert contexto.texto() == "Hojas en roseta, carnosas."
+    assert contexto.avisos_del_texto() == []
+
+
+def test_gbif_sin_registros_no_es_una_fuente(crbiolm):
+    """RR_50: GBIF respondió, pero sin ningún registro no aportó nada."""
+    respuesta = crbiolm.construir_respuesta("zamia-fairchildiana", "")
+    assert respuesta.total_registros == 0
+    assert "GBIF" not in respuesta.fuentes
 
 
 # --- RR_27: manejo de sinónimos de especies ---------------------------------------
