@@ -268,7 +268,7 @@ export function ChatPage() {
 
       case "opciones": {
         // RR_36 — si nombra varias especies (no un género, RR_28), se pueden buscar todas.
-        const varias = nombraVariasEspecies(m.texto, m.candidatos);
+        const varias = nombraVariasEspecies(m.texto, m.candidatos, m.mensaje);
         return (
           <SelectorDeEspecie
             key={m.id}

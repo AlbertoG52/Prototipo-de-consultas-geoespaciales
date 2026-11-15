@@ -50,6 +50,33 @@ def test_solo_el_nombre_es_geoespacial_y_sin_pregunta_concreta(texto):
     assert not intencion.pregunta_especifica
 
 
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "¿Cómo es Quercus costaricensis?",
+        "¿COMO SON los Quercus costaricensis?",
+        "¿Cómo luce Quercus costaricensis?",
+        "¿Cómo se ve Quercus costaricensis?",
+    ],
+)
+def test_como_es_pregunta_por_la_descripcion(texto):
+    """DEF-03: sus palabras son genéricas, pero piden cómo es la planta (RR_29)."""
+    intencion = analizar(texto, ESPECIE)
+    assert intencion.tipo is TipoPregunta.DESCRIPCION
+    assert intencion.pregunta_especifica
+
+
+@pytest.mark.parametrize(
+    ("texto", "tipo"),
+    [
+        ("¿Cómo es la distribución de Quercus costaricensis?", TipoPregunta.DISTRIBUCION),
+        ("¿Cómo es el hábitat de Quercus costaricensis?", TipoPregunta.HABITAT),
+    ],
+)
+def test_como_es_con_algo_mas_concreto_gana_lo_concreto(texto, tipo):
+    assert analizar(texto, ESPECIE).tipo is tipo
+
+
 def test_sin_texto_se_pide_todo():
     intencion = analizar("", ESPECIE)
     assert intencion.geoespacial and not intencion.pregunta_especifica

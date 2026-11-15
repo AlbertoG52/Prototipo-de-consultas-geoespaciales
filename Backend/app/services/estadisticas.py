@@ -21,14 +21,15 @@ Qué es una consulta realizada (misma regla que RR_76):
 El tipo de pregunta (RR_29) sale de la intención registrada en
 'tiempos_respuesta' (017, RR_33), con la misma regla que los visitantes.
 
-Los días son en UTC, como el límite diario (services/uso.py).
+Los días son los de Costa Rica (de 00:00 a 24:00 en UTC-6), como el límite
+diario (services/uso.py).
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import ColumnElement, func
 from sqlalchemy.orm import InstrumentedAttribute, Session
@@ -49,10 +50,13 @@ from ..schemas.estadisticas import (
     EstadisticasUso,
     ResumenUso,
 )
-from ..tiempo import ahora
+from ..tiempo import HORA_COSTA_RICA, ahora
 
 # Resultados de 'tiempos_respuesta' que cuentan como consulta (ver el módulo).
 RESULTADOS_CONTADOS = (ResultadoConsulta.RESUELTA, ResultadoConsulta.SIN_COINCIDENCIAS)
+
+# DEF-05: cuánto hay que sumarle a una hora UTC para tener la de Costa Rica.
+_DESFASE_COSTA_RICA = HORA_COSTA_RICA.utcoffset(None) or timedelta(0)
 
 # Días del gráfico de consultas por día, contando hoy.
 DIAS_DEL_GRAFICO = 7
@@ -81,9 +85,13 @@ class Conteo:
 
 
 def inicio_del_dia(dias_atras: int = 0) -> datetime:
-    """Medianoche UTC de hoy, o de `dias_atras` días antes."""
-    dia = ahora().date() - timedelta(days=dias_atras)
-    return datetime.combine(dia, time.min, tzinfo=UTC)
+    """Medianoche de Costa Rica de hoy, o de `dias_atras` días antes (DEF-05).
+
+    Igual que el límite diario (services/uso.py): de 18:00 a 24:00 en Costa Rica
+    ya es el día siguiente en UTC, y "hoy" no debe empezar a esa hora.
+    """
+    dia = ahora().astimezone(HORA_COSTA_RICA).date() - timedelta(days=dias_atras)
+    return datetime.combine(dia, time.min, tzinfo=HORA_COSTA_RICA)
 
 
 def desde_de(periodo: PeriodoEstadisticas) -> datetime | None:
@@ -200,7 +208,8 @@ def _por_dia(db: Session) -> list[ConsultasDelDia]:
         (Consulta.realizada_en, _es_de_cuenta()),
         (TiempoRespuesta.registrada_en, _es_de_visitante()),
     ):
-        dia = func.date(columna)
+        # DEF-05: el día de Costa Rica (UTC-6, sin horario de verano), no el de UTC.
+        dia = func.date(columna + _DESFASE_COSTA_RICA)
         filas = db.query(dia, func.count()).filter(condicion, columna >= desde).group_by(dia)
         for fecha, consultas in filas.tuples():
             por_fecha[fecha] = por_fecha.get(fecha, 0) + consultas
