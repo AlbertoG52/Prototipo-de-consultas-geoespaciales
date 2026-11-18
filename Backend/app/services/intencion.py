@@ -15,7 +15,8 @@ Tipos, en orden de prioridad (la primera lista que coincide gana):
                   (RR_29, lista HABITAT más los tipos de bosque del vocabulario
                   de CR-BioLM)
     DISTRIBUCION  "crece" o "se encuentra" sin nada de lo anterior
-    DESCRIPCION   cómo es la planta: hojas, flores, color, familia, usos...
+    DESCRIPCION   cómo es la planta: hojas, flores, color, familia, usos...,
+                  o "¿Cómo es...?" / "¿Cómo son...?" sin nada de lo anterior
     GENERAL       nada de lo anterior, p. ej. solo el nombre de la especie
 
 "Crece" y "se encuentra" (VERBOS_DE_LUGAR) van después de HABITAT: "¿En qué
@@ -121,6 +122,9 @@ GENERICAS = frozenset(
 )  # fmt: skip
 
 
+# DEF-03: "cómo es", "cómo son", "cómo luce(n)", "cómo se ve(n)" (sin tildes).
+_COMO_ES = re.compile(r"\bcomo (?:es|son|luce|lucen|se ve|se ven)\b")
+
 # TipoPregunta vive en dominio.py (se guarda en la BD, RR_33); se importa
 # arriba, así que `from .intencion import TipoPregunta` sigue funcionando.
 
@@ -164,6 +168,10 @@ def analizar(
         ),
         TipoPregunta.GENERAL,
     )
+    # DEF-03: "¿Cómo es...?" pregunta cómo es la planta aunque sus palabras sean
+    # genéricas. Va al final: "¿Cómo es su distribución?" ya es DISTRIBUCION.
+    if tipo is TipoPregunta.GENERAL and _COMO_ES.search(" ".join(palabras(texto))):
+        return Intencion(tipo=TipoPregunta.DESCRIPCION, pregunta_especifica=True)
     return Intencion(tipo=tipo, pregunta_especifica=bool(resto))
 
 

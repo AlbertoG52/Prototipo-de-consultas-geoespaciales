@@ -121,6 +121,12 @@ MCP_ESPERA_REINTENTO_SEGUNDOS = max(
     float(os.environ.get("MCP_ESPERA_REINTENTO_SEGUNDOS", "1")), 0.0
 )
 
+# DEF-13 — cuántas llamadas pesadas (mapa, registros de GBIF, LLM, búsqueda
+# semántica) puede tener el backend abiertas a la vez con CR-BioLM. Las demás
+# esperan su turno, hasta donde les alcance el tiempo de su consulta (RR_38),
+# en vez de saturar el servidor y fallar todas juntas. 0 = sin límite.
+MCP_LLAMADAS_SIMULTANEAS = max(int(os.environ.get("MCP_LLAMADAS_SIMULTANEAS", "3")), 0)
+
 # RR_49 — tiempo máximo para que el LLM de CR-BioLM (answer_question) redacte la
 # respuesta. Si se pasa, la respuesta sale con el texto del Manual en lugar de
 # cortar la consulta. Los modelos gratuitos de OpenRouter pueden ser lentos.

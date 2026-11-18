@@ -23,6 +23,8 @@ Qué hace:
 - Reintenta solo cuando no se pudo conectar, y solo si la herramienta todavía no
   se había pedido. Una llamada que ya llegó al servidor no se repite: podría
   haber gastado una consulta al LLM (L2), y repetirla la cobraría dos veces.
+- Limita las llamadas pesadas simultáneas (MCP_LLAMADAS_SIMULTANEAS, DEF-13):
+  las demás esperan turno en vez de saturar CR-BioLM.
 - Convierte cada fallo en una excepción propia (ver `ErrorMCP`), para que los
   routers muestren un mensaje claro con opción de reintentar (RR_05) sin
   conocer los detalles del protocolo.
@@ -34,9 +36,10 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import time
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager, contextmanager
 from dataclasses import dataclass
 from functools import partial
 from typing import Any
@@ -141,7 +144,53 @@ class Sobre:
 
 def llamar(herramienta: str, **argumentos: Any) -> Sobre:
     """Llama una herramienta de CR-BioLM y devuelve su sobre."""
-    return anyio.run(partial(allamar, herramienta, **argumentos))
+    with _turno(herramienta):
+        return anyio.run(partial(allamar, herramienta, **argumentos))
+
+
+# DEF-13 — las herramientas que hacen trabajar de verdad a CR-BioLM: dibujar el
+# mapa, descargar registros de GBIF, el LLM y la búsqueda semántica. Las de
+# consulta a tablas (L0) no esperan turno.
+HERRAMIENTAS_PESADAS = frozenset(
+    {
+        "get_species_map_image",
+        "render_species_map",
+        "get_occurrence_points",
+        "get_occurrences",
+        "answer_question",
+        "get_relevant_passage",
+        "semantic_search",
+    }
+)
+_turnos = (
+    threading.BoundedSemaphore(config.MCP_LLAMADAS_SIMULTANEAS)
+    if config.MCP_LLAMADAS_SIMULTANEAS > 0
+    else None
+)
+
+
+@contextmanager
+def _turno(herramienta: str) -> Iterator[None]:
+    """DEF-13: espera turno para una herramienta pesada (MCP_LLAMADAS_SIMULTANEAS).
+
+    Espera a lo sumo lo que le queda a la consulta (RR_38) o MCP_TIMEOUT_SEGUNDOS;
+    si no hubo turno, es tiempo agotado, igual que una llamada que tarda de más.
+    """
+    if _turnos is None or herramienta not in HERRAMIENTAS_PESADAS:
+        yield
+        return
+    restantes = segundos_restantes()
+    espera = (
+        config.MCP_TIMEOUT_SEGUNDOS
+        if restantes is None
+        else min(restantes, config.MCP_TIMEOUT_SEGUNDOS)
+    )
+    if espera <= 0 or not _turnos.acquire(timeout=espera):
+        raise MCPTiempoAgotado(herramienta, "no hubo turno para llamar a CR-BioLM a tiempo")
+    try:
+        yield
+    finally:
+        _turnos.release()
 
 
 async def allamar(herramienta: str, **argumentos: Any) -> Sobre:

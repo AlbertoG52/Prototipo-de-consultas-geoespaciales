@@ -38,6 +38,9 @@ GBIF = "GBIF"
 CR_BIOLM = "CR-BioLM"
 
 SIN_TEXTO = "El Manual de Plantas de Costa Rica no describe la distribución de esta especie."
+# RR_53 (DEF-09): pregunta cómo es la planta y la ficha no trae su descripción.
+SIN_DESCRIPCION = "El Manual de Plantas de Costa Rica no trae la descripción de esta especie."
+DE_LA_DISTRIBUCION = "se muestra lo que dice de su distribución"
 
 # RR_49: de dónde sale el texto cuando lo redacta el LLM de CR-BioLM.
 REDACTADO_CON_IA = "respuesta redactada con IA a partir del Manual"
@@ -163,10 +166,19 @@ class ContextoEspecie:
         """El texto de la respuesta del chat."""
         return self._texto()[0]
 
+    @property
+    def gbif_aporto_registros(self) -> bool:
+        """RR_50 (DEF-10): GBIF respondió y trajo al menos un registro válido."""
+        return self.gbif is not None and self.total_registros > 0
+
     def fuentes(self) -> list[str]:
-        """Las fuentes consultadas, sin repetir (RR_51): la cita del Manual y "GBIF"."""
+        """Las fuentes usadas, sin repetir (RR_51): la cita del Manual y "GBIF".
+
+        RR_50 (DEF-10): GBIF solo si aportó registros; si respondió sin ninguno,
+        la respuesta no usó nada suyo.
+        """
         citas = [self.manual.cita or MANUAL]
-        if self.gbif is not None:
+        if self.gbif_aporto_registros:
             citas.append(GBIF)
         if self.redaccion is not None:
             # RR_50: las páginas del Manual que citó el LLM también son fuentes.
@@ -199,7 +211,7 @@ class ContextoEspecie:
             origen.append(Procedencia(dato=DatoRespuesta.TEXTO, fuente=MANUAL, detalle=detalle))
         if self.ficha.get("elev_min") is not None or self.ficha.get("elev_max") is not None:
             origen.append(Procedencia(dato=DatoRespuesta.ELEVACION, fuente=MANUAL, detalle=ficha))
-        if self.gbif is not None:
+        if self.gbif_aporto_registros:
             detalle = _detalle_registros(self.registros_actualizados_en)
             origen.append(Procedencia(dato=DatoRespuesta.REGISTROS, fuente=GBIF, detalle=detalle))
         if self.mapa is not None:
@@ -207,6 +219,23 @@ class ContextoEspecie:
                 Procedencia(dato=DatoRespuesta.MAPA, fuente=CR_BIOLM, detalle=DETALLE_MAPA)
             )
         return origen
+
+    def avisos_del_texto(self) -> list[str]:
+        """RR_53 (DEF-09): si pregunta cómo es la planta y el Manual no la describe, decirlo.
+
+        Sin la descripción, el texto sale de otra sección (casi siempre la
+        distribución) o lo redacta el LLM con lo que hay; el aviso evita que
+        parezca una descripción.
+        """
+        if self.tipo is not TipoPregunta.DESCRIPCION or self.ficha.get("morphology"):
+            return []
+        # El texto vectorizado del Manual (RR_44) puede traer la descripción aunque
+        # la ficha estructurada no la tenga.
+        if self.fragmento is not None and self.fragmento.seccion == "description":
+            return []
+        if SECCIONES["distribution"] in self._texto()[1]:
+            return [f"{SIN_DESCRIPCION.removesuffix('.')}; {DE_LA_DISTRIBUCION}."]
+        return [SIN_DESCRIPCION]
 
     def _texto(self) -> tuple[str, str]:
         """(texto, de dónde sale). Orden de preferencia:

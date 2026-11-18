@@ -88,7 +88,7 @@ from .contexto_especie import (
 from .correccion import corregir_nombres
 from .intencion import analizar
 from .mcp_cliente import MCPErrorHerramienta, MCPRespuestaInvalida, MCPTiempoAgotado, Sobre
-from .nombres_comunes import Frase, en_singular, frases_candidatas
+from .nombres_comunes import Frase, en_singular, frase_completa, frases_candidatas
 from .regiones import Zona, extraer_zona
 from .validacion_datos import alcanza_para_mapa, misma_especie, punto_valido
 
@@ -161,30 +161,39 @@ class CatalogoCRBioLM:
         4. RR_27: sinónimos científicos ("Bombax pentandrum"), con list_synonyms.
         5. RR_28: solo un género con varias especies ("Quercus"); se ofrecen
            algunas para que el usuario elija o sea más específico.
+
+        RR_36 (DEF-07): con nombres científicos se buscan además los nombres
+        comunes del resto de la consulta ("el cocobolo y Quercus oleoides"). Uno
+        que también nombra a una de esas especies no se agrega: es la misma
+        planta dicha de otra forma ("el roble Quercus oleoides").
         """
-        encontradas = self._por_nombre_cientifico(texto)
+        buscado = texto
+        encontradas, ocupadas = self._nombres_cientificos(texto)
         if not encontradas:
             corregido = corregir_nombres(texto, self._nombres())
             if corregido != texto:
-                encontradas = self._por_nombre_cientifico(corregido)
-        return (
-            encontradas
-            or _por_nombre_comun(texto)
-            or self._por_sinonimo(texto)
-            or self._por_genero(texto)
-        )
+                buscado = corregido
+                encontradas, ocupadas = self._nombres_cientificos(corregido)
+        if encontradas:
+            ids = {e.id for e in encontradas}
+            otras = _por_nombre_comun(buscado, ocupadas=ocupadas, ya_nombradas=ids)
+            return [*encontradas, *(c for c in otras if c.id not in ids)]
+        return _por_nombre_comun(texto) or self._por_sinonimo(texto) or self._por_genero(texto)
 
-    def _por_nombre_cientifico(self, texto: str) -> list[EspecieCandidata]:
-        palabras = _PALABRA.findall(texto)
+    def _nombres_cientificos(self, texto: str) -> tuple[list[EspecieCandidata], list[Frase]]:
+        """Las especies con su nombre científico en `texto`, y dónde están escritas."""
         encontradas: dict[str, EspecieCandidata] = {}
-        for genero, epiteto in pairwise(palabras):
+        ocupadas: list[Frase] = []
+        for genero, epiteto in pairwise(_PALABRA.finditer(texto)):
             # RR_35: los nombres científicos no llevan tildes, así que se quitan
             # antes de buscar ("Quércus" encuentra Quercus).
-            manual = self._manual(normalizar(f"{genero} {epiteto}").capitalize())
+            manual = self._manual(normalizar(f"{genero.group()} {epiteto.group()}").capitalize())
             if manual is not None:
                 candidata = _candidata(manual.valor)
                 encontradas.setdefault(candidata.id, candidata)
-        return list(encontradas.values())
+                inicio, fin = genero.start(), epiteto.end()
+                ocupadas.append(Frase(texto[inicio:fin], inicio, fin))
+        return list(encontradas.values()), ocupadas
 
     def _por_genero(self, texto: str) -> list[EspecieCandidata]:
         """RR_28: las especies del primer género del Manual que nombra la consulta.
@@ -247,18 +256,23 @@ class CatalogoCRBioLM:
         """
         nombre = a_nombre(especie_id)
         interpretacion: list[str] = []
+        nombre_comun: str | None = None
         if texto_consulta and normalizar(nombre) not in normalizar(texto_consulta):
             # RR_23: el Manual y el LLM reciben la pregunta con el nombre corregido.
             texto_consulta = corregir_nombres(texto_consulta, self._nombres())
             # RR_25: si la nombró por su nombre común, con el científico al lado.
-            texto_consulta, interpretacion = _con_nombre_comun(texto_consulta, nombre)
+            usado = _con_nombre_comun(texto_consulta, nombre)
+            texto_consulta, interpretacion = usado.pregunta, list(usado.avisos)
+            nombre_comun = usado.nombre_comun
             # RR_27: si la nombró por un sinónimo, con el nombre del Manual al lado.
             texto_consulta, aviso_sinonimo = self._con_sinonimo(texto_consulta, nombre)
             interpretacion += aviso_sinonimo
             # RR_28: y, si nombró solo el género, con la especie que eligió.
             texto_consulta = _con_especie_del_genero(texto_consulta, nombre)
-        # RR_36: si nombra varias especies, solo la parte de esta.
-        texto_consulta = _pregunta_de_la_especie(texto_consulta, nombre, self._nombres())
+        # RR_36: si nombra varias especies, solo la parte de esta. DEF-07: también
+        # cuando las otras están dichas por su nombre común ("el cocobolo y …").
+        otras = _otras_por_nombre_comun(texto_consulta, nombre, self._nombres())
+        texto_consulta = _pregunta_de_la_especie(texto_consulta, nombre, self._nombres(), otras)
         # RR_35: y escrito como en el catálogo, sin importar mayúsculas ni tildes.
         # CR-BioLM reconoce la especie de la pregunta solo si está escrita así
         # ("Quercus costaricensis"); si no, la toma como una pregunta por varias
@@ -268,15 +282,19 @@ class CatalogoCRBioLM:
         if contexto is None:
             return None
         contexto = _con_redaccion_ia(contexto, texto_consulta)
+        especie = _candidata(contexto.ficha)
+        if nombre_comun:
+            # DEF-08 (RR_14): el nombre común con el que la buscó el usuario.
+            especie = especie.model_copy(update={"nombre_comun": nombre_comun})
         return RespuestaConsulta(
-            especie=_candidata(contexto.ficha),
+            especie=especie,
             texto=contexto.texto(),
             elevacion=_elevacion(contexto.ficha),
             registros=contexto.registros,
             total_registros=contexto.total_registros,
             fuentes=contexto.fuentes(),
             mapa=contexto.mapa_especie(_url_del_mapa(contexto.especie)),
-            avisos=[*interpretacion, *contexto.avisos],
+            avisos=[*interpretacion, *contexto.avisos, *contexto.avisos_del_texto()],
             geoespacial=contexto.geoespacial,
             tipo=contexto.tipo,
             procedencia=contexto.procedencia(),
@@ -455,17 +473,26 @@ class _NombreComun:
     especies: list[dict[str, Any]]  # las candidatas que corresponden
 
 
-def _por_nombre_comun(texto: str) -> list[EspecieCandidata]:
+def _por_nombre_comun(
+    texto: str, *, ocupadas: list[Frase] | None = None, ya_nombradas: set[str] | None = None
+) -> list[EspecieCandidata]:
     """RR_25: las especies de los nombres comunes de la consulta.
 
     Las frases se prueban de la más larga a la más corta (nombres_comunes.py);
-    una que se cruza con un nombre ya reconocido no se prueba. "unique" o
-    "preferred" dan la especie que eligió CR-BioLM; "ambiguous", todas sus
-    candidatas, para que el usuario elija (RR_17). Si CR-BioLM no puede resolver
-    nombres comunes, no se reconoce ninguno.
+    una que se cruza con un nombre ya reconocido, o con `ocupadas` (los nombres
+    científicos, DEF-07), no se prueba. "unique" o "preferred" dan la especie que
+    eligió CR-BioLM; "ambiguous", todas sus candidatas, para que el usuario elija
+    (RR_17). Si CR-BioLM no puede resolver nombres comunes, no se reconoce ninguno.
+
+    DEF-07: un nombre común que también nombra a una especie de `ya_nombradas`
+    (ids) no agrega nada: es la misma planta ("el roble Quercus oleoides").
+
+    DEF-14: si la frase reconocida es solo un pedazo del nombre que escribió el
+    usuario ("amargo" de "cedro amargo"), sus especies se marcan con la frase
+    completa, para preguntarle antes de responder.
     """
     encontradas: dict[str, EspecieCandidata] = {}
-    reconocidas: list[Frase] = []
+    reconocidas: list[Frase] = list(ocupadas or [])
     for frase in frases_candidatas(texto):
         if any(frase.se_cruza_con(r) for r in reconocidas):
             continue
@@ -474,16 +501,23 @@ def _por_nombre_comun(texto: str) -> list[EspecieCandidata]:
         except (MCPErrorHerramienta, MCPRespuestaInvalida) as error:
             logger.warning("RR_25: CR-BioLM no resolvió nombres comunes: %s", error)
             break
-        if comun is not None:
-            reconocidas.append(frase)
-            for c in comun.especies:
-                candidata = EspecieCandidata(
-                    id=a_id(c["species"]),
-                    nombre_comun=comun.nombre,
-                    nombre_cientifico=c["species"],
-                    familia=c.get("family") or SIN_DATO,
-                )
-                encontradas.setdefault(candidata.id, candidata)
+        if comun is None:
+            continue
+        reconocidas.append(frase)
+        if ya_nombradas and any(a_id(c["species"]) in ya_nombradas for c in comun.especies):
+            continue
+        completa = frase_completa(texto, frase)
+        incompleta = completa.texto if completa != frase else None
+        for c in comun.especies:
+            candidata = EspecieCandidata(
+                id=a_id(c["species"]),
+                nombre_comun=comun.nombre,
+                nombre_cientifico=c["species"],
+                familia=c.get("family") or SIN_DATO,
+            )
+            if incompleta:
+                candidata.con_frase_incompleta(incompleta)
+            encontradas.setdefault(candidata.id, candidata)
     return list(encontradas.values())
 
 
@@ -513,37 +547,86 @@ def _nombre_comun(frase: str) -> _NombreComun | None:
     return None
 
 
-def _con_nombre_comun(texto: str, nombre: str) -> tuple[str, list[str]]:
+@dataclass(frozen=True)
+class _NombreComunUsado:
+    """RR_25: cómo nombró la consulta a la especie con un nombre común."""
+
+    pregunta: str  # la consulta con el nombre científico al lado
+    avisos: list[str]
+    nombre_comun: str | None  # DEF-08: el nombre como lo escribió el usuario
+
+
+def _con_nombre_comun(texto: str, nombre: str) -> _NombreComunUsado:
     """RR_25: la pregunta con `nombre` junto al nombre común que la nombró, y el aviso.
 
     "¿Dónde crece la ceiba?" -> "¿Dónde crece la ceiba (Ceiba pentandra)?": así
     el Manual y el LLM de CR-BioLM saben de qué especie se habla. El aviso dice
-    cómo se entendió el nombre cuando lo eligió CR-BioLM; si el usuario eligió
-    entre varias especies, no hace falta. Sin nombre común, queda igual.
+    cómo se entendió el nombre y de dónde sale la asociación (DEF-16). Sin nombre
+    común, queda igual.
     """
+    sin_cambios = _NombreComunUsado(texto, [], None)
     if normalizar(nombre) in normalizar(texto):
-        return texto, []
+        return sin_cambios
     for frase in frases_candidatas(texto):
         try:
             comun = _nombre_comun(frase.texto)
         except (MCPErrorHerramienta, MCPRespuestaInvalida):
-            return texto, []
-        if comun is None or all(c["species"] != nombre for c in comun.especies):
+            return sin_cambios
+        especie = (
+            next((c for c in comun.especies if c["species"] == nombre), None) if comun else None
+        )
+        if comun is None or especie is None:
             continue
         pregunta = f"{texto[: frase.fin]} ({nombre}){texto[frase.fin :]}"
-        return pregunta, _aviso_de_interpretacion(frase.texto, nombre, comun.decision)
-    return texto, []
+        fuentes = especie.get("sources") or []
+        avisos = _aviso_de_interpretacion(frase.texto, nombre, comun.decision, fuentes)
+        return _NombreComunUsado(pregunta, avisos, _como_nombre(frase.texto))
+    return sin_cambios
 
 
-def _aviso_de_interpretacion(frase: str, nombre: str, decision: str) -> list[str]:
+# DEF-16: de dónde sale que un nombre común es de una especie (los `sources` de
+# resolve_common_name), en el orden en que se citan.
+_FUENTES_DEL_NOMBRE = {
+    "MPCR": "el Manual de Plantas de Costa Rica",
+    "INAT_CR": "iNaturalist (Costa Rica)",
+    "INAT_ES": "iNaturalist",
+    "GBIF": "GBIF",
+    "TROPICOS": "Tropicos",
+}
+
+
+def _aviso_de_interpretacion(
+    frase: str, nombre: str, decision: str, fuentes: list[str] | None = None
+) -> list[str]:
+    segun = _segun(fuentes or [])
     if decision == "preferred":
         return [
             f"Por «{frase}» se entendió {nombre}: es el nombre preferido en Costa Rica "
-            "y la especie mejor documentada."
+            f"y la especie mejor documentada{segun}."
         ]
     if decision == "unique":
-        return [f"Por «{frase}» se entendió {nombre}."]
-    return []
+        return [f"Por «{frase}» se entendió {nombre}{segun}."]
+    # Ambiguo: el usuario eligió la especie; solo falta decir de dónde sale el nombre.
+    return [f"«{frase}» es un nombre común de {nombre}{segun}."] if segun else []
+
+
+def _segun(fuentes: list[str]) -> str:
+    """['MPCR', 'INAT_CR'] -> ' (nombre común según el Manual de Plantas de Costa Rica e
+    iNaturalist (Costa Rica))'. Vacío si CR-BioLM no dijo las fuentes."""
+    citadas = [nombre for clave, nombre in _FUENTES_DEL_NOMBRE.items() if clave in fuentes]
+    if "INAT_CR" in fuentes and "INAT_ES" in fuentes:
+        citadas.remove(_FUENTES_DEL_NOMBRE["INAT_ES"])  # iNaturalist una sola vez
+    if not citadas:
+        return ""
+    *primeras, ultima = citadas
+    union = "e" if normalizar(ultima).startswith("i") else "y"
+    lista = f"{', '.join(primeras)} {union} {ultima}" if primeras else ultima
+    return f" (nombre común según {lista})"
+
+
+def _como_nombre(frase: str) -> str:
+    """'olla de mono' u 'OLLA DE MONO' -> 'Olla de mono' (DEF-08)."""
+    return frase[:1].upper() + frase[1:].lower()
 
 
 # --- RR_27: sinónimos científicos (list_synonyms) -----------------------------
@@ -595,7 +678,12 @@ def _con_especie_del_genero(texto: str, nombre: str) -> str:
     return texto
 
 
-def _pregunta_de_la_especie(texto: str, nombre: str, nombres: dict[str, str]) -> str:
+def _pregunta_de_la_especie(
+    texto: str,
+    nombre: str,
+    nombres: dict[str, str],
+    otras: list[tuple[int, int, str]] | None = None,
+) -> str:
     """RR_36: la parte de la pregunta sobre `nombre`, cuando nombra varias especies.
 
     "¿Dónde crecen Quercus costaricensis en Talamanca y Quercus oleoides en el
@@ -604,8 +692,11 @@ def _pregunta_de_la_especie(texto: str, nombre: str, nombres: dict[str, str]) ->
     de la siguiente. Si solo la última tiene algo después de su nombre ("… y
     Quercus oleoides en Talamanca?"), vale para todas. Así el Manual, el LLM y
     la zona (RR_39) son los de cada especie. Con una sola especie queda igual.
+
+    `otras`: menciones de otras especies por su nombre común (DEF-07), con el
+    mismo formato que las de `_menciones`.
     """
-    menciones = _menciones(texto, nombres)
+    menciones = sorted([*_menciones(texto, nombres), *(otras or [])])
     if len({canonico for _, _, canonico in menciones}) < 2:
         return texto
     buscada = normalizar(nombre)
@@ -621,6 +712,35 @@ def _pregunta_de_la_especie(texto: str, nombre: str, nombres: dict[str, str]) ->
     if texto.rstrip().endswith("?") and not pregunta.rstrip().endswith("?"):
         pregunta = pregunta.rstrip() + "?"
     return pregunta
+
+
+def _otras_por_nombre_comun(
+    texto: str, nombre: str, nombres: dict[str, str]
+) -> list[tuple[int, int, str]]:
+    """DEF-07: las otras especies que `texto` nombra por su nombre común.
+
+    Solo si `nombre` está escrito con su nombre científico (si no, la consulta
+    no mezcla nombres). Un nombre común que también es de `nombre` no cuenta.
+    """
+    cientificas = _menciones(texto, nombres)
+    if not any(normalizar(m[2]) == normalizar(nombre) for m in cientificas):
+        return []
+    ocupadas = [Frase(texto[i:f], i, f) for i, f, _ in cientificas]
+    otras: list[tuple[int, int, str]] = []
+    for frase in frases_candidatas(texto):
+        if any(frase.se_cruza_con(o) for o in ocupadas):
+            continue
+        try:
+            comun = _nombre_comun(frase.texto)
+        except (MCPErrorHerramienta, MCPRespuestaInvalida):
+            return []
+        if comun is None:
+            continue
+        ocupadas.append(frase)
+        especies = [c["species"] for c in comun.especies]
+        if nombre not in especies:
+            otras.append((frase.inicio, frase.fin, especies[0]))
+    return otras
 
 
 def _menciones(texto: str, nombres: dict[str, str]) -> list[tuple[int, int, str]]:

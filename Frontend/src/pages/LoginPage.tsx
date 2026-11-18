@@ -36,6 +36,8 @@ export function LoginPage() {
       navigate("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar sesión.");
+      // DEF-06: tras un intento fallido se vacía la contraseña; el correo se deja.
+      setPassword("");
     } finally {
       setCargando(false);
     }

@@ -7,7 +7,7 @@ comunes. Que el catálogo las resuelve está en test_catalogo_crbiolm.py.
 import pytest
 
 from app import config
-from app.services.nombres_comunes import Frase, en_singular, frases_candidatas
+from app.services.nombres_comunes import Frase, en_singular, frase_completa, frases_candidatas
 
 
 def _textos(texto: str) -> list[str]:
@@ -64,3 +64,36 @@ def test_dos_frases_se_cruzan_si_comparten_una_parte():
     roble_negro = Frase("roble negro", 16, 27)
     assert roble_negro.se_cruza_con(Frase("negro", 22, 27))
     assert not roble_negro.se_cruza_con(Frase("Talamanca", 31, 40))
+
+
+# --- DEF-14: el nombre completo que contiene una frase ---------------------------------
+
+
+def _completa(texto: str, frase: str) -> str:
+    inicio = texto.index(frase)
+    return frase_completa(texto, Frase(frase, inicio, inicio + len(frase))).texto
+
+
+@pytest.mark.parametrize(
+    ("texto", "frase", "completa"),
+    [
+        # un pedazo: el nombre que escribió el usuario es más largo
+        ("¿Dónde crece el cedro amargo?", "amargo", "cedro amargo"),
+        ("¿Dónde crece el cedro amargo?", "cedro", "cedro amargo"),
+        ("¿Dónde crece el pochote rojo?", "pochote", "pochote rojo"),
+        ("¿Dónde crece la olla de mono?", "mono", "olla de mono"),
+        ("¿Dónde crece la flor de un día?", "día", "flor de un día"),
+        # el nombre entero
+        ("¿Dónde crece la olla de mono?", "olla de mono", "olla de mono"),
+        ("¿Dónde crecen los robles negros?", "robles negros", "robles negros"),
+        # lo que no es parte del nombre lo corta
+        ("¿Dónde crece el roble negro en Talamanca?", "roble negro", "roble negro"),
+        ("¿Dónde crece la olla de mono de Guanacaste?", "olla de mono", "olla de mono"),
+        ("¿Dónde crece el encino, un Quercus?", "encino", "encino"),
+        ("¿Dónde crece normalmente el pochote?", "pochote", "pochote"),
+        ("¿Dónde crece el pochote cerca de Liberia?", "pochote", "pochote"),
+        ("¿Dónde crecen el cocobolo y Quercus oleoides?", "cocobolo", "cocobolo"),
+    ],
+)
+def test_el_nombre_completo_de_una_frase(texto, frase, completa):
+    assert _completa(texto, frase) == completa

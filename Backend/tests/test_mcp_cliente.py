@@ -300,3 +300,34 @@ def test_la_api_corta_la_consulta_si_cr_biolm_tarda(conectado, monkeypatch):
 
     assert respuesta.status_code == 504
     assert time.monotonic() - inicio < 0.9  # antes que MCP_TIMEOUT_SEGUNDOS (1 s)
+
+
+# --- DEF-13: turnos para las herramientas pesadas -----------------------------------
+
+
+def test_una_herramienta_pesada_espera_turno(conectado, monkeypatch):
+    """Sin turno libre, la llamada espera lo que le queda a la consulta y se corta."""
+    from app.tiempo import plazo
+
+    turnos = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(mcp_cliente, "_turnos", turnos)
+    turnos.acquire()  # otra consulta tiene el único turno
+    try:
+        inicio = time.monotonic()
+        with plazo(0.3), pytest.raises(MCPTiempoAgotado) as error:
+            mcp_cliente.llamar("get_occurrences", species="Quercus costaricensis")
+        assert 0.25 < time.monotonic() - inicio < 0.9
+        assert "turno" in error.value.detalle
+        # Una consulta a tablas (L0) no espera turno.
+        assert mcp_cliente.llamar("get_species", name="Quercus costaricensis").valor
+    finally:
+        turnos.release()
+    # Con el turno libre, la pesada se llama y lo devuelve al terminar.
+    assert mcp_cliente.llamar("get_occurrences", species="Quercus costaricensis").fuente == "GBIF"
+    assert turnos.acquire(blocking=False)
+    turnos.release()
+
+
+def test_sin_limite_no_hay_turnos(conectado, monkeypatch):
+    monkeypatch.setattr(mcp_cliente, "_turnos", None)
+    assert mcp_cliente.llamar("get_occurrences", species="Quercus costaricensis").fuente == "GBIF"

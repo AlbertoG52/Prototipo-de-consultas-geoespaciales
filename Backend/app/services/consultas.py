@@ -13,6 +13,9 @@ El router (routers/consultas.py) solo recibe la petición y llama a
 - Varias especies reconocidas -> estado "ambigua" y la lista de candidatas
   (RR_17). El usuario elige una y el frontend reenvía la consulta con
   'especie_id' (y 'consulta_id' si es una cuenta registrada).
+- Un nombre común que solo se encontró en parte ("cedro amargo" -> "amargo",
+  DEF-14)                     -> estado "ambigua", aunque haya una sola
+  candidata, con el mensaje MENSAJE_NOMBRE_INCOMPLETO.
 - Una sola especie            -> estado "resuelta" con la respuesta completa.
 - Un tipo de consulta que su rol no tiene (RR_77, services/permisos.py)
                               -> estado "orientacion" con el motivo
@@ -98,6 +101,8 @@ MENSAJE_SIN_COINCIDENCIAS = (
 MENSAJE_AMBIGUA = (
     "La consulta coincide con más de una especie. Elige una o escribe un nombre más específico."
 )
+# DEF-14 (RR_25, RR_17): el nombre completo no está; solo un pedazo de él.
+MENSAJE_NOMBRE_INCOMPLETO = "No encontré «{frase}». ¿Te refieres a alguna de estas especies?"
 
 
 @dataclass
@@ -281,6 +286,12 @@ def _resolver(datos: ConsultaRequest, catalogo: FuenteCatalogo, permisos_: Permi
         if fuera_de_tema(datos.texto) or fuera_de_costa_rica(datos.texto):
             return _orientacion(MotivoOrientacion.FUERA_DE_TEMA, datos.texto, permisos_)
         return _Resultado(EstadoConsulta.SIN_COINCIDENCIAS, mensaje=MENSAJE_SIN_COINCIDENCIAS)
+    incompleta = next((c.frase_incompleta for c in candidatas if c.frase_incompleta), None)
+    if incompleta:
+        # DEF-14: "cedro amargo" no existe, pero "amargo" sí. Antes de responder
+        # con otra planta se pregunta, aunque haya una sola candidata (RR_17).
+        mensaje = MENSAJE_NOMBRE_INCOMPLETO.format(frase=incompleta)
+        return _Resultado(EstadoConsulta.AMBIGUA, candidatas=candidatas, mensaje=mensaje)
     if len(candidatas) > 1:
         # RR_17 criterios 1 y 2: presentar las coincidencias para que elija.
         return _Resultado(EstadoConsulta.AMBIGUA, candidatas=candidatas, mensaje=MENSAJE_AMBIGUA)

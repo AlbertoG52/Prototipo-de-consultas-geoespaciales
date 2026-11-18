@@ -123,15 +123,29 @@ const MENSAJE_FALLO_SERVIDOR =
 const MARGEN_ESPERA_SEGUNDOS = 10;
 
 /**
+ * RR_38 (DEF-12) — lo mínimo que espera el navegador. El tiempo máximo de la
+ * sesión se leyó al abrir la página: si el servidor lo cambió después (.env y
+ * reinicio), el valor guardado es viejo y no debe cortar antes que el servidor,
+ * que siempre tiene el actual y es quien corta con su propio mensaje.
+ */
+const ESPERA_MINIMA_SEGUNDOS = 180;
+
+/** Cuánto espera el navegador la respuesta de una consulta, en milisegundos. */
+function esperaMaximaMs(segundosMaximos?: number): number {
+  return Math.max(ESPERA_MINIMA_SEGUNDOS, (segundosMaximos ?? 0) + MARGEN_ESPERA_SEGUNDOS) * 1000;
+}
+
+/**
  * RR_36 — cuántas especies busca "Buscar todas" a la vez; las demás esperan su
  * turno. Una: el LLM de CR-BioLM (RR_49) falla si recibe dos preguntas juntas.
  */
 const BUSQUEDAS_SIMULTANEAS = 1;
 
-function mensajeTiempoAgotado(segundos?: number): string {
-  const limite = segundos ? ` de ${segundos} ${segundos === 1 ? "segundo" : "segundos"}` : "";
-  return `La consulta superó el tiempo máximo${limite}. Puedes reintentarla.`;
-}
+/**
+ * Sin los segundos: los de la sesión pueden ser viejos (DEF-12). Cuando el
+ * servidor corta, su 504 trae el mensaje con el tiempo máximo actual.
+ */
+const MENSAJE_TIEMPO_AGOTADO = "La consulta superó el tiempo máximo. Puedes reintentarla.";
 
 /**
  * RR_05 criterio 1 — el error de una consulta explicado en lenguaje sencillo.
@@ -143,12 +157,12 @@ function mensajeTiempoAgotado(segundos?: number): string {
  * - Los demás (límite de consultas, validaciones) ya vienen del backend
  *   redactados para el usuario y se muestran tal cual.
  */
-function mensajeDeError(err: unknown, segundosMaximos?: number): string {
-  if (err instanceof api.TiempoAgotado) return mensajeTiempoAgotado(segundosMaximos);
+function mensajeDeError(err: unknown): string {
+  if (err instanceof api.TiempoAgotado) return MENSAJE_TIEMPO_AGOTADO;
   if (err instanceof TypeError) return MENSAJE_SIN_CONEXION;
   if (!(err instanceof api.ErrorApi)) return MENSAJE_FALLO_SERVIDOR;
   const sinDetalle = /^Error \d+$/.test(err.message);
-  if (err.status === 504) return sinDetalle ? mensajeTiempoAgotado(segundosMaximos) : err.message;
+  if (err.status === 504) return sinDetalle ? MENSAJE_TIEMPO_AGOTADO : err.message;
   if (err.status >= 500 || sinDetalle) return MENSAJE_FALLO_SERVIDOR;
   return err.message;
 }
@@ -264,10 +278,7 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
         const salida = await api.enviarConsulta(limpio, especieId, {
           conversacionId: conversacionRef.current,
           consultaId,
-          esperaMaximaMs:
-            segundosMaximos !== undefined
-              ? (segundosMaximos + MARGEN_ESPERA_SEGUNDOS) * 1000
-              : undefined,
+          esperaMaximaMs: esperaMaximaMs(segundosMaximos),
         });
 
         // RR_09: la consulta quedó guardada en una conversación (solo con cuenta).
@@ -349,7 +360,7 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
         // Solo una consulta resuelta consume del límite.
         if (salida.estado === "resuelta") await refrescarSesion();
       } catch (err) {
-        const mensaje = mensajeDeError(err, segundosMaximos);
+        const mensaje = mensajeDeError(err);
         setMensajes((prev) => [
           ...prev.filter((m) => m.id !== idCarga),
           { clase: "error", id: nuevoId(), mensaje, textoOriginal: limpio },
@@ -402,10 +413,7 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
             // Con cuenta, la primera resuelve la consulta ambigua guardada y las
             // demás se guardan como consultas nuevas de la misma conversación.
             consultaId: i === 0 ? opciones.consultaId : null,
-            esperaMaximaMs:
-              segundosMaximos !== undefined
-                ? (segundosMaximos + MARGEN_ESPERA_SEGUNDOS) * 1000
-                : undefined,
+            esperaMaximaMs: esperaMaximaMs(segundosMaximos),
           });
           if (salida.conversacion_id !== null) tocarConversacion(salida.conversacion_id, opciones.texto);
           poner(
@@ -414,7 +422,7 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
               : { clase: "aviso", id, mensaje: salida.mensaje ?? MENSAJE_SIN_COINCIDENCIAS },
           );
         } catch (err) {
-          poner({ clase: "error", id, mensaje: mensajeDeError(err, segundosMaximos), textoOriginal: opciones.texto });
+          poner({ clase: "error", id, mensaje: mensajeDeError(err), textoOriginal: opciones.texto });
         }
       };
 
