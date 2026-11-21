@@ -11,10 +11,10 @@ from pydantic import ValidationError
 from app import config
 from app.sanitizacion import con_nombre_canonico, limpiar_consulta, normalizar
 from app.schemas.consulta import ConsultaRequest
-from app.services.catalogo import CatalogoDemo
 from app.services.intencion import analizar
 
 from apoyo import api
+from catalogo_demo import CatalogoDemo
 
 catalogo = CatalogoDemo()
 

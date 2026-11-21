@@ -12,13 +12,14 @@ import pytest
 from app import config
 from app.errores import TiempoAgotado
 from app.main import app
-from app.services.catalogo import CatalogoDemo, obtener_catalogo
+from app.services.catalogo import obtener_catalogo
 from app.services.mcp_cliente import MCPTiempoAgotado
 from app.tiempo import plazo, segundos_restantes, verificar_plazo
 
 from apoyo import api
+from catalogo_demo import CatalogoDemo
 
-PEJIBAYE = "pejibaye"  # el catálogo de demostración lo resuelve con una sola especie
+PEJIBAYE = "pejibaye"  # el catálogo de prueba lo resuelve con una sola especie
 
 
 class CatalogoLento(CatalogoDemo):

@@ -1,6 +1,6 @@
 """Pruebas del registro del tiempo de respuesta (services/tiempos.py).
 
-Usan el catálogo de demostración y la BD. Se ejecutan con: docker compose exec backend
+Usan el catálogo de prueba y la BD. Se ejecutan con: docker compose exec backend
 python -m pytest tests/test_tiempos_respuesta.py -q
 """
 
@@ -13,11 +13,12 @@ from app import config
 from app.main import app
 from app.routers import admin
 from app.services import tiempos
-from app.services.catalogo import CatalogoDemo, obtener_catalogo
+from app.services.catalogo import obtener_catalogo
 
 from apoyo import api, crear_cuenta_verificada, sql
+from catalogo_demo import CatalogoDemo
 
-PEJIBAYE = "pejibaye"  # el catálogo de demostración lo resuelve con una sola especie
+PEJIBAYE = "pejibaye"  # el catálogo de prueba lo resuelve con una sola especie
 PASSWORD = "ClaveSegura123"
 
 

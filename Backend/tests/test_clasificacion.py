@@ -9,11 +9,12 @@ docker compose exec backend python -m pytest tests -q
 import pytest
 
 from app.dominio import TipoPregunta
-from app.services.catalogo import CatalogoDemo
 from app.services.contexto_especie import DETALLE_HABITAT, ContextoEspecie, Ocurrencias
 from app.services.habitat import texto_de_habitat
 from app.services.intencion import analizar, tipos_de_bosque
 from app.services.mcp_cliente import Sobre
+
+from catalogo_demo import CatalogoDemo
 
 ESPECIE = "Quercus costaricensis"
 

@@ -1,6 +1,6 @@
 """Pruebas de la ficha completa y de las sugerencias de nombres.
 
-No necesitan base de datos: el catálogo de demostración vive en memoria y las sugerencias
+No necesitan base de datos: el catálogo de prueba vive en memoria y las sugerencias
 se prueban sobre listas de especies. Se ejecutan con: docker compose exec backend python -m
 pytest tests -q
 """
@@ -9,9 +9,9 @@ import pytest
 from fastapi import HTTPException
 
 from app.routers import especies
-from app.services.catalogo import CatalogoDemo
 
 from apoyo import SESION_INVALIDA, VISITANTE
+from catalogo_demo import CatalogoDemo
 
 # El de demostración, no el que elija el .env: estas pruebas usan sus especies.
 catalogo = CatalogoDemo()

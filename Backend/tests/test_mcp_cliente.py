@@ -26,6 +26,8 @@ from app.services.mcp_cliente import (
     Sobre,
 )
 
+from catalogo_demo import CatalogoDemo
+
 # --- servidor falso -------------------------------------------------------------
 
 falso = FastMCP("crbiolm-falso")
@@ -278,7 +280,7 @@ def test_la_api_corta_la_consulta_si_cr_biolm_tarda(conectado, monkeypatch):
     from fastapi.testclient import TestClient
 
     from app.main import app
-    from app.services.catalogo import CatalogoDemo, obtener_catalogo
+    from app.services.catalogo import obtener_catalogo
 
     class CatalogoQueLlamaACRBioLM(CatalogoDemo):
         def construir_respuesta(self, especie_id, texto_consulta):

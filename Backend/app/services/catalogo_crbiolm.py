@@ -28,7 +28,7 @@ El texto depende de la pregunta (services/intencion.py): la respuesta redactada 
 de CR-BioLM con citas del Manual, si responde sobre la misma especie y a tiempo; si no, el
 fragmento del Manual que responde la pregunta o el texto de la ficha.
 
-Se activa con CATALOGO=crbiolm. Los errores de conexión y el tiempo agotado los maneja el
+Los errores de conexión y el tiempo agotado los maneja el
 servicio de consultas; si fallan GBIF, el mapa, el fragmento o el LLM, la respuesta sale
 igual con lo disponible.
 """

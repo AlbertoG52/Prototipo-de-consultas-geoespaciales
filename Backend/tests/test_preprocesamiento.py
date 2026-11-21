@@ -12,7 +12,7 @@ from app.dominio import EstadoConsulta, MotivoOrientacion
 from app.main import app
 from app.schemas.consulta import EspecieCandidata
 from app.services import consultas, intencion
-from app.services.catalogo import CatalogoDemo, obtener_catalogo
+from app.services.catalogo import obtener_catalogo
 from app.services.contexto_especie import MANUAL
 from app.services.preprocesamiento import (
     EJEMPLOS_DE_CONSULTA,
@@ -23,6 +23,7 @@ from app.services.preprocesamiento import (
 )
 
 from apoyo import CatalogoQueNoSeUsa, api, crear_cuenta_verificada, sql
+from catalogo_demo import CatalogoDemo
 
 PASSWORD = "Clave#2024"
 

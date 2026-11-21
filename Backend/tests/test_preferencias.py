@@ -17,7 +17,7 @@ from app.services.preferencias import Preferencias
 from apoyo import api, crear_cuenta_verificada, sql, usuario_falso
 
 PASSWORD = "Clave#2024"
-RESUELTA = "pejibaye"  # el catálogo de demostración la resuelve con fuentes
+RESUELTA = "pejibaye"  # el catálogo de prueba la resuelve con fuentes
 
 
 # --- aplicar: qué se quita de la respuesta ------------------------------------
