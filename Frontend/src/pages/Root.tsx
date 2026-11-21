@@ -1,19 +1,17 @@
 /**
  * Marco de la aplicación: barra lateral y contenido.
  *
- * Es la primera vista que ve cualquier usuario, con o sin cuenta.
- * (RR_00_11). La barra lateral cambia según el tipo de sesión: el visitante no
- * tiene historial ni perfil, y su contador de consultas es más bajo.
+ * Es la primera vista, con o sin cuenta. El visitante no tiene historial ni perfil, y su contador
+ * de consultas es más bajo.
  *
  * Diseño adaptable:
- *  - Pantallas chicas (< md): la barra lateral se oculta y se abre como panel
- *    encima del contenido con el botón de menú de la barra superior.
- *  - Pantallas grandes: la barra lateral está fija y se puede plegar; la
- *    preferencia se recuerda en el navegador.
- *  - El pie de la barra lateral (perfil y consultas restantes) y el área donde
- *    se escribe la consulta (ChatPage) se alinean: cada uno publica su altura
- *    natural (--alto-pie-lateral y --alto-pie-chat, en <html>) y los dos usan
- *    la mayor como altura mínima, así su línea divisoria queda a la misma altura.
+ * - Pantallas chicas (< md): la barra lateral se abre como panel con el botón de menú de la barra
+ *   superior.
+ * - Pantallas grandes: la barra lateral está fija y se puede plegar; la preferencia se recuerda en
+ *   el navegador.
+ * - El pie de la barra lateral y el área de la consulta (ChatPage) publican su altura natural
+ *   (--alto-pie-lateral y --alto-pie-chat) y ambos usan la mayor, para que sus líneas divisorias
+ *   queden alineadas.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
@@ -54,10 +52,9 @@ function iniciales(nombre: string | null, correo: string): string {
 }
 
 /**
- * RR_66 — consultas restantes del periodo del rol (día, semana o mes; RR_64).
- * Sin cuenta el límite es diario y menor (RR_00_11). En rojo cuando ya no
- * quedan; al pasar el mouse dice cuándo se restablecen (RR_65). Se actualiza
- * después de cada consulta resuelta (ConsultasContext refresca la sesión).
+ * Consultas restantes del periodo del rol (día, semana o mes). Sin cuenta el límite es diario y
+ * menor. En rojo cuando no quedan; al pasar el mouse dice cuándo se restablecen. Se actualiza
+ * después de cada consulta resuelta.
  */
 function ContadorConsultas({ sesion, conBarra = false }: { sesion: Sesion | null; conBarra?: boolean }) {
   const cargando = sesion === null;
@@ -67,8 +64,8 @@ function ContadorConsultas({ sesion, conBarra = false }: { sesion: Sesion | null
   const porcentaje = limite > 0 ? (restantes / limite) * 100 : 0;
   const periodo = sesion ? PERIODO_ACTUAL[sesion.periodo_consultas] : "";
   const reinicio = sesion ? `Se restablecen el ${formatearReinicio(sesion.consultas_se_restablecen_en)}` : undefined;
-  // Junto al nombre de la cuenta hay poco espacio: "5/20 esta semana" en vez de
-  // "5/20 consultas esta semana" (el de hoy cabe completo, como antes).
+  // Junto al nombre de la cuenta hay poco espacio: "5/20 esta semana" en vez de "5/20 consultas
+  // esta semana".
   const cantidad = `${restantes}/${limite}`;
   const texto = conBarra
     ? `Quedan ${cantidad} consultas ${periodo}`
@@ -203,7 +200,7 @@ export function Root() {
     return () => document.removeEventListener("pointerdown", alTocar);
   }, [menuCuentaAbierto]);
 
-  // Altura natural del pie (+1 px del borde) -> --alto-pie-lateral (ver el comentario del módulo).
+  // Altura natural del pie (+1 px del borde) -> --alto-pie-lateral.
   useEffect(() => {
     const pie = pieRef.current;
     if (!pie) return;
@@ -218,8 +215,7 @@ export function Root() {
     };
   }, []);
 
-  // RR_00_04 criterio 3: al expirar por inactividad se limpia la conversación
-  // (puede tener datos de la cuenta) y se pide iniciar sesión de nuevo.
+  // Al expirar por inactividad se limpia la conversación y se pide iniciar sesión de nuevo.
   useEffect(() => {
     if (!sesionExpirada) return;
     nuevaConsulta();
@@ -271,9 +267,7 @@ export function Root() {
         style={{ width: 260, maxWidth: "85vw", background: "var(--color-superficie)", borderColor: "var(--color-borde)" }}
       >
         <div className="flex items-center">
-          {/*
-            RR_01 — acceso al agente de IA.
-          */}
+          {/* Acceso al agente. */}
           <button
             onClick={irAlAgente}
             aria-label="Abrir el agente de flora"
@@ -328,10 +322,8 @@ export function Root() {
         </div>
 
         {/*
-          RR_09 — historial por conversaciones, la de actividad más reciente
-          primero. Se conserva aunque la persona cierre sesión y vuelva a entrar.
-          Para un visitante sin cuenta la lista no existe: sus consultas no se
-          guardan (RR_00_11.
+          Historial por conversaciones, la de actividad más reciente primero. El visitante sin
+          cuenta no tiene historial: sus consultas no se guardan.
         */}
         <div className="flex-1 overflow-y-auto px-3">
           <div className="text-xs font-medium mb-2 px-2" style={{ color: "var(--color-texto-secundario)" }}>
@@ -344,7 +336,7 @@ export function Root() {
               style={{ background: "var(--color-fondo)", color: "var(--color-texto-tenue)", border: "1px dashed var(--color-borde)" }}
             >
               Estás consultando sin cuenta, así que tus consultas no se guardan.
-              {/* RR_00_11: sin cuenta el límite diario es menor. */}
+              {/* Sin cuenta el límite diario es menor. */}
               <span className="block mt-1">Con una cuenta tienes más consultas al día.</span>
               <button
                 onClick={() => navigate("/login")}
@@ -399,9 +391,8 @@ export function Root() {
         </div>
 
         {/*
-          Pie: cuenta y consultas restantes, alineado con el área de la consulta.
-          Con cuenta es una sola fila que abre el menú de la cuenta; el visitante
-          ve los botones para entrar o registrarse.
+          Pie: cuenta y consultas restantes. Con cuenta, una fila que abre el menú de la cuenta; el
+          visitante ve los botones para entrar o registrarse.
         */}
         <div
           className="shrink-0 flex flex-col justify-end md:min-h-[max(var(--alto-pie-lateral,0px),var(--alto-pie-chat,0px))]"
@@ -425,7 +416,7 @@ export function Root() {
                         Administración
                       </OpcionDeMenu>
                     )}
-                    {/* RR_00_01 cerrar la sesión activa. */}
+                    {/* Cerrar la sesión activa. */}
                     <OpcionDeMenu icono={LogOut} onClick={() => void manejarSalida()}>
                       Cerrar sesión
                     </OpcionDeMenu>

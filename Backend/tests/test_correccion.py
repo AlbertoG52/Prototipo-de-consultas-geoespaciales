@@ -1,7 +1,7 @@
-"""Pruebas de RR_23 — corrección de errores ortográficos (services/correccion.py).
+"""Pruebas de la corrección de errores ortográficos (services/correccion.py).
 
-No necesitan CR-BioLM ni la BD: se corrige contra una lista de nombres fija. Las
-que pasan por el catálogo de CR-BioLM están en test_catalogo_crbiolm.py.
+No necesitan CR-BioLM ni la BD: se corrige contra una lista fija. Las que pasan por el
+catálogo de CR-BioLM están en test_catalogo_crbiolm.py.
 """
 
 import pytest
@@ -31,7 +31,7 @@ def test_letras_distintas(a, b, letras):
     assert letras_distintas(a, b) == letras
 
 
-# --- criterio 1: variaciones simples, hasta dos letras --------------------------------
+# --- variaciones simples, hasta dos letras -----------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -60,7 +60,7 @@ def test_el_maximo_de_letras_se_configura(monkeypatch):
     assert corregir_nombres("Qercus costarisensis", NOMBRES) == "Qercus costarisensis"
 
 
-# --- criterio 2: no altera el sentido de la consulta ----------------------------------
+# --- no altera el sentido de la consulta -------------------------------------------
 
 
 def test_solo_cambia_el_nombre_y_el_resto_queda_igual():

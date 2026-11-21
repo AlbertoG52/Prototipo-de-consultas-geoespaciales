@@ -1,18 +1,14 @@
--- RR_33: registro interno de la intención detectada en cada consulta, para
--- monitoreo y mejora (y RR_29 criterio 3: el tipo de consulta detectado).
+-- Intención detectada en cada consulta, para monitoreo.
 --
--- Va en tiempos_respuesta (015) porque esa tabla ya tiene una fila por CADA
--- POST /consultas, termine bien o mal, de cuentas y de visitantes, con su id
--- único (criterio 2) y, para una cuenta, el enlace a la consulta guardada
--- (consulta_id). No guarda el texto: del visitante solo queda qué intentó
--- hacer, no qué escribió (RR_00_11).
+-- Va en tiempos_respuesta, que tiene una fila por cada consulta de cuentas y visitantes. No
+-- guarda el texto.
 --
 -- Valores (dominio.IntencionConsulta):
---   distribucion, habitat, descripcion, general   consulta sobre una especie (RR_29)
+--   distribucion, habitat, descripcion, general   consulta sobre una especie
 --   sin_sentido, idioma, ayuda, saludo,          mensaje que no es una consulta
---   fuera_de_tema                                (RR_22, RR_32, RR_37, RR_40)
+--   fuera_de_tema
 --
--- Las filas anteriores a esta migración quedan sin intención (NULL).
+-- Las filas anteriores quedan sin intención (NULL).
 
 ALTER TABLE tiempos_respuesta ADD COLUMN IF NOT EXISTS intencion VARCHAR(20);
 

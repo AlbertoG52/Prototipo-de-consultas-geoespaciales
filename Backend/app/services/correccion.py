@@ -1,15 +1,10 @@
-"""Corrección de errores ortográficos en nombres científicos — RR_23.
+"""Corrección de errores ortográficos en nombres científicos.
 
-Un par de palabras de la consulta que no es un nombre del catálogo se cambia por
-el nombre que se escribe con a lo sumo LETRAS_MAXIMAS_CORRECCION letras de
-diferencia (cambiada, faltante o sobrante): "Querus costaricencis" está a dos
-de "Quercus costaricensis". Solo se corrige si hay UN nombre así de cercano;
-ante un empate no se adivina.
-
-Se compara sin tildes ni mayúsculas (normalizar, RR_35). Solo cambia el nombre
-mal escrito: el resto del texto queda igual (criterio 2). El texto corregido es
-el que se usa para buscar (criterio 3); el que se guarda y se muestra es el que
-escribió el usuario.
+Un par de palabras que no es un nombre del catálogo se cambia por el nombre que está a lo
+sumo a LETRAS_MAXIMAS_CORRECCION letras de diferencia: "Querus costaricencis" está a dos de
+"Quercus costaricensis". Solo se corrige si hay un único nombre así de cercano. Se compara
+sin tildes ni mayúsculas y solo cambia el nombre mal escrito. El texto corregido se usa
+para buscar; se guarda y muestra el que escribió el usuario.
 """
 
 from __future__ import annotations
@@ -23,8 +18,8 @@ from ..sanitizacion import normalizar
 
 _PALABRA = re.compile(r"[^\W\d_][\w-]*")
 
-# difflib descarta rápido los nombres muy distintos antes de contar letras. Con
-# 0.7 no se pierde ningún nombre a dos letras de distancia.
+# difflib descarta rápido los nombres muy distintos antes de contar letras. Con 0.7 no se
+# pierde ningún nombre a dos letras de distancia.
 _PARECIDO_MINIMO = 0.7
 _CANDIDATOS = 5
 

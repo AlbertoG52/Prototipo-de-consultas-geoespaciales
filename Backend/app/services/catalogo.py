@@ -1,23 +1,14 @@
-"""Catálogo de especies: de dónde salen las especies y sus respuestas.
+"""Catálogo de especies.
 
-RR_17 (selección de especie ante múltiples coincidencias) y RR_18 (alternancia
-entre mapa y lista de registros) necesitan datos para que su LÓGICA exista y
-se pueda probar.
-
-El resto del sistema —servicios, routers, esquemas, frontend— depende solo de
-la interfaz `FuenteCatalogo` de abajo, nunca de una implementación concreta.
-Los routers la reciben con `Depends(obtener_catalogo)`, que elige según
-CATALOGO en el .env:
+El resto del sistema depende solo de la interfaz `FuenteCatalogo`. Los routers la reciben
+con `Depends(obtener_catalogo)`, que elige según CATALOGO en el .env:
 
 - `CatalogoDemo` (CATALOGO=demo): datos de ejemplo en memoria, sin CR-BioLM.
 - `CatalogoCRBioLM` (CATALOGO=crbiolm): datos reales por MCP
   (services/catalogo_crbiolm.py).
 
-En las pruebas se puede reemplazar con `app.dependency_overrides[obtener_catalogo]`.
-
-Los datos de `CatalogoDemo` son ilustrativos y sirven para probar los tres
-caminos de una consulta: coincidencia única, coincidencia múltiple y sin
-coincidencias. No deben citarse como información científica.
+En las pruebas se reemplaza con `app.dependency_overrides[obtener_catalogo]`. Los datos de
+demostración son ilustrativos y no deben citarse como información científica.
 """
 
 from __future__ import annotations
@@ -35,10 +26,8 @@ class FuenteCatalogo(Protocol):
     """Lo que el sistema necesita de cualquier catálogo de especies."""
 
     def buscar_especies(self, texto: str) -> list[EspecieCandidata]:
-        """Especies que la consulta podría estar mencionando.
-
-        Cero resultados: no se reconoció ninguna especie. Más de uno: la
-        consulta es ambigua y hay que preguntarle al usuario (RR_17).
+        """Especies que la consulta podría estar mencionando. Cero: no se reconoció ninguna.
+        Más de una: la consulta es ambigua y se le pregunta al usuario.
         """
         ...
 
@@ -47,11 +36,11 @@ class FuenteCatalogo(Protocol):
         ...
 
     def construir_respuesta(self, especie_id: str, texto_consulta: str) -> RespuestaConsulta | None:
-        """Respuesta completa para una especie ya identificada (RR_18)."""
+        """Respuesta completa para una especie ya identificada."""
         ...
 
     def obtener_ficha(self, especie: str) -> FichaEspecie | None:
-        """Ficha completa de una especie (RR_20)."""
+        """Ficha completa de una especie."""
         ...
 
     def obtener_mapa(self, especie_id: str) -> bytes | None:
@@ -60,8 +49,8 @@ class FuenteCatalogo(Protocol):
 
 
 # --- implementación de demostración ------------------------------------------
-# Datos provisionales. Hay pares con el mismo nombre común (guaria, cedro) para
-# ejercitar el camino de coincidencia múltiple de RR_17.
+# Datos de ejemplo. Hay pares con el mismo nombre común (guaria, cedro) para probar la
+# coincidencia múltiple.
 _CATALOGO: list[dict] = [
     {
         "id": "guarianthe-skinneri",
@@ -175,9 +164,7 @@ _CATALOGO: list[dict] = [
             ("Puntarenas, Golfito", "30 ene 2024", 8.6333, -83.1667, 40),
         ],
     },
-    # RR_06 criterio 5 — especie SIN registros de presencia georreferenciados.
-    # Sirve para probar que la respuesta se muestra sin el panel del mapa
-    # cuando no hay datos geoespaciales.
+    # Especie sin registros de presencia: la respuesta se muestra sin mapa.
     {
         "id": "hylocereus-costaricensis",
         "nombre_comun": "Pitahaya",
@@ -227,11 +214,8 @@ class CatalogoDemo:
     """Catálogo en memoria con los datos de demostración de arriba."""
 
     def buscar_especies(self, texto: str) -> list[EspecieCandidata]:
-        """Devuelve las especies que la consulta podría estar mencionando.
-
-        Cero resultados significa que no se reconoció ninguna especie; más de uno
-        significa que la consulta es ambigua y hay que preguntarle al usuario
-        (RR_17).
+        """Especies que la consulta podría estar mencionando. Cero: no se reconoció ninguna.
+        Más de una: la consulta es ambigua.
         """
         consulta = normalizar(texto)
         encontradas: list[EspecieCandidata] = []
@@ -249,10 +233,8 @@ class CatalogoDemo:
         return None
 
     def construir_respuesta(self, especie_id: str, texto_consulta: str) -> RespuestaConsulta | None:
-        """Arma la respuesta completa para una especie ya identificada.
-
-        Incluye los registros de presencia, que es lo que alimenta las dos vistas
-        de RR_18: el mapa los dibuja y la lista los tabula.
+        """Respuesta completa para una especie ya identificada, con los registros que
+        alimentan el mapa y la lista.
         """
         entrada = next((e for e in _CATALOGO if e["id"] == especie_id), None)
         if entrada is None:
@@ -267,17 +249,16 @@ class CatalogoDemo:
             registros=registros,
             total_registros=len(registros),
             fuentes=list(_FUENTES),
-            # RR_29 y RR_33: el tipo de pregunta, para registrarlo. El texto de la
-            # demostración es siempre el mismo.
+            # Tipo de pregunta, para registrarlo. El texto de demostración es siempre el
+            # mismo.
             tipo=analizar(texto_consulta, entrada["nombre_cientifico"]).tipo,
         )
 
     def obtener_ficha(self, especie: str) -> FichaEspecie | None:
-        """RR_20 — ficha completa de una especie del catálogo.
+        """Ficha completa de una especie del catálogo.
 
-        Acepta el id ('guarianthe-skinneri') o el nombre científico
-        ('Guarianthe skinneri'), para que los enlaces viejos a la ficha, que usaban
-        el nombre científico, sigan funcionando. None si no está en el catálogo.
+        Acepta el id ('guarianthe-skinneri') o el nombre científico ('Guarianthe
+        skinneri'), para que sigan funcionando los enlaces viejos. None si no está.
         """
         buscado = normalizar(especie.strip())
         entrada = next(

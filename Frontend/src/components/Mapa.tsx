@@ -1,11 +1,9 @@
 /**
- * Mapa de distribución de CR-BioLM y controles de los registros — RR_46,
- * RR_48, RR_52, RR_53, RR_12 y RR_19.
+ * Mapa de distribución de CR-BioLM y controles de los registros.
  *
- * Todos los mapas vienen de CR-BioLM (PNG). Si la respuesta no trae mapa, no
- * se muestra ninguno. El detalle de un registro (RR_12, en una ventana) y el
- * filtro por elevación (RR_19) trabajan sobre la tabla de registros, porque en
- * una imagen no se puede seleccionar ni ocultar puntos.
+ * Todos los mapas vienen de CR-BioLM (PNG); si la respuesta no trae mapa, no se muestra ninguno. El
+ * detalle de un registro y el filtro por elevación trabajan sobre la tabla de registros, porque en
+ * una imagen no se pueden seleccionar ni ocultar puntos.
  */
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -23,8 +21,8 @@ type EstadoImagen =
   | { tipo: "lista"; url: string };
 
 /**
- * Descarga el PNG del mapa con la sesión y lo convierte en una URL local
- * (blob:). La URL se libera al desmontar el componente o al cambiar de mapa.
+ * Descarga el PNG del mapa con la sesión y lo convierte en una URL local (blob:). La URL se libera
+ * al desmontar el componente o al cambiar de mapa.
  */
 function useImagenMapa(ruta: string): EstadoImagen {
   const [estado, setEstado] = useState<EstadoImagen>({ tipo: "cargando" });
@@ -59,10 +57,10 @@ function useImagenMapa(ruta: string): EstadoImagen {
 }
 
 /**
- * RR_48 criterio 1 — qué significa cada símbolo del mapa (config/leyendaMapa.ts).
+ * Qué significa cada símbolo del mapa (config/leyendaMapa.ts).
  *
- * Va fuera de la imagen: en el visor queda fija sobre el mapa aunque se haga
- * zoom o se arrastre (criterio 3), y debajo del mapa pequeño se despliega.
+ * Va fuera de la imagen: en el visor queda fija sobre el mapa aunque se haga zoom o se arrastre, y
+ * debajo del mapa pequeño se despliega.
  */
 function LeyendaMapa({ puntos, oscura = false }: { puntos: number; oscura?: boolean }) {
   const colorTexto = oscura ? "#e5e7eb" : "var(--color-texto-cuerpo)";
@@ -103,20 +101,14 @@ function LeyendaMapa({ puntos, oscura = false }: { puntos: number; oscura?: bool
 }
 
 /**
- * RR_46 — mapa de distribución generado por CR-BioLM.
+ * Mapa de distribución generado por CR-BioLM.
  *
- * - Criterio 1: solo se monta cuando la respuesta trae `mapa` (hay datos
- *   geoespaciales); quien lo usa no lo muestra si `mapa` es null (RR_53).
- * - Criterio 2: la imagen es la de CR-BioLM, con las zonas de distribución.
- * - Criterio 3: el texto alternativo y el título nombran la especie.
+ * Solo se monta cuando la respuesta trae `mapa`. El texto alternativo y el título nombran la
+ * especie. "Descargar mapa" baja este mismo PNG; debajo se indica cuántos registros de GBIF tiene
+ * dibujados y se despliega la leyenda.
  *
- * RR_15: "Descargar mapa" baja este mismo PNG.
- * RR_59: debajo del mapa se indica cuántos registros de GBIF tiene dibujados.
- * RR_48: la leyenda se despliega debajo del mapa y en el visor queda fija
- * sobre el mapa al hacer zoom.
- *
- * Al hacer clic en el mapa, o en "Pantalla completa", se abre en grande
- * (VisorMapa). Se usa en el chat (TarjetaRespuesta) y en la ficha (SpeciesPage).
+ * Al hacer clic en el mapa o en "Pantalla completa" se abre en grande (VisorMapa). Se usa en el
+ * chat (TarjetaRespuesta) y en la ficha (SpeciesPage).
  */
 export function MapaCRBioLM({
   mapa,
@@ -126,7 +118,7 @@ export function MapaCRBioLM({
   mapa: MapaEspecie;
   /** Nombre científico de la especie del mapa. */
   especie: string;
-  /** Nombre del archivo al descargar el mapa (RR_15). */
+  /** Nombre del archivo al descargar el mapa. */
   nombreArchivo: string;
 }) {
   const imagen = useImagenMapa(mapa.url);
@@ -193,7 +185,7 @@ export function MapaCRBioLM({
         />
       )}
       <figcaption className="mt-1.5 text-xs flex flex-col gap-0.5">
-        {/* RR_59 criterio 2: la cantidad de registros junto al mapa. */}
+        {/* Cantidad de registros junto al mapa. */}
         {mapa.puntos > 0 && (
           <span style={{ color: "var(--color-texto-secundario)" }}>
             {textoRegistros(mapa.puntos)} de presencia de GBIF en el mapa
@@ -248,7 +240,7 @@ function VisorMapa({
 }: {
   url: string;
   especie: string;
-  /** Registros de GBIF dibujados en el mapa, para la leyenda (RR_48). */
+  /** Registros de GBIF dibujados en el mapa, para la leyenda. */
   puntos: number;
   textoAlternativo: string;
   nombreArchivo: string;
@@ -262,7 +254,7 @@ function VisorMapa({
   // pueden llegar antes de que React vuelva a dibujar.
   const vistaRef = useRef(vista);
   const [arrastrando, setArrastrando] = useState(false);
-  // RR_48: la leyenda empieza visible y se puede ocultar para ver todo el mapa.
+  // La leyenda empieza visible y se puede ocultar para ver todo el mapa.
   const [conLeyenda, setConLeyenda] = useState(true);
   // Punteros apoyados (mouse o dedos), dónde empezó el gesto y si hubo
   // movimiento, para no confundir el final de un arrastre con un clic que cierra.
@@ -494,7 +486,7 @@ function VisorMapa({
             cursor: escala > 1 ? (arrastrando ? "grabbing" : "grab") : "zoom-in",
           }}
         />
-        {/* RR_48 criterio 3: fuera de la imagen, así no se mueve ni se corta con el zoom. */}
+        {/* Fuera de la imagen, así no se mueve ni se corta con el zoom. */}
         {conLeyenda && (
           <div
             role="region"
@@ -518,12 +510,11 @@ function VisorMapa({
 }
 
 /**
- * RR_12 — detalle del punto seleccionado.
+ * Detalle del registro seleccionado.
  *
- * Se abre en una ventana al hacer clic en una fila de la tabla de registros,
- * así no hay que bajar hasta el final de una lista larga para verlo. Se cierra
- * con la X, con Escape o con un clic fuera. Con `onAnterior` y `onSiguiente`
- * se recorren los registros visibles sin cerrarla (también con ← y →).
+ * Se abre en una ventana al hacer clic en una fila de la tabla de registros. Se cierra con la X,
+ * con Escape o con un clic fuera. Con `onAnterior` y `onSiguiente` (o ← y →) se recorren los
+ * registros visibles sin cerrarla.
  */
 export function DetallePunto({
   registro,
@@ -648,7 +639,7 @@ export function DetallePunto({
   );
 }
 
-/** RR_19 — campos para definir el rango de elevación y quitar el filtro. */
+/** Campos para definir el rango de elevación y quitar el filtro. */
 export function FiltroElevacion({
   rango,
   onCambiar,
@@ -701,7 +692,7 @@ export function FiltroElevacion({
           className="rounded-lg px-2 py-1 outline-none"
           style={estiloCampo}
         />
-        {/* RR_19 criterio 3: volver a ver todos los puntos. */}
+        {/* Volver a ver todos los puntos. */}
         {hayTexto && (
           <button
             onClick={() => onCambiar(RANGO_VACIO)}

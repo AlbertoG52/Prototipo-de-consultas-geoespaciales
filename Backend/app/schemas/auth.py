@@ -14,20 +14,19 @@ class MensajeOut(EsquemaSalida):
 
 
 class VerificarCorreoRequest(BaseModel):
-    """RR_00_07 — el token que llegó en el enlace del correo."""
+    """Token que llegó en el enlace del correo."""
 
     token: str = Field(min_length=1, max_length=255)
 
 
 class CorreoRequest(BaseModel):
-    """Solo el correo: para reenviar la verificación (RR_00_07) y para pedir la
-    recuperación de contraseña con el correo registrado (RR_00_06 criterio 1)."""
+    """Solo el correo: para reenviar la verificación o pedir la recuperación de contraseña."""
 
     correo: EmailStr
 
 
 class RestablecerPasswordRequest(BaseModel):
-    """RR_00_06 criterio 3 — el token del enlace y la contraseña nueva."""
+    """Token del enlace y contraseña nueva."""
 
     token: str = Field(min_length=1, max_length=255)
     password: str
@@ -35,7 +34,7 @@ class RestablecerPasswordRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def _password(cls, v: str) -> str:
-        # Mismas reglas que el registro (RR_00_03).
+        # Mismas reglas que el registro.
         return validar_password(v)
 
 
@@ -53,30 +52,25 @@ class RegistroOut(EsquemaSalida):
 
 
 class SesionOut(EsquemaSalida):
-    """Estado de la sesión actual, sea de un usuario o de un visitante.
-
-    El frontend lo usa para decidir qué mostrar en la barra lateral: un
-    visitante no ve historial ni perfil, y su contador de consultas es menor
-    (RR_00_11).
+    """Estado de la sesión actual, de una cuenta o de un visitante. El frontend lo usa para
+    decidir qué mostrar en la barra lateral.
     """
 
     tipo: TipoSesion
     usuario: UsuarioOut | None = None
-    # RR_62, RR_64 y RR_66: el límite del rol, cuántas lleva y cuántas le quedan
-    # en el periodo actual (día, semana o mes)...
+    # Límite del rol, consultas hechas y restantes en el periodo actual (día, semana o
+    # mes)...
     limite_consultas: int
     consultas_realizadas: int
     consultas_restantes: int
     periodo_consultas: PeriodoConsultas
-    # ...y RR_65: cuándo empieza el periodo siguiente y se restablece el contador.
+    # ...y cuándo se restablece el contador.
     consultas_se_restablecen_en: datetime
     guarda_historial: bool
-    # RR_00_04: minutos sin actividad que cierran la sesión. None para el
-    # visitante (no tiene nada que proteger); 0 = "Nunca".
+    # Minutos sin actividad que cierran la sesión. None para el visitante; 0 = "Nunca".
     minutos_inactividad: int | None = None
-    # RR_38: tiempo máximo de una consulta. El frontend deja de esperar un poco
-    # después, por si el servidor no llega a responder.
+    # Tiempo máximo de una consulta. El frontend deja de esperar un poco después.
     segundos_maximos_consulta: float
-    # RR_34: máximo de caracteres de una consulta. El campo de texto lo usa
-    # para avisar antes de enviar; el servidor lo vuelve a comprobar.
+    # Máximo de caracteres de una consulta; el frontend avisa antes de enviar y el servidor
+    # lo vuelve a comprobar.
     longitud_maxima_consulta: int

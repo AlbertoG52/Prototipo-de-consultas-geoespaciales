@@ -1,16 +1,11 @@
-"""Pruebas de RR_69 a RR_76 — administración de usuarios por el supermoderador.
+"""Pruebas de la administración de usuarios.
 
-Dos grupos:
+- Las del servicio (services/admin.py) cambian roles y estados, así que corren en la sesión
+  `sesion` que se deshace al final, con `commit` reemplazado por `flush`.
+- Las de la API (/admin) solo leen o reciben un rechazo, así que usan cuentas que
+  `correos_de_prueba` borra al terminar.
 
-- Las del servicio (services/admin.py) cambian roles y estados o crean consultas. Una cuenta con
-  registros en 'auditoria' no se puede borrar (RR_00_09), así que corren en la
-  sesión `sesion` de conftest.py, que se deshace al final, con `commit`
-  reemplazado por `flush`: nada queda confirmado.
-- Las de la API (/admin) solo leen o reciben un rechazo, así que pueden crear
-  cuentas confirmadas que `correos_de_prueba` borra al terminar.
-
-Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Se ejecutan con: docker compose exec backend python -m pytest tests -q
 """
 
 from datetime import timedelta
@@ -58,7 +53,7 @@ def _cabeceras(correo: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-# --- RR_71: listado de usuarios ------------------------------------------------
+# --- listado de usuarios -----------------------------------------------------
 
 
 def test_listado_trae_correo_rol_y_estado(sesion):
@@ -71,7 +66,7 @@ def test_listado_trae_correo_rol_y_estado(sesion):
     assert fila.estado == EstadoCuenta.ACTIVO
 
 
-# --- RR_69 y RR_70: el cambio de rol ---------------------------------------------
+# --- cambio de rol -----------------------------------------------------------
 
 
 def test_cambio_de_rol_aplica_en_la_siguiente_peticion(sesion):
@@ -81,14 +76,14 @@ def test_cambio_de_rol_aplica_en_la_siguiente_peticion(sesion):
     salida = admin.cambiar_rol(sesion, actor, afectado.id, NombreRol.MODERADOR)
 
     assert salida.rol == NombreRol.MODERADOR
-    # La identidad se lee de la BD en cada petición, no del token (RR_69 criterio 3).
+    # La identidad se lee de la BD en cada petición, no del token.
     identidad = obtener_identidad(_peticion(afectado), sesion)
     assert identidad.usuario is not None
     assert identidad.usuario.rol.nombre == NombreRol.MODERADOR
 
 
 def test_el_nuevo_rol_decide_los_permisos(sesion):
-    """RR_70 criterio 3: permisos de /admin y límite diario del nuevo rol."""
+    """El nuevo rol define los permisos de /admin y el límite."""
     actor = crear_usuario(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
     afectado = crear_usuario(sesion, "afectado.prueba@example.com")
     solo_supermoderador = requiere_rol(NombreRol.SUPERMODERADOR)
@@ -111,7 +106,7 @@ def test_el_nuevo_rol_decide_los_permisos(sesion):
     ],
 )
 def test_no_puede_modificarse_a_si_mismo(sesion, cambiar, valor):
-    """RR_70 criterio 2: ni su rol ni su estado, para no quedarse sin acceso."""
+    """No puede cambiar su propio rol ni su estado, para no quedarse sin acceso."""
     actor = crear_usuario(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
 
     with pytest.raises(Conflicto):
@@ -129,7 +124,7 @@ def test_usuario_inexistente(sesion):
 
 
 def test_el_cambio_queda_en_la_auditoria_con_quien_lo_hizo(sesion):
-    """RR_00_09: el servicio le dice al trigger quién actúa."""
+    """El servicio le indica al trigger quién actúa."""
     actor = crear_usuario(sesion, "actor.prueba@example.com", NombreRol.SUPERMODERADOR)
     afectado = crear_usuario(sesion, "afectado.prueba@example.com")
 
@@ -143,7 +138,7 @@ def test_el_cambio_queda_en_la_auditoria_con_quien_lo_hizo(sesion):
     assert fila.actor_id == actor.id
 
 
-# --- RR_74 y RR_75: desactivar y reactivar ----------------------------------------
+# --- desactivar y reactivar ----------------------------------------------------
 
 
 def test_cuenta_desactivada_queda_fuera_en_su_siguiente_peticion(sesion):
@@ -152,14 +147,14 @@ def test_cuenta_desactivada_queda_fuera_en_su_siguiente_peticion(sesion):
 
     salida = admin.cambiar_estado(sesion, actor, afectado.id, EstadoCuenta.INACTIVO)
 
-    assert salida.estado == EstadoCuenta.INACTIVO  # criterio 3
+    assert salida.estado == EstadoCuenta.INACTIVO
     with pytest.raises(HTTPException) as error:
         obtener_identidad(_peticion(afectado), sesion)
     assert error.value.status_code == 403
 
 
 def test_enviar_una_consulta_pasa_por_la_identidad():
-    """RR_74 criterio 2: POST /consultas resuelve la identidad, que rechaza la cuenta inactiva."""
+    """POST /consultas rechaza la cuenta inactiva."""
     ruta = next(r for r in consultas.router.routes if "POST" in getattr(r, "methods", ()))
     assert any(d.call is obtener_identidad for d in ruta.dependant.dependencies)
 
@@ -173,12 +168,12 @@ def test_cuenta_reactivada_recupera_su_rol(sesion):
 
     assert salida.estado == EstadoCuenta.ACTIVO
     assert salida.rol == NombreRol.MODERADOR
-    identidad = obtener_identidad(_peticion(afectado), sesion)  # criterio 3: de inmediato
+    identidad = obtener_identidad(_peticion(afectado), sesion)  # de inmediato
     assert identidad.usuario is not None
     assert identidad.usuario.rol.nombre == NombreRol.MODERADOR
 
 
-# --- La API: RR_69 criterio 1, RR_71 criterio 2 y la traducción de errores ---------
+# --- la API y la traducción de errores ----------------------------------------
 
 
 @pytest.mark.parametrize("rol", [NombreRol.USUARIO, NombreRol.MODERADOR])
@@ -222,7 +217,7 @@ def test_la_api_traduce_los_errores_del_servicio(correos_de_prueba):
     assert inexistente.status_code == 404
 
 
-# --- RR_76: historial de uso por usuario --------------------------------------------
+# --- historial de uso por usuario -------------------------------------------
 
 
 def _consultar(
@@ -233,9 +228,8 @@ def _consultar(
     dias_atras: int = 0,
     motivo: MotivoOrientacion | None = None,
 ) -> None:
-    """Guarda una consulta de `usuario` como la deja services/consultas.py.
-
-    Una de orientación necesita su `motivo` (restricción de la tabla 016).
+    """Guarda una consulta de `usuario` como lo hace services/consultas.py. Una de orientación
+    necesita su `motivo`.
     """
     momento = ahora() - timedelta(days=dias_atras)
     conversacion = Conversacion(usuario_id=usuario.id, titulo=texto)
@@ -314,7 +308,7 @@ def test_historial_de_usuario_inexistente(sesion):
         admin.historial_de_uso(sesion, -1, limite=20, desplazamiento=0)
 
 
-# --- RR_76 criterio 3: uso por rol ----------------------------------------------------
+# --- uso por rol ----------------------------------------------------------------
 
 
 def _uso(sesion: Session, rol: NombreRol):
@@ -341,7 +335,7 @@ def test_uso_por_rol_suma_cuentas_y_consultas_de_cada_rol(sesion):
 
 
 def test_las_orientaciones_se_ven_en_el_historial_pero_no_cuentan_como_uso(sesion):
-    """RR_37 y RR_40: un saludo o un pedido de ayuda no es uso del agente."""
+    """Un saludo o un pedido de ayuda no es uso del agente."""
     usuario = crear_usuario(sesion, "orientacion.prueba@example.com")
     antes = _uso(sesion, NombreRol.USUARIO)
     _consultar(sesion, usuario, "roble")

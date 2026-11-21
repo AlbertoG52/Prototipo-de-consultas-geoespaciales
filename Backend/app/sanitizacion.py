@@ -1,40 +1,14 @@
-"""Sanitización de las entradas de texto — RR_00_08.
+"""Sanitización y limpieza de los textos que llegan del usuario.
 
-Todo texto libre que llega del usuario pasa por `sanitizar_texto` en los
-esquemas de Pydantic, antes de que cualquier router lo procese.
+`sanitizar_texto` se aplica en los esquemas de Pydantic. Quita caracteres de control (salvo
+salto de línea y tabulador), caracteres invisibles (espacios de ancho cero, U+202E) y
+etiquetas HTML completas. Conserva tildes, ñ, comillas, punto y coma y los signos "<" y ">"
+sueltos; la inyección SQL ya la evita SQLAlchemy al parametrizar las consultas.
 
-Qué se neutraliza:
+Las contraseñas no se sanitizan: se guardan solo como hash.
 
-- Caracteres de control (U+0000–U+001F, U+007F–U+009F) salvo salto de línea y
-  tabulador. El byte nulo en particular hace que PostgreSQL rechace la
-  inserción y la petición termine en un error 500.
-- Caracteres de formato invisibles (categoría Unicode "Cf"): espacios de ancho
-  cero y marcas de dirección como U+202E, que permiten ocultar o invertir
-  visualmente parte del texto.
-- Etiquetas HTML o XML completas (`<script>`, `<img ...>`, `</b>`). Si el texto
-  se muestra algún día fuera de React (un correo, un PDF exportado, un panel
-  de administración), ya no lleva marcado ejecutable.
-
-Qué NO se toca, para no alterar contenido legítimo (criterio 3):
-
-- Tildes, ñ, diéresis y signos de apertura. El texto se normaliza a NFC, que
-  cambia la representación interna pero no lo que se lee.
-- Comillas, apóstrofos, punto y coma, guiones: son comunes en nombres de
-  especies y en preguntas. La inyección SQL ya está cubierta porque SQLAlchemy
-  parametriza todas las consultas; eliminar esos caracteres solo rompería
-  entradas válidas.
-- Los signos "<" y ">" sueltos ("elevación > 1000"): solo se eliminan cuando
-  forman una etiqueta, es decir, cuando "<" va seguido de una letra, "/" o "!".
-
-El backend no ejecuta comandos del sistema con entradas del usuario. Si en el
-futuro el texto se pasa a un proceso externo o a un modelo de lenguaje, esta
-función no sustituye el escapado propio de ese destino.
-
-Las contraseñas no se sanitizan: cualquier cambio alteraría la credencial. Se
-guardan solo como hash y nunca se muestran.
-
-El texto de una consulta pasa además por `limpiar_consulta` (RR_21), que quita
-lo que sobra para interpretarla, y se compara con `normalizar` (RR_35).
+El texto de una consulta pasa además por `limpiar_consulta`, y las búsquedas comparan con
+`normalizar`.
 """
 
 from __future__ import annotations
@@ -42,8 +16,8 @@ from __future__ import annotations
 import re
 import unicodedata
 
-# Una etiqueta empieza con "<" seguido de una letra, "/" o "!" (comentarios y
-# DOCTYPE) y termina en el primer ">". Así "a < b > c" no se considera etiqueta.
+# Una etiqueta empieza con "<" seguido de una letra, "/" o "!" y termina en el primer ">".
+# Así "a < b > c" no se considera etiqueta.
 _ETIQUETA = re.compile(r"<[/!]?[A-Za-z][^<>]*>|<!--.*?-->", re.DOTALL)
 
 _PERMITIDOS = {"\n", "\t"}
@@ -64,8 +38,8 @@ def sanitizar_texto(valor: str) -> str:
     texto = unicodedata.normalize("NFC", valor)
     texto = "".join(c for c in texto if not _es_invisible_o_control(c))
 
-    # Se repite hasta que no quede ninguna etiqueta: una entrada como
-    # "<scr<b>ipt>" formaría una nueva etiqueta tras una sola pasada.
+    # Se repite hasta que no quede ninguna etiqueta: "<scr<b>ipt>" formaría una nueva tras
+    # una sola pasada.
     anterior = None
     while anterior != texto:
         anterior = texto
@@ -74,7 +48,7 @@ def sanitizar_texto(valor: str) -> str:
     return texto.strip()
 
 
-# --- RR_21: limpieza del texto de una consulta -----------------------------------
+# --- limpieza del texto de una consulta -----------------------------------------
 
 # Símbolos que se conservan aunque Unicode los clasifique como "otro símbolo".
 _SIMBOLOS_CON_SENTIDO = {"°"}  # 9°N, 25 °C
@@ -100,20 +74,12 @@ def _es_simbolo_decorativo(caracter: str) -> bool:
 
 
 def limpiar_consulta(texto: str) -> str:
-    """RR_21: el texto de la consulta sin espacios ni caracteres innecesarios.
+    """Texto de la consulta sin espacios ni caracteres innecesarios.
 
-    Se aplica después de `sanitizar_texto`. Quita:
-
-    - emojis y otros símbolos decorativos (se cambian por un espacio, para no
-      pegar las palabras que separaban),
-    - espacios, tabuladores y saltos de línea repetidos (queda uno),
-    - espacios junto a los signos ("¿ dónde ?" -> "¿dónde?"),
-    - signos repetidos ("??", "!!!", ",,") y más de tres puntos seguidos.
-
-    Conserva el significado (criterio 2): no cambia mayúsculas, tildes, ñ,
-    números ni los signos de comparación ("> 1000 m"). La comparación sin tildes
-    ni mayúsculas es aparte (`normalizar`, RR_35), para que el texto guardado y
-    mostrado siga igual a como se escribió. Aplicarla dos veces no cambia nada.
+    Quita emojis y símbolos decorativos, espacios repetidos, espacios junto a los signos
+    ("¿ dónde ?" -> "¿dónde?") y signos repetidos ("??", "!!!"). No cambia mayúsculas,
+    tildes, ñ, números ni signos de comparación ("> 1000 m"). Aplicarla dos veces no cambia
+    nada.
     """
     texto = "".join(" " if _es_simbolo_decorativo(c) else c for c in texto)
     texto = _ESPACIOS.sub(" ", texto)
@@ -125,11 +91,9 @@ def limpiar_consulta(texto: str) -> str:
 
 
 def normalizar(texto: str) -> str:
-    """RR_35: minúsculas y sin tildes, para comparar: 'Guaría' encuentra 'guaria'.
+    """Minúsculas y sin tildes, para comparar: 'Guaría' encuentra 'guaria'.
 
-    Toda búsqueda de especies compara con esta función (catálogo, sugerencias),
-    así que ni las tildes ni las mayúsculas cambian el resultado. Solo sirve
-    para comparar; el texto que se guarda o se muestra conserva sus tildes.
+    Solo se usa para comparar; el texto que se guarda o se muestra conserva sus tildes.
     """
     sin_acentos = unicodedata.normalize("NFD", texto.lower())
     return "".join(c for c in sin_acentos if unicodedata.category(c) != "Mn")
@@ -140,13 +104,11 @@ _PALABRA = re.compile(r"[^\W\d_][\w-]*")
 
 
 def con_nombre_canonico(texto: str, nombre: str) -> str:
-    """RR_35 criterio 3: `texto` con el nombre de la especie escrito como en el catálogo.
+    """Devuelve `texto` con el nombre de la especie escrito como en el catálogo.
 
-    "¿Dónde crece QUÉRCUS costaricénsis?" -> "¿Dónde crece Quercus costaricensis?".
-    Se usa para la pregunta que se envía a CR-BioLM (LLM y fragmento del Manual),
-    que busca la especie con su propia regla, sensible a mayúsculas y tildes. El
-    texto que se guarda y se muestra no pasa por aquí. Si el nombre no aparece
-    (sin importar mayúsculas ni tildes), el texto queda igual.
+    "¿Dónde crece QUÉRCUS costaricénsis?" -> "¿Dónde crece Quercus costaricensis?". Se usa
+    en la pregunta que se envía a CR-BioLM, que distingue mayúsculas y tildes. Si el nombre
+    no aparece, el texto queda igual.
     """
     buscadas = _PALABRA.findall(normalizar(nombre))
     palabras = list(_PALABRA.finditer(texto))

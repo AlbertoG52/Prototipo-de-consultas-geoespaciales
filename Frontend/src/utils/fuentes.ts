@@ -1,8 +1,8 @@
 /**
- * RR_49, RR_50 y RR_51 — de qué fuente sale cada parte de una respuesta.
+ * De qué fuente sale cada parte de una respuesta.
  *
- * Todo sale del campo `procedencia` que arma el backend (RR_45,
- * services/contexto_especie.py): aquí solo se elige qué mostrar.
+ * Todo sale del campo `procedencia` que arma el backend (services/contexto_especie.py); aquí solo
+ * se elige qué mostrar.
  */
 import { FUENTE_GBIF, FUENTE_MANUAL } from "../config/textos";
 import type { DatoRespuesta, Procedencia } from "../types";
@@ -13,8 +13,8 @@ export function procedenciaDe(procedencia: Procedencia[], dato: DatoRespuesta): 
 }
 
 /**
- * RR_51 criterio 1: si la información viene del Manual de Plantas (MPCR), de
- * GBIF o de ambas. null si la respuesta no trae procedencia.
+ * Si la información viene del Manual de Plantas (MPCR), de GBIF o de ambas. null si la respuesta no
+ * trae procedencia.
  */
 export function origenDeLaInformacion(procedencia: Procedencia[]): string | null {
   const fuentes = new Set(procedencia.map((p) => p.fuente));
@@ -32,10 +32,9 @@ export type TrozoDeTexto =
   | { tipo: "cita"; valor: string; completa: string };
 
 /**
- * RR_49 y RR_51 — el texto que redacta el LLM de CR-BioLM trae las citas del
- * Manual dentro, entre 【 】: "…en Talamanca【Quercus costaricensis (Tomo V, p.779)】."
- * Se separan para mostrarlas como cita ("Tomo V, p.779"); `completa` conserva la
- * cita entera. Un texto sin citas (el del Manual) queda en un solo trozo.
+ * El texto que redacta el LLM de CR-BioLM trae las citas del Manual entre 【 】: "…en
+ * Talamanca【Quercus costaricensis (Tomo V, p.779)】." Se separan para mostrarlas como cita ("Tomo V,
+ * p.779"); `completa` conserva la cita entera. Un texto sin citas queda en un solo trozo.
  */
 export function partirCitas(texto: string): TrozoDeTexto[] {
   const trozos: TrozoDeTexto[] = [];
@@ -56,9 +55,9 @@ export function partirCitas(texto: string): TrozoDeTexto[] {
 export type TrozoConFormato = { valor: string; negrita: boolean; cursiva: boolean };
 
 /**
- * RR_49 — el texto que redacta el LLM de CR-BioLM viene en Markdown: "**bosques
- * nubosos**" es negrita y "*Quercus*" cursiva. Se separan para mostrarlos con ese
- * formato y sin los asteriscos. Un texto sin marcas queda en un solo trozo.
+ * El texto que redacta el LLM de CR-BioLM viene en Markdown: "**bosques nubosos**" es negrita y
+ * "*Quercus*" cursiva. Se separan para mostrarlos con ese formato y sin los asteriscos. Un texto
+ * sin marcas queda en un solo trozo.
  */
 export function partirFormato(texto: string): TrozoConFormato[] {
   const trozos: TrozoConFormato[] = [];

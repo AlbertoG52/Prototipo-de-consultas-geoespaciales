@@ -1,7 +1,7 @@
-"""Pruebas de RR_57 — registro del tiempo de respuesta (services/tiempos.py).
+"""Pruebas del registro del tiempo de respuesta (services/tiempos.py).
 
-Usan el catálogo de demostración y la BD. Se ejecutan con:
-    docker compose exec backend python -m pytest tests/test_tiempos_respuesta.py -q
+Usan el catálogo de demostración y la BD. Se ejecutan con: docker compose exec backend
+python -m pytest tests/test_tiempos_respuesta.py -q
 """
 
 import logging
@@ -67,7 +67,7 @@ def con_catalogo():
 
 @pytest.fixture
 def como_supermoderador():
-    """Salta la verificación de rol del router /admin (la prueba test_roles.py la cubre)."""
+    """Salta la verificación de rol del router /admin (test_roles.py la cubre)."""
     [verificar_rol] = [d.dependency for d in admin.router.dependencies]
     app.dependency_overrides[verificar_rol] = lambda: None
     yield
@@ -78,7 +78,7 @@ def _consultar(cabeceras, texto=PEJIBAYE):
     return api.post("/consultas", headers=cabeceras, json={"texto": texto})
 
 
-# --- criterio 1: se registra cada consulta ------------------------------------------
+# --- se registra cada consulta -----------------------------------------------------
 
 
 def test_una_consulta_resuelta_queda_registrada(visitante, nuevos_tiempos):
@@ -139,7 +139,7 @@ def test_si_no_se_puede_guardar_la_consulta_responde_igual(visitante, monkeypatc
     assert "no se pudo guardar el tiempo de respuesta" in caplog.text
 
 
-# --- criterio 3: identificar las lentas ------------------------------------------------
+# --- se identifican las lentas -----------------------------------------------------
 
 
 def test_una_consulta_lenta_queda_en_el_log(
@@ -152,7 +152,7 @@ def test_una_consulta_lenta_queda_en_el_log(
     assert "RR_57: consulta lenta" in caplog.text
 
 
-# --- criterio 2: disponible para el equipo técnico ---------------------------------------
+# --- disponible para el equipo técnico ---------------------------------------------
 
 
 def test_el_resumen_separa_las_lentas(

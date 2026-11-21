@@ -1,8 +1,7 @@
-"""Pruebas de RR_00_05 — bloqueo temporal por intentos fallidos de inicio de sesión.
+"""Pruebas del bloqueo temporal por intentos fallidos de inicio de sesión.
 
-No necesitan base de datos: se llama al endpoint con un usuario y una sesión
-simulados. Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+No necesitan base de datos: usan un usuario y una sesión simulados. Se ejecutan con: docker
+compose exec backend python -m pytest tests -q
 """
 
 from datetime import UTC, datetime, timedelta
@@ -46,7 +45,7 @@ def test_cada_fallo_suma_un_intento():
 
 
 def test_se_bloquea_al_llegar_al_maximo():
-    # Criterio 1: la cuenta se bloquea tras varios intentos fallidos.
+    # La cuenta se bloquea tras varios intentos fallidos.
     usuario = _usuario()
     db = _SesionFalsa(usuario)
     for _ in range(INTENTOS_LOGIN_MAXIMOS - 1):
@@ -55,7 +54,7 @@ def test_se_bloquea_al_llegar_al_maximo():
     error = _fallar(db)
     assert error.status_code == 423
     assert usuario.bloqueado_hasta > datetime.now(UTC)
-    # Criterio 3: el mensaje dice cuánto dura el bloqueo.
+    # El mensaje dice cuánto dura el bloqueo.
     assert f"{MINUTOS_BLOQUEO_LOGIN} minuto" in error.detail
 
 

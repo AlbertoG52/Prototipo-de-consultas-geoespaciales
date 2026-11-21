@@ -1,6 +1,5 @@
-"""Registro, inicio y cierre de sesión.
-
-RR_00_01, RR_00_02, RR_00_04, RR_00_05, RR_00_06, RR_00_07 y RR_00_11.
+"""Registro, inicio y cierre de sesión, verificación de correo, recuperación de contraseña y
+sesión anónima.
 """
 
 import html
@@ -56,7 +55,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/registro", response_model=RegistroOut, status_code=status.HTTP_201_CREATED)
 def registrar(datos: RegistroRequest, db: Session = Depends(get_db)):
-    """RR_00_01 — crear una cuenta."""
+    """Crea una cuenta con rol usuario."""
 
     correo = normalizar_correo(datos.correo)
 
@@ -80,15 +79,15 @@ def registrar(datos: RegistroRequest, db: Session = Depends(get_db)):
         password_hash=hash_password(datos.password),
         rol_id=rol.id,
         estado=EstadoCuenta.ACTIVO,
-        # RR_00_07 criterio 2: la cuenta nace sin verificar.
+        # La cuenta se crea sin verificar.
         correo_verificado=False,
     )
     db.add(usuario)
     db.commit()
     db.refresh(usuario)
 
-    # RR_00_07 criterio 1: se envía el enlace de verificación. Si el correo no
-    # sale, la cuenta igual queda creada y se puede pedir el reenvío.
+    # Se envía el enlace de verificación. Si el correo no sale, la cuenta queda creada y se
+    # puede pedir el reenvío.
     if _enviar_verificacion(db, usuario):
         mensaje = f"Cuenta creada. Te enviamos un enlace a {correo} para verificar tu correo."
     else:
@@ -113,10 +112,8 @@ def _enviar_enlace(
     boton: str,
     si_no_fuiste: str,
 ) -> bool:
-    """Emite un token y envía por correo el enlace que lo lleva.
-
-    Lo usan RR_00_07 (verificación) y RR_00_06 (recuperación). Devuelve False
-    si el envío falló (el detalle queda en el log).
+    """Emite un token y envía por correo el enlace que lo lleva. Devuelve False si el envío
+    falló (el detalle queda en el log).
     """
     token = crear_token(db, usuario.id, tipo, duracion)
     db.commit()
@@ -146,7 +143,7 @@ def _enviar_enlace(
 
 
 def _enviar_verificacion(db: Session, usuario: Usuario) -> bool:
-    """RR_00_07 criterio 1 — enlace para verificar el correo."""
+    """Enlace para verificar el correo."""
     return _enviar_enlace(
         db,
         usuario,
@@ -162,7 +159,7 @@ def _enviar_verificacion(db: Session, usuario: Usuario) -> bool:
 
 
 def _enviar_recuperacion(db: Session, usuario: Usuario) -> bool:
-    """RR_00_06 criterio 2 — enlace para establecer una contraseña nueva."""
+    """Enlace para establecer una contraseña nueva."""
     return _enviar_enlace(
         db,
         usuario,
@@ -183,10 +180,8 @@ def _enviar_recuperacion(db: Session, usuario: Usuario) -> bool:
 
 @router.post("/login", response_model=TokenOut)
 def iniciar_sesion(datos: LoginRequest, db: Session = Depends(get_db)) -> TokenOut:
-    """RR_00_01 — iniciar sesión y rechazar credenciales inválidas.
-
-    Las reglas (bloqueo por intentos fallidos RR_00_05, cuenta desactivada y
-    correo sin verificar RR_00_07) están en services/autenticacion.py.
+    """Inicia sesión. Las reglas (bloqueo por intentos, cuenta desactivada, correo sin
+    verificar) están en services/autenticacion.py.
     """
     with errores_http():
         usuario = autenticar(db, datos.correo, datos.password)
@@ -201,7 +196,7 @@ SEGUNDOS_ENTRE_REENVIOS = 60
 
 @router.post("/verificar", response_model=MensajeOut)
 def verificar_correo(datos: VerificarCorreoRequest, db: Session = Depends(get_db)):
-    """RR_00_07 criterio 3 — valida el enlace y habilita la cuenta."""
+    """Valida el enlace y habilita la cuenta."""
     fila = consumir_token(db, datos.token, TIPO_VERIFICACION)
     if fila is None:
         raise HTTPException(
@@ -217,10 +212,8 @@ def verificar_correo(datos: VerificarCorreoRequest, db: Session = Depends(get_db
 
 @router.post("/reenviar-verificacion", response_model=MensajeOut)
 def reenviar_verificacion(datos: CorreoRequest, db: Session = Depends(get_db)):
-    """RR_00_07 — envía un enlace nuevo; el anterior deja de servir.
-
-    Responde siempre lo mismo, exista o no la cuenta, para no revelar qué
-    correos están registrados.
+    """Envía un enlace de verificación nuevo; el anterior deja de servir. Responde siempre lo
+    mismo, para no revelar qué correos están registrados.
     """
     usuario = usuario_por_correo(db, datos.correo)
 
@@ -239,11 +232,9 @@ def reenviar_verificacion(datos: CorreoRequest, db: Session = Depends(get_db)):
 
 @router.post("/recuperar", response_model=MensajeOut)
 def recuperar_password(datos: CorreoRequest, db: Session = Depends(get_db)):
-    """RR_00_06 criterios 1 y 2 — envía al correo registrado un enlace de
-    recuperación que vence en MINUTOS_TOKEN_RECUPERACION minutos.
-
-    Responde siempre lo mismo, exista o no la cuenta, para no revelar qué
-    correos están registrados. Una cuenta desactivada no recibe enlace.
+    """Envía un enlace de recuperación que vence en MINUTOS_TOKEN_RECUPERACION minutos.
+    Responde siempre lo mismo, para no revelar qué correos están registrados. Una cuenta
+    desactivada no recibe enlace.
     """
     usuario = usuario_por_correo(db, datos.correo)
 
@@ -263,13 +254,8 @@ def recuperar_password(datos: CorreoRequest, db: Session = Depends(get_db)):
 
 @router.post("/restablecer", response_model=MensajeOut)
 def restablecer_password(datos: RestablecerPasswordRequest, db: Session = Depends(get_db)):
-    """RR_00_06 criterio 3 — valida el enlace y guarda la contraseña nueva.
-
-    Además:
-    - Se quita el bloqueo por intentos fallidos (RR_00_05): quien olvidó su
-      contraseña suele haber fallado varias veces.
-    - El correo queda verificado (RR_00_07): abrir el enlace demuestra que la
-      persona controla ese correo.
+    """Valida el enlace y guarda la contraseña nueva. También quita el bloqueo por intentos
+    fallidos y marca el correo como verificado.
     """
     fila = consumir_token(db, datos.token, TIPO_RECUPERACION)
     if fila is None:
@@ -292,10 +278,8 @@ def restablecer_password(datos: RestablecerPasswordRequest, db: Session = Depend
 
 @router.post("/anonimo", response_model=TokenOut)
 def sesion_anonima():
-    """RR_00_11 — entrar sin cuenta.
-
-    Emite un identificador anónimo para poder aplicarle el límite diario. No
-    crea ninguna fila en 'usuarios' ni guarda nada sobre quién es.
+    """Entrar sin cuenta: emite un identificador anónimo para aplicar el límite diario. No
+    guarda nada sobre la persona.
     """
     return TokenOut(access_token=crear_token_anonimo(), tipo=TipoSesion.ANONIMO)
 
@@ -305,24 +289,15 @@ def estado_sesion(
     identidad: Identidad = Depends(obtener_identidad),
     db: Session = Depends(get_db),
 ):
-    """Estado de la sesión actual, sea de un usuario o de un visitante.
+    """Estado de la sesión actual, de una cuenta o de un visitante.
 
-    El frontend lo consulta al cargar para saber qué mostrar: un visitante no
-    tiene historial ni perfil, y su límite de consultas es menor.
-
-    Si el token no sirve responde 401 (exigir_sesion), en dos casos:
-
-    - RR_00_04: el token de un usuario venció por inactividad. El frontend
-      avisa que la sesión expiró y pide un nuevo inicio de sesión, en lugar de
-      convertir a la persona en visitante sin decirle nada.
-    - Cualquier otro token inválido (firmado con otra SECRET_KEY o de una
-      cuenta que ya no existe en esta base de datos). El frontend lo descarta y
-      pide uno anónimo nuevo; si respondiera 200, el navegador se quedaría con
-      un token con el que no puede enviar consultas.
+    Responde 401 si el token no sirve (vencido por inactividad, firmado con otra SECRET_KEY
+    o de una cuenta que ya no existe); el frontend avisa que la sesión expiró o pide un
+    token anónimo nuevo.
     """
     exigir_sesion(identidad)
 
-    # RR_66: consultas restantes del periodo; RR_65: cuándo se restablecen.
+    # Consultas restantes del periodo y cuándo se restablecen.
     cupo = cupo_de(db, identidad)
 
     return SesionOut(
@@ -333,7 +308,7 @@ def estado_sesion(
         consultas_restantes=cupo.restantes,
         periodo_consultas=cupo.periodo,
         consultas_se_restablecen_en=cupo.se_restablece_en,
-        # RR_00_11 criterio 1: al visitante no se le guardan las consultas.
+        # Al visitante no se le guardan las consultas.
         guarda_historial=not identidad.es_anonimo,
         minutos_inactividad=(
             minutos_inactividad_de(identidad.usuario) if identidad.usuario else None
@@ -348,13 +323,8 @@ def renovar_sesion(
     identidad: Identidad = Depends(obtener_identidad),
     usuario: Usuario = Depends(obtener_usuario_actual),
 ):
-    """RR_00_04 — extiende la sesión porque hubo actividad.
-
-    El frontend lo llama mientras la persona usa la aplicación. Devuelve un
-    token nuevo con el mismo sesion_id y otro periodo de inactividad completo.
-    Un token ya vencido no llega hasta aquí (obtener_usuario_actual responde
-    401): después de la inactividad no hay renovación posible, solo un nuevo
-    inicio de sesión.
+    """Extiende la sesión porque hubo actividad: devuelve un token nuevo con el mismo
+    sesion_id. Un token ya vencido responde 401 y exige iniciar sesión de nuevo.
     """
     token, _ = crear_token_usuario(usuario, sesion_id=identidad.sesion_id or None)
     return TokenOut(access_token=token, tipo=TipoSesion.USUARIO)
@@ -362,11 +332,7 @@ def renovar_sesion(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def cerrar_sesion():
-    """RR_00_01  cerrar la sesión activa.
-
-    El token es sin estado, así que el cierre efectivo lo hace el frontend al
-    descartarlo. El endpoint existe para que el cierre sea una acción explícita
-    del sistema y para tener dónde invalidar el token cuando se agregue una
-    lista de revocación.
+    """Cierra la sesión activa. El token no tiene estado, así que el cierre efectivo lo hace
+    el frontend al descartarlo.
     """
     return None

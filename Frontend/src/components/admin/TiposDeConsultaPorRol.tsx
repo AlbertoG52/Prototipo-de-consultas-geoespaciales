@@ -1,10 +1,9 @@
 /**
- * RR_77 — tipos de consulta permitidos por rol (GET/PUT /admin/permisos-consulta).
+ * Tipos de consulta permitidos por rol (GET/PUT /admin/permisos-consulta).
  *
- * El supermoderador marca qué tipos de pregunta puede hacer el visitante, el
- * usuario y el moderador; el supermoderador siempre puede todos. Los cambios
- * se guardan con el botón y aplican desde la consulta siguiente. Quien pregunta
- * algo no permitido recibe en el chat un aviso con los tipos que sí tiene.
+ * Se marca qué tipos de pregunta puede hacer el visitante, el usuario y el moderador; el
+ * supermoderador siempre puede todos. Los cambios se guardan con el botón y aplican desde la
+ * consulta siguiente.
  */
 import { useEffect, useState } from "react";
 

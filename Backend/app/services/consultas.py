@@ -1,50 +1,27 @@
-"""Lógica de una consulta al agente — RR_02, RR_09, RR_17, RR_18.
+"""Lógica de una consulta al agente.
 
-El router (routers/consultas.py) solo recibe la petición y llama a
-`procesar_consulta`; las reglas viven aquí:
+- No es una consulta -> "orientacion" con su motivo (saludo, ayuda, otro idioma, sin
+  sentido). Se detecta antes de buscar especies, sin llamar a CR-BioLM.
+- Ninguna especie -> "sin_coincidencias", u "orientacion" si nada en el texto habla de
+  plantas o pregunta por la flora de otro país.
+- Varias especies -> "ambigua" con las candidatas. El frontend reenvía la consulta con
+  'especie_id' (y 'consulta_id' si es una cuenta).
+- Un nombre común encontrado solo en parte ("cedro amargo" -> "amargo") -> "ambigua" aunque
+  haya una sola candidata.
+- Una sola especie -> "resuelta" con la respuesta completa.
+- Un tipo de consulta que su rol no tiene -> "orientacion" con el motivo
+  "tipo_no_permitido".
 
-- No es una consulta          -> estado "orientacion" con su motivo (saludo,
-  ayuda, otro idioma, sin sentido: RR_22, RR_32, RR_37, RR_40). Se detecta
-  antes de buscar especies (services/preprocesamiento.py), así que no llama a
-  CR-BioLM.
-- Ninguna especie reconocida  -> estado "sin_coincidencias", u "orientacion"
-  (fuera de tema, RR_37) si además nada en el texto habla de plantas o si
-  pregunta por la flora de otro país (fuera de alcance, RR_30).
-- Varias especies reconocidas -> estado "ambigua" y la lista de candidatas
-  (RR_17). El usuario elige una y el frontend reenvía la consulta con
-  'especie_id' (y 'consulta_id' si es una cuenta registrada).
-- Un nombre común que solo se encontró en parte ("cedro amargo" -> "amargo",
-  DEF-14)                     -> estado "ambigua", aunque haya una sola
-  candidata, con el mensaje MENSAJE_NOMBRE_INCOMPLETO.
-- Una sola especie            -> estado "resuelta" con la respuesta completa.
-- Un tipo de consulta que su rol no tiene (RR_77, services/permisos.py)
-                              -> estado "orientacion" con el motivo
-  "tipo_no_permitido". Se revisa antes de buscar especies y otra vez con el
-  tipo de la respuesta.
+Solo "resuelta" cuenta para el límite. El límite se revisa antes de procesar: si se
+alcanzó, no se llama a CR-BioLM y se responde 429 con el límite y cuándo se restablece.
 
-Solo el camino resuelto consume una consulta del límite: orientar al
-usuario, pedirle que desambigüe o avisarle que no se encontró nada no le
-cuesta. Con el límite alcanzado se le avisa eso, aunque el mensaje sea un
-saludo.
+De una cuenta se guardan todos los estados en su conversación; del visitante no se guarda
+nada.
 
-RR_62 y RR_65 — el límite se revisa ANTES de procesar la consulta: con el
-límite alcanzado no se llama a CR-BioLM y se responde 429 con un aviso que dice
-cuál es el límite y cuándo se restablece (services/uso.py, RR_64).
-
-De un usuario registrado se guardan los tres estados dentro de una
-conversación (RR_09), para poder reabrirla completa. Del visitante no se
-guarda nada (RR_00_11).
-
-RR_38 — cada consulta tiene SEGUNDOS_MAXIMOS_CONSULTA (config.py) para
-completarse. Si se pasa, se cancela con `TiempoAgotado` (HTTP 504) ANTES de
-guardar o cobrar nada, así que reintentarla no le cuesta al usuario.
-
-RR_57 — el tiempo de cada consulta, termine bien o mal, queda registrado
-(services/tiempos.py) para que el equipo técnico encuentre las lentas.
-
-RR_67, RR_68, RR_80 — la respuesta lleva el mapa y las fuentes según las
-preferencias de quien consulta (services/preferencias.py). Se aplican antes
-de guardarla, así la conversación muestra lo mismo que se respondió.
+Cada consulta tiene SEGUNDOS_MAXIMOS_CONSULTA para completarse; si se pasa, se cancela
+(504) antes de guardar o contar nada. Su tiempo queda registrado (services/tiempos.py). El
+mapa y las fuentes se incluyen según las preferencias de quien consulta
+(services/preferencias.py), antes de guardar la respuesta.
 """
 
 import logging
@@ -91,7 +68,7 @@ from .uso import (
 
 logger = logging.getLogger("uvicorn.error")
 
-# Largo máximo del título de una conversación (columna de la tabla 012).
+# Largo máximo del título de una conversación.
 LARGO_TITULO = 120
 
 MENSAJE_SIN_COINCIDENCIAS = (
@@ -101,7 +78,7 @@ MENSAJE_SIN_COINCIDENCIAS = (
 MENSAJE_AMBIGUA = (
     "La consulta coincide con más de una especie. Elige una o escribe un nombre más específico."
 )
-# DEF-14 (RR_25, RR_17): el nombre completo no está; solo un pedazo de él.
+# El nombre completo no está; solo una parte de él.
 MENSAJE_NOMBRE_INCOMPLETO = "No encontré «{frase}». ¿Te refieres a alguna de estas especies?"
 
 
@@ -114,14 +91,13 @@ class _Resultado:
     candidatas: list[EspecieCandidata] = field(default_factory=list)  # solo en AMBIGUA
     mensaje: str | None = None
     motivo: MotivoOrientacion | None = None  # solo en ORIENTACION
-    # RR_77: los tipos de consulta de quien pregunta, para no sugerirle otros.
+    # Tipos de consulta de quien pregunta, para no sugerirle otros.
     permitidos: frozenset[TipoPregunta] = permisos.TODOS
 
     @property
     def ejemplos(self) -> list[str]:
-        """RR_40 criterio 3: consultas de ejemplo para quien recibe una orientación.
-
-        RR_77: solo las de los tipos que puede hacer.
+        """Consultas de ejemplo para quien recibe una orientación, solo de los tipos que puede
+        hacer.
         """
         if not self.motivo:
             return []
@@ -138,7 +114,7 @@ def _orientacion(motivo: MotivoOrientacion, texto: str, permisos_: Permisos) -> 
 
 
 def _no_permitido(tipo: TipoPregunta, permisos_: Permisos) -> _Resultado:
-    """RR_77 criterios 2 y 3: no se responde y se dice qué tipos sí tiene su rol."""
+    """No se responde y se indica qué tipos sí tiene su rol."""
     return _Resultado(
         EstadoConsulta.ORIENTACION,
         mensaje=permisos_.mensaje(tipo),
@@ -155,9 +131,8 @@ def procesar_consulta(
 ) -> ConsultaOut:
     """Procesa una consulta en lenguaje natural.
 
-    RR_38: todo el procesamiento corre dentro del tiempo máximo de la consulta.
-    RR_57: y se mide, incluido el caso en que se corta o falla.
-    RR_33: con la intención detectada, también si se corta o falla.
+    Todo corre dentro del tiempo máximo de la consulta y se mide con su intención, también
+    si se corta o falla.
     """
     segundos = config.SEGUNDOS_MAXIMOS_CONSULTA
     with medir_consulta(identidad) as medicion:
@@ -173,12 +148,8 @@ def procesar_consulta(
 
 
 def _intencion_del_texto(datos: ConsultaRequest) -> IntencionConsulta:
-    """RR_33: la intención según el texto, antes de buscar nada.
-
-    Es el motivo si no es una consulta (como en `_resolver`) o el tipo de
-    pregunta (RR_29). Al terminar, Medicion.terminar la precisa con lo que se
-    respondió: "fuera de tema" solo se sabe después de buscar, y el tipo de una
-    respuesta puede usar el vocabulario de CR-BioLM.
+    """Intención según el texto, antes de buscar nada: el motivo si no es una consulta o el
+    tipo de pregunta. Al terminar se precisa con lo que se respondió.
     """
     motivo = None if datos.especie_id else interpretar(datos.texto)
     if motivo is not None:
@@ -195,7 +166,7 @@ def _procesar(
     limite = limite_de(identidad)
     usadas = consultas_del_periodo(db, identidad)
 
-    # RR_17 con cuenta: elegir la especie de una consulta ambigua ya guardada.
+    # Elegir la especie de una consulta ambigua ya guardada.
     if datos.consulta_id is not None:
         return _resolver_pendiente(db, identidad, datos, catalogo, limite, usadas)
 
@@ -204,8 +175,8 @@ def _procesar(
 
     resultado = _resolver(datos, catalogo, permisos.de(db, identidad))
 
-    # RR_38: si el tiempo se acabó mientras se buscaba, se corta aquí, antes de
-    # guardar o cobrar nada.
+    # Si el tiempo se acabó mientras se buscaba, se corta aquí, antes de guardar o contar
+    # nada.
     verificar_plazo()
 
     estado, respuesta = resultado.estado, resultado.respuesta
@@ -214,7 +185,7 @@ def _procesar(
     resuelta = estado == EstadoConsulta.RESUELTA
     restantes = max(limite - usadas - (1 if resuelta else 0), 0)
 
-    # --- visitante: se cuenta, pero no se guarda (RR_00_11) -----------------
+    # --- visitante: se cuenta, pero no se guarda -----------------------------------
     if identidad.usuario is None:
         if resuelta and identidad.anon_id is not None:
             registrar_consumo_anonimo(db, identidad.anon_id)
@@ -229,7 +200,7 @@ def _procesar(
             consultas_restantes=restantes,
         )
 
-    # --- cuenta registrada: se guarda en su conversación (RR_09) ------------
+    # --- cuenta registrada: se guarda en su conversación ----------------------------
     momento = ahora()
     conversacion = _conversacion_de(db, identidad.usuario.id, datos.conversacion_id, datos.texto)
     conversacion.actualizada_en = momento
@@ -267,36 +238,35 @@ def _procesar(
 
 def _resolver(datos: ConsultaRequest, catalogo: FuenteCatalogo, permisos_: Permisos) -> _Resultado:
     """Qué se responde: orientación, sin coincidencias, ambigua o resuelta."""
-    # RR_22, RR_32, RR_37, RR_40: si no es una consulta, se orienta sin buscar.
-    # Con 'especie_id' el usuario eligió entre candidatas: ya es una consulta.
+    # Si no es una consulta, se orienta sin buscar. Con 'especie_id' el usuario ya eligió
+    # entre candidatas.
     motivo = None if datos.especie_id else interpretar(datos.texto)
     if motivo is not None:
         return _orientacion(motivo, datos.texto, permisos_)
 
-    # RR_77: un tipo de consulta que su rol no tiene no se busca, así no se
-    # llama a CR-BioLM ni se le hace elegir entre candidatas para nada.
+    # Un tipo no permitido no se busca: no se llama a CR-BioLM ni se ofrecen candidatas.
     tipo = analizar(datos.texto).tipo
     if not permisos_.permite(tipo):
         return _no_permitido(tipo, permisos_)
 
     candidatas = _identificar_especies(datos, catalogo)
     if not candidatas:
-        # RR_37: sin especie y sin nada sobre plantas, está fuera de tema.
-        # RR_30: sin especie y sobre la flora de otro país, está fuera de alcance.
+        # Sin especie y sin nada sobre plantas: fuera de tema. Sin especie y sobre la flora
+        # de otro país: fuera de alcance.
         if fuera_de_tema(datos.texto) or fuera_de_costa_rica(datos.texto):
             return _orientacion(MotivoOrientacion.FUERA_DE_TEMA, datos.texto, permisos_)
         return _Resultado(EstadoConsulta.SIN_COINCIDENCIAS, mensaje=MENSAJE_SIN_COINCIDENCIAS)
     incompleta = next((c.frase_incompleta for c in candidatas if c.frase_incompleta), None)
     if incompleta:
-        # DEF-14: "cedro amargo" no existe, pero "amargo" sí. Antes de responder
-        # con otra planta se pregunta, aunque haya una sola candidata (RR_17).
+        # "cedro amargo" no existe, pero "amargo" sí: se pregunta antes de responder con
+        # otra planta, aunque haya una sola candidata.
         mensaje = MENSAJE_NOMBRE_INCOMPLETO.format(frase=incompleta)
         return _Resultado(EstadoConsulta.AMBIGUA, candidatas=candidatas, mensaje=mensaje)
     if len(candidatas) > 1:
-        # RR_17 criterios 1 y 2: presentar las coincidencias para que elija.
+        # Varias coincidencias: el usuario elige.
         return _Resultado(EstadoConsulta.AMBIGUA, candidatas=candidatas, mensaje=MENSAJE_AMBIGUA)
     respuesta = _construir_respuesta(catalogo, candidatas[0].id, datos.texto)
-    # RR_77: con el vocabulario de CR-BioLM el tipo puede precisarse (RR_29).
+    # Con el vocabulario de CR-BioLM el tipo puede precisarse.
     if not permisos_.permite(respuesta.tipo):
         return _no_permitido(respuesta.tipo, permisos_)
     return _Resultado(EstadoConsulta.RESUELTA, respuesta=respuesta)
@@ -308,7 +278,7 @@ def _identificar_especies(
     """Las especies candidatas: la que eligió el usuario, o las que reconoce el texto."""
     if not datos.especie_id:
         return catalogo.buscar_especies(datos.texto)
-    # El usuario ya eligió entre las candidatas (RR_17 criterio 3).
+    # El usuario ya eligió entre las candidatas.
     elegida = catalogo.obtener_especie(datos.especie_id)
     if elegida is None:
         raise NoEncontrado("La especie seleccionada no está en el catálogo.")
@@ -323,12 +293,11 @@ def _resolver_pendiente(
     limite: int,
     usadas: int,
 ) -> ConsultaOut:
-    """Resuelve una consulta ambigua guardada con la especie que eligió el usuario.
+    """Resuelve una consulta ambigua guardada con la especie elegida.
 
-    Se actualiza esa misma fila en lugar de crear otra: así la conversación
-    muestra una sola consulta y se cobra una sola vez, aunque se elija la
-    especie días después. La fila se bloquea mientras se resuelve, para que
-    dos clics seguidos no la cobren dos veces.
+    Se actualiza la misma fila: la conversación muestra una sola consulta y cuenta una sola
+    vez, aunque se elija días después. La fila se bloquea para que dos clics seguidos no la
+    cuenten dos veces.
     """
     if identidad.usuario is None:
         raise SolicitudInvalida("Solo las cuentas registradas guardan consultas pendientes.")
@@ -340,7 +309,7 @@ def _resolver_pendiente(
 
     respuesta = _respuesta_permitida(db, identidad, catalogo, datos.especie_id, consulta.texto)
     respuesta = preferencias.aplicar(respuesta, preferencias.de(db, identidad.usuario))
-    verificar_plazo()  # RR_38: antes de resolverla y cobrarla
+    verificar_plazo()  # antes de resolverla y contarla
     momento = ahora()
 
     consulta.estado = EstadoConsulta.RESUELTA
@@ -384,12 +353,10 @@ def _consulta_pendiente(
 def _respuesta_permitida(
     db: Session, identidad: Identidad, catalogo: FuenteCatalogo, especie_id: str, texto: str
 ) -> RespuestaConsulta:
-    """La respuesta de una pendiente, si su tipo sigue permitido (RR_77).
+    """Respuesta de una pendiente, si su tipo sigue permitido.
 
-    Los permisos pueden haber cambiado desde que se guardó: si ya no está
-    permitida se rechaza sin resolverla ni cobrarla, y queda pendiente por si
-    vuelven a permitirla. Como en `_resolver`, se revisa antes y después de
-    armar la respuesta.
+    Si los permisos cambiaron y ya no lo está, se rechaza sin resolverla ni contarla y
+    queda pendiente.
     """
     permisos_ = permisos.de(db, identidad)
     tipo = analizar(texto).tipo
@@ -404,7 +371,7 @@ def _respuesta_permitida(
 def _limite_alcanzado(
     identidad: Identidad, limite: int, pendiente: bool = False
 ) -> LimiteAlcanzado:
-    """RR_65: el aviso dice cuál es el límite y cuándo se restablece (criterio 2)."""
+    """Aviso con el límite y cuándo se restablece."""
     periodo = periodo_de(identidad)
     cuando = cuando_se_restablece(fin_del_periodo(periodo))
     consultas = "1 consulta" if limite == 1 else f"{limite} consultas"
@@ -439,10 +406,8 @@ def _construir_respuesta(
 def _conversacion_de(
     db: Session, usuario_id: int, conversacion_id: int | None, texto: str
 ) -> Conversacion:
-    """La conversación donde se guarda la consulta; si no viene, se crea una.
-
-    Solo se acepta una conversación del mismo usuario: con el id de otra
-    persona se responde 404, igual que si no existiera.
+    """Conversación donde se guarda la consulta; si no viene, se crea una. La de otra persona
+    responde 404, igual que si no existiera.
     """
     if conversacion_id is None:
         conversacion = Conversacion(usuario_id=usuario_id, titulo=texto[:LARGO_TITULO])

@@ -1,9 +1,6 @@
 /**
- * Interruptor de encendido y apagado (role="switch").
- *
- * Lo usan las preferencias del perfil (apariencia, RR_67 y RR_68), el
- * comportamiento por defecto de las respuestas en administración (RR_80) y
- * los tipos de consulta por rol (RR_77).
+ * Interruptor de encendido y apagado (role="switch"). Lo usan las preferencias del perfil y la
+ * administración (respuestas y tipos de consulta).
  */
 export function Interruptor({
   activo,

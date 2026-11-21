@@ -1,9 +1,7 @@
 /**
- * RR_19 — filtrado de los registros por rango de elevación.
+ * Filtrado de los registros por rango de elevación.
  *
- * Los límites llegan como texto desde los campos del formulario: "" significa
- * que ese extremo no se definió. Se valida aquí para que la vista solo tenga
- * que mostrar el resultado.
+ * Los límites llegan como texto desde el formulario: "" significa que ese extremo no se definió.
  */
 import type { RegistroPresencia } from "../types";
 

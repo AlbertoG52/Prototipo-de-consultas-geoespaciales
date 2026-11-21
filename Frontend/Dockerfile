@@ -3,7 +3,8 @@ FROM node:24-slim
 WORKDIR /app
 
 COPY package*.json ./
-# En el primer arranque no hay package-lock.json; luego cambiá a "npm ci" para builds reproducibles
+# Sin package-lock.json se usa "npm install"; con él, conviene "npm ci" para builds
+# reproducibles.
 RUN npm install
 
 COPY . .

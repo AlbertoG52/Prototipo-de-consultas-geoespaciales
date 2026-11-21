@@ -1,8 +1,4 @@
-"""Consultas al agente — RR_02, RR_09, RR_17, RR_18.
-
-La lógica está en services/consultas.py. El historial se lee por
-conversaciones (routers/conversaciones.py).
-"""
+"""Consultas al agente. La lógica está en services/consultas.py."""
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -26,9 +22,8 @@ def enviar_consulta(
 ) -> ConsultaOut:
     """Procesa una consulta en lenguaje natural.
 
-    Responde con uno de tres estados: "resuelta", "ambigua" (con las especies
-    candidatas, RR_17) o "sin_coincidencias". Solo "resuelta" consume una
-    consulta del límite diario. Ver services/consultas.py.
+    Responde "resuelta", "ambigua" (con las especies candidatas), "sin_coincidencias" u
+    "orientacion". Solo "resuelta" cuenta para el límite.
     """
     exigir_sesion(identidad)
     with errores_http():

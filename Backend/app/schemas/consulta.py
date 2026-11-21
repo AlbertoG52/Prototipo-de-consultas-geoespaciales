@@ -13,7 +13,7 @@ from .base import EsquemaSalida
 
 
 class RegistroPresencia(EsquemaSalida):
-    """Un punto de presencia de la especie (RR_18, vista de lista)."""
+    """Un registro de presencia de la especie."""
 
     localidad: str
     fecha: str
@@ -24,15 +24,15 @@ class RegistroPresencia(EsquemaSalida):
 
 
 class EspecieCandidata(EsquemaSalida):
-    """Una de las especies que coinciden con la consulta (RR_17)."""
+    """Una de las especies que coinciden con la consulta."""
 
     id: str
     nombre_comun: str | None = None
     nombre_cientifico: str
     familia: str
-    # DEF-14: la frase de la consulta que no se encontró completa ("cedro amargo")
-    # cuando la especie salió solo de un pedazo de ella ("amargo"). Es interna:
-    # no va en la respuesta ni en la BD; con ella se pregunta antes de responder.
+    # Frase de la consulta que no se encontró completa ("cedro amargo") cuando la especie
+    # salió solo de una parte ("amargo"). Es interna: con ella se pide confirmar la especie
+    # antes de responder.
     _frase_incompleta: str | None = PrivateAttr(default=None)
 
     @property
@@ -45,11 +45,10 @@ class EspecieCandidata(EsquemaSalida):
 
 
 class MapaEspecie(EsquemaSalida):
-    """Mapa de distribución generado por CR-BioLM (RR_41).
+    """Mapa de distribución generado por CR-BioLM.
 
-    El backend no dibuja mapas: todos vienen de CR-BioLM. Si CR-BioLM no
-    genera uno, la respuesta trae `mapa = None` y el frontend no muestra mapa.
-    La imagen PNG se pide aparte a `url` (GET /especies/{id}/mapa, con sesión).
+    El backend no dibuja mapas. Si CR-BioLM no genera uno, `mapa` es None. El PNG se pide
+    aparte a `url` (GET /especies/{id}/mapa).
     """
 
     url: str
@@ -59,10 +58,10 @@ class MapaEspecie(EsquemaSalida):
 
 
 class Procedencia(EsquemaSalida):
-    """RR_45 criterio 3: de dónde sale un dato de la respuesta.
+    """De dónde sale un dato de la respuesta.
 
-    Ejemplo: dato="texto", fuente="Manual de Plantas de Costa Rica",
-    detalle="Tomo V, p. 779 · descripción · fragmento más relacionado con la pregunta".
+    Ejemplo: dato="texto", fuente="Manual de Plantas de Costa Rica", detalle="Tomo V, p.
+    779 · descripción".
     """
 
     dato: DatoRespuesta
@@ -80,27 +79,22 @@ class RespuestaConsulta(EsquemaSalida):
     total_registros: int = 0
     fuentes: list[str] = Field(default_factory=list)
     mapa: MapaEspecie | None = None
-    # Avisos para el usuario sobre los datos de la respuesta, p. ej. que no hay
-    # registros suficientes para un mapa (RR_43) o que GBIF no respondió (RR_58).
+    # Avisos sobre los datos de la respuesta, p. ej. que no hay registros suficientes para
+    # un mapa o que GBIF no respondió.
     avisos: list[str] = Field(default_factory=list)
-    # RR_41: False si la consulta no pide información geográfica (pregunta cómo
-    # es la planta). Solo cambia el texto: los registros y el mapa vienen igual.
+    # False si la consulta no pide información geográfica (pregunta cómo es la planta). Solo
+    # cambia el texto.
     geoespacial: bool = True
-    # RR_29: qué pregunta la consulta (distribución, hábitat, descripción); elige
-    # el texto y se registra en tiempos_respuesta.intencion (RR_33).
+    # Qué pregunta la consulta (distribución, hábitat, descripción o general).
     tipo: TipoPregunta = TipoPregunta.GENERAL
-    procedencia: list[Procedencia] = Field(default_factory=list)  # RR_45
-    # RR_56: cuándo descargó CR-BioLM los registros de GBIF (los guarda y los
-    # actualiza cada cierto tiempo). None si GBIF no respondió o CR-BioLM no lo dice.
+    procedencia: list[Procedencia] = Field(default_factory=list)
+    # Cuándo descargó CR-BioLM los registros de GBIF. None si GBIF no respondió o CR-BioLM
+    # no lo indica.
     registros_actualizados_en: datetime | None = None
 
 
 class FichaEspecie(EspecieCandidata):
-    """RR_20 — ficha completa de una especie.
-
-    Los campos que el catálogo no tenga llegan como None y la ficha los
-    muestra como "Sin dato" en lugar de inventarlos.
-    """
+    """Ficha completa de una especie. Lo que el catálogo no tenga llega como None."""
 
     habitat: str | None = None
     elevacion: str | None = None
@@ -110,15 +104,15 @@ class FichaEspecie(EspecieCandidata):
     fuentes: list[str] = Field(default_factory=list)
     mapa: MapaEspecie | None = None
     avisos: list[str] = Field(default_factory=list)  # igual que en RespuestaConsulta
-    procedencia: list[Procedencia] = Field(default_factory=list)  # RR_45
-    registros_actualizados_en: datetime | None = None  # RR_56, igual que en RespuestaConsulta
+    procedencia: list[Procedencia] = Field(default_factory=list)
+    registros_actualizados_en: datetime | None = None  # igual que en RespuestaConsulta
 
 
 MENSAJE_CONSULTA_VACIA = "La consulta no puede estar vacía."
 
 
 def mensaje_consulta_larga(largo: int) -> str:
-    """RR_34 criterio 2: el aviso cuando la consulta supera el límite."""
+    """Aviso cuando la consulta supera el largo máximo."""
     return (
         f"La consulta tiene {largo} caracteres y el máximo es {LONGITUD_MAXIMA_CONSULTA}. "
         "Acórtala e intenta de nuevo."
@@ -126,32 +120,27 @@ def mensaje_consulta_larga(largo: int) -> str:
 
 
 class ConsultaRequest(BaseModel):
-    # RR_34: el límite se define una sola vez (config.LONGITUD_MAXIMA_CONSULTA)
-    # y el frontend lo recibe en la sesión. Los límites de Field quedan para la
-    # documentación de la API; los mensajes en español salen de `_largo`.
+    # El largo máximo se define en config.LONGITUD_MAXIMA_CONSULTA. Los límites de Field
+    # documentan la API; el mensaje en español sale de `_largo`.
     texto: str = Field(min_length=1, max_length=LONGITUD_MAXIMA_CONSULTA)
 
-    # RR_17: cuando la consulta coincide con varias especies, el frontend
-    # reenvía la misma consulta indicando cuál eligió el usuario.
-    # RR_00_08: los identificadores del catálogo son slugs; cualquier otro
-    # carácter se rechaza en vez de limpiarse, porque no hay forma legítima
-    # de que llegue.
+    # Especie que eligió el usuario cuando la consulta coincide con varias. Los ids del
+    # catálogo son slugs; cualquier otro carácter se rechaza.
     especie_id: str | None = Field(default=None, max_length=100, pattern=r"^[a-z0-9-]+$")
 
-    # RR_09: la conversación a la que pertenece la consulta. Sin ella se crea
-    # una conversación nueva. Solo aplica a cuentas registradas.
+    # Conversación a la que pertenece la consulta; sin ella se crea una nueva. Solo para
+    # cuentas registradas.
     conversacion_id: int | None = Field(default=None, ge=1)
 
-    # RR_17: la consulta ambigua pendiente que se está resolviendo, junto con
-    # 'especie_id'. Se resuelve esa misma fila, así que no se cobra dos veces.
+    # Consulta ambigua pendiente que se resuelve, junto con 'especie_id'. Se actualiza esa
+    # misma fila, así que no cuenta dos veces.
     consulta_id: int | None = Field(default=None, ge=1)
 
     @field_validator("texto", mode="before")
     @classmethod
     def _largo(cls, v: object) -> object:
-        # RR_34 criterio 1: corre antes que los límites de Field para que el
-        # rechazo llegue con un mensaje en español. Se mide lo que escribió el
-        # usuario, igual que el contador del frontend.
+        # Corre antes que los límites de Field para que el rechazo llegue en español. Se
+        # mide lo que escribió el usuario, igual que el contador del frontend.
         if isinstance(v, str):
             if not v:
                 raise ValueError(MENSAJE_CONSULTA_VACIA)
@@ -162,10 +151,8 @@ class ConsultaRequest(BaseModel):
     @field_validator("texto")
     @classmethod
     def _texto(cls, v: str) -> str:
-        # RR_00_08: se sanitiza antes de comprobar si quedó vacía, para que
-        # una consulta hecha solo de marcado o caracteres invisibles se
-        # rechace igual que una vacía. RR_21: después se limpia, así que una
-        # hecha solo de emojis o signos también queda vacía.
+        # Se sanitiza y limpia antes de comprobar si quedó vacía: una consulta hecha solo de
+        # marcado, emojis o signos se rechaza igual que una vacía.
         limpio = limpiar_consulta(sanitizar_texto(v))
         if not limpio:
             raise ValueError(MENSAJE_CONSULTA_VACIA)
@@ -173,33 +160,32 @@ class ConsultaRequest(BaseModel):
 
 
 class ConsultaOut(EsquemaSalida):
-    """Resultado de enviar una consulta (ver los estados al inicio del archivo)."""
+    """Resultado de enviar una consulta."""
 
     id: int | None = None
-    # RR_09: la conversación donde quedó guardada; None para un visitante.
+    # Conversación donde quedó guardada; None para un visitante.
     conversacion_id: int | None = None
     estado: EstadoConsulta
     texto: str
     respuesta: RespuestaConsulta | None = None
     candidatos: list[EspecieCandidata] = Field(default_factory=list)
     mensaje: str | None = None
-    # Solo en "orientacion": por qué (saludo, ayuda...) y consultas de ejemplo
-    # que el usuario puede usar (RR_40 criterio 3).
+    # Solo en "orientacion": el motivo y consultas de ejemplo.
     motivo: MotivoOrientacion | None = None
     ejemplos: list[str] = Field(default_factory=list)
     realizada_en: datetime | None = None
     consultas_restantes: int = 0
 
 
-# --- RR_09: historial por conversaciones ----------------------------------------
+# --- historial por conversaciones ------------------------------------------------
 
 
 class ConsultaGuardada(EsquemaSalida):
     """Una consulta dentro de una conversación, en cualquiera de sus estados.
 
-    Una "ambigua" trae además 'candidatos' y 'mensaje', y se puede resolver
-    eligiendo una especie (RR_17); una "sin_coincidencias" trae 'mensaje'; una
-    "orientacion" trae 'mensaje', 'motivo' y, según el motivo, 'ejemplos'.
+    "ambigua" trae 'candidatos' y 'mensaje' y se puede resolver eligiendo una especie;
+    "sin_coincidencias" trae 'mensaje'; "orientacion" trae 'mensaje', 'motivo' y, según el
+    motivo, 'ejemplos'.
     """
 
     id: int

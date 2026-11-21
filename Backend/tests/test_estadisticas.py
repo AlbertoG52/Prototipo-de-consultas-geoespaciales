@@ -1,10 +1,9 @@
-"""Pruebas de RR_78 — estadísticas de uso del sistema (services/estadisticas.py).
+"""Pruebas de las estadísticas de uso (services/estadisticas.py).
 
-La BD del contenedor ya tiene consultas, así que las del servicio comparan
-antes y después de agregar las suyas. Corren en la sesión `sesion` de
-conftest.py, que se deshace al final: no dejan datos. Las de la API solo leen,
-con una cuenta que `correos_de_prueba` borra al terminar. Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+La BD ya tiene consultas, así que las del servicio comparan antes y después de agregar las
+suyas, en la sesión `sesion` que se deshace al final. Las de la API solo leen, con una
+cuenta que `correos_de_prueba` borra al terminar. Se ejecutan con: docker compose exec
+backend python -m pytest tests -q
 """
 
 from datetime import UTC, datetime, time, timedelta
@@ -102,14 +101,14 @@ def test_cada_periodo_empieza_a_medianoche_de_costa_rica():
 
 
 def test_de_noche_en_costa_rica_hoy_sigue_siendo_hoy(monkeypatch):
-    """DEF-05: a las 7 p. m. de Costa Rica ya es el día siguiente en UTC."""
+    """A las 7 p. m. de Costa Rica ya es el día siguiente en UTC."""
     siete_pm = datetime(2026, 11, 14, 19, 0, tzinfo=HORA_COSTA_RICA)  # 01:00 UTC del 15
     monkeypatch.setattr(estadisticas, "ahora", lambda: siete_pm.astimezone(UTC))
     assert estadisticas.inicio_del_dia() == datetime(2026, 11, 14, tzinfo=HORA_COSTA_RICA)
     assert estadisticas.inicio_del_dia(1) == datetime(2026, 11, 13, tzinfo=HORA_COSTA_RICA)
 
 
-# --- criterios 1 y 2: qué se cuenta y cómo se agrupa -----------------------------------
+# --- qué se cuenta y cómo se agrupa ------------------------------------------------
 
 
 def test_las_cuentas_cuentan_todo_menos_las_orientaciones(sesion):
@@ -161,7 +160,7 @@ def test_el_total_suma_todos_los_grupos(sesion):
 
 
 def test_las_cuentas_coinciden_con_el_uso_por_rol(sesion):
-    # Misma regla que RR_76, así los números del panel no se contradicen.
+    # Misma regla que el uso por rol, para que las cifras del panel coincidan.
     usuario = crear_usuario(sesion, "coincide.estadisticas@example.com")
     _consulta(sesion, usuario, EstadoConsulta.AMBIGUA)
     grupos = estadisticas.por_grupo(sesion, None)
@@ -169,7 +168,7 @@ def test_las_cuentas_coinciden_con_el_uso_por_rol(sesion):
         assert grupos[GrupoDeUso(uso.rol)].consultas == uso.consultas
 
 
-# --- criterio 3 y periodos --------------------------------------------------------------
+# --- periodos ----------------------------------------------------------------------
 
 
 def test_una_consulta_nueva_aparece_en_la_siguiente_peticion(sesion):
@@ -200,7 +199,7 @@ def test_las_consultas_por_dia_son_los_ultimos_siete(sesion):
     _tiempo(sesion, ResultadoConsulta.SIN_COINCIDENCIAS, hace_dias=3)
 
     despues = estadisticas.estadisticas(sesion, PeriodoEstadisticas.TODO).por_dia
-    hoy = ahora().astimezone(HORA_COSTA_RICA).date()  # DEF-05: días de Costa Rica
+    hoy = ahora().astimezone(HORA_COSTA_RICA).date()  # días de Costa Rica
     assert [d.fecha for d in despues] == [hoy - timedelta(days=d) for d in range(6, -1, -1)]
     cambio = [d.consultas - a.consultas for a, d in zip(antes, despues, strict=True)]
     assert cambio == [0, 0, 0, 1, 0, 0, 1]

@@ -1,9 +1,8 @@
 /**
- * Recuperación de contraseña, paso 1 — RR_00_06 criterios 1 y 2.
+ * Recuperación de contraseña, paso 1.
  *
- * La persona escribe su correo registrado y recibe un enlace que vence en 30
- * minutos. La respuesta es la misma exista o no la cuenta, para no revelar qué
- * correos están registrados. El paso 2 es ResetPasswordPage.
+ * La persona escribe su correo y recibe un enlace que vence en 30 minutos. La respuesta es la misma
+ * exista o no la cuenta. El paso 2 es ResetPasswordPage.
  */
 import { useState } from "react";
 import { useNavigate } from "react-router";

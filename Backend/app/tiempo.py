@@ -1,20 +1,12 @@
 """Hora actual y tiempo máximo de una operación.
 
-Todo el backend compara fechas con columnas `timestamptz`, así que usa `ahora()`
-en lugar de `datetime.now()` (que sin zona horaria devuelve la hora local del
-servidor y no se puede comparar con las de la base de datos).
+El backend compara fechas con columnas `timestamptz`, por eso usa `ahora()` (UTC) en lugar
+de `datetime.now()`.
 
-RR_38 — tiempo máximo de una consulta. El servicio de consultas abre un plazo:
-
-    with plazo(config.SEGUNDOS_MAXIMOS_CONSULTA):
-        ...
-
-Dentro del bloque, `verificar_plazo()` lanza `TiempoAgotado` si el tiempo ya se
-acabó, y `segundos_restantes()` dice cuánto queda. El adaptador MCP lo usa para
-que una llamada a CR-BioLM nunca dure más de lo que le queda a la consulta, y
-`alcanza_para_esperar()` evita esperar un reintento que ya no cabe. El
-plazo vive en una variable de contexto, así que no hay que pasarlo de función
-en función, y cada petición tiene el suyo.
+`plazo(segundos)` abre un tiempo máximo para lo que se ejecute dentro del bloque.
+`verificar_plazo()` lanza `TiempoAgotado` si ya venció, `segundos_restantes()` dice cuánto
+queda y `alcanza_para_esperar()` evita esperar un reintento que no cabe. El plazo vive en
+una variable de contexto, así que cada petición tiene el suyo.
 """
 
 import time
@@ -26,10 +18,8 @@ from datetime import UTC, datetime, timedelta, timezone
 
 from .errores import TiempoAgotado
 
-# Costa Rica no tiene horario de verano: siempre es UTC-6. Solo se usa para
-# escribir una fecha dentro de un texto para el usuario (p. ej. la procedencia,
-# RR_45); el resto del backend trabaja en UTC y el frontend formatea las fechas
-# en el navegador.
+# Costa Rica no tiene horario de verano: siempre es UTC-6. Solo se usa para escribir fechas
+# en textos para el usuario.
 HORA_COSTA_RICA = timezone(timedelta(hours=-6), "UTC-6")
 
 
@@ -76,10 +66,8 @@ def verificar_plazo() -> None:
 
 
 def alcanza_para_esperar(segundos: float) -> bool:
-    """False si, tras esperar `segundos`, al plazo abierto ya no le quedaría tiempo.
-
-    Sin plazo siempre alcanza. Lo usan los reintentos (MCP y RR_58) para no
-    esperar un intento que de todos modos se cortaría por RR_38.
+    """False si, tras esperar `segundos`, al plazo abierto ya no le quedaría tiempo. Sin plazo
+    siempre alcanza.
     """
     restantes = segundos_restantes()
     return restantes is None or restantes > segundos

@@ -1,12 +1,8 @@
-"""Perfil del usuario autenticado: nombre, contraseña, inactividad de la sesión y
-preferencias de respuesta del moderador (RR_67, RR_68, RR_79).
+"""Perfil del usuario: nombre, contraseña, inactividad de la sesión y preferencias de
+respuesta del moderador.
 
-Todo el router exige una cuenta: un visitante anónimo recibe 401. Cada
-persona solo puede modificar su propia cuenta; el id sale del token, nunca
-de la URL ni del cuerpo de la petición.
-
-Ninguno de estos cambios pasa por la auditoría (RR_00_09): el trigger de la
-BD solo registra cambios de rol y de estado.
+Exige una cuenta; el id sale del token, nunca de la URL ni del cuerpo. Estos cambios no
+pasan por la auditoría.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -52,10 +48,8 @@ def cambiar_password(
     usuario: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    """Cambia la contraseña después de verificar la actual.
-
-    Pedir la contraseña actual evita que alguien que encuentre una sesión
-    abierta pueda quedarse con la cuenta.
+    """Cambia la contraseña después de verificar la actual, para que una sesión abierta ajena
+    no baste para quedarse con la cuenta.
     """
     if not verificar_password(datos.password_actual, usuario.password_hash):
         raise HTTPException(
@@ -69,7 +63,7 @@ def cambiar_password(
             detail="La nueva contraseña debe ser distinta de la actual.",
         )
 
-    # RR_00_02: solo se guarda el hash.
+    # Solo se guarda el hash.
     usuario.password_hash = hash_password(datos.password_nueva)
     db.commit()
 
@@ -81,10 +75,8 @@ def cambiar_inactividad(
     usuario: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    """RR_00_04 criterio 2 — cambia cuánto tiempo sin actividad cierra la sesión.
-
-    Devuelve un token nuevo para que el periodo elegido aplique desde ya, sin
-    esperar a la siguiente renovación.
+    """Cambia el tiempo sin actividad que cierra la sesión. Devuelve un token nuevo para que
+    aplique de inmediato.
     """
     usuario.minutos_inactividad = datos.minutos
     db.commit()
@@ -93,10 +85,8 @@ def cambiar_inactividad(
     return TokenOut(access_token=token, tipo=TipoSesion.USUARIO)
 
 
-# RR_67: solo el moderador (y el supermoderador) configura sus respuestas. Un
-# usuario normal recibe 403 y sus respuestas siguen la del sistema (RR_80).
-# El rol va en `dependencies` y la cuenta en el parámetro, como en el resto
-# del router (tests/test_perfil.py exige obtener_usuario_actual en cada ruta).
+# Solo el moderador y el supermoderador configuran sus respuestas; un usuario recibe 403.
+# tests/test_perfil.py exige obtener_usuario_actual en cada ruta.
 _solo_moderadores = requiere_rol(NombreRol.MODERADOR, NombreRol.SUPERMODERADOR)
 
 
@@ -109,9 +99,8 @@ def ver_preferencias(
     usuario: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    """RR_67, RR_68, RR_79 — si las respuestas del moderador incluyen el mapa y las fuentes.
-
-    Trae también si cada una es propia o sigue la del sistema (RR_80).
+    """Si las respuestas del moderador incluyen el mapa y las fuentes, y si cada una es propia
+    o sigue la del sistema.
     """
     return preferencias.ver_del_moderador(db, usuario)
 
@@ -126,9 +115,7 @@ def cambiar_preferencias(
     usuario: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ):
-    """RR_67, RR_68 — activa o desactiva el mapa y las fuentes en las respuestas.
-
-    Se guarda en la cuenta, así que se conserva entre sesiones y aplica desde
-    la consulta siguiente (RR_79). Un campo en null vuelve a la del sistema.
+    """Activa o desactiva el mapa y las fuentes en las respuestas. Se guarda en la cuenta y
+    aplica desde la consulta siguiente; un campo en null vuelve a la del sistema.
     """
     return preferencias.cambiar_del_moderador(db, usuario, datos)

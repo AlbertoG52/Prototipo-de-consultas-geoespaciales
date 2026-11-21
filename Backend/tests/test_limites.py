@@ -1,17 +1,12 @@
-"""Pruebas de RR_62 a RR_66 — límite de consultas por rol, su periodo y el contador.
-
-Tres grupos:
+"""Pruebas del límite de consultas por rol, su periodo y el contador.
 
 - Las de los periodos y la validación no usan la BD.
-- Las del servicio (services/admin.py, services/uso.py) cambian límites de roles
-  o crean consultas. Un cambio de límite deja un registro en 'auditoria', que no
-  se puede borrar (RR_00_09), así que corren en la sesión `db`, que se deshace al
-  final, con `commit` reemplazado por `flush`: nada queda confirmado.
-- Las de la API solo leen, reciben un rechazo o agotan el límite de una cuenta de
-  prueba que `correos_de_prueba` borra al terminar (con sus consultas).
+- Las del servicio cambian límites o crean consultas; como un cambio de límite deja un
+  registro en 'auditoria', corren en la sesión `db`, que se deshace al final.
+- Las de la API solo leen, reciben un rechazo o agotan el límite de una cuenta que
+  `correos_de_prueba` borra al terminar.
 
-Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Se ejecutan con: docker compose exec backend python -m pytest tests -q
 """
 
 from datetime import UTC, datetime, timedelta
@@ -53,7 +48,7 @@ def _cr(*fecha: int) -> datetime:
     return datetime(*fecha, tzinfo=HORA_COSTA_RICA)
 
 
-# --- RR_64: los periodos ------------------------------------------------------------
+# --- los periodos ------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -100,7 +95,7 @@ def test_consultas_por_dia_para_comparar_periodos():
     assert consultas_por_dia(300, MES) == 10
 
 
-# --- RR_63 criterio 3: el límite debe ser un número válido -----------------------------
+# --- el límite debe ser un número válido -------------------------------------------
 
 
 @pytest.mark.parametrize("valor", [20, 1, 100_000])
@@ -178,7 +173,7 @@ def _limites(db: Session) -> dict[str, tuple[int, str]]:
     return {r.nombre: (r.limite_consultas, r.periodo_consultas) for r in db.query(Rol).all()}
 
 
-# --- RR_63: el supermoderador define el límite de cada rol -----------------------------
+# --- el supermoderador define el límite de cada rol --------------------------------
 
 
 def test_listar_roles_trae_limite_y_periodo(sesion):
@@ -198,7 +193,7 @@ def test_configurar_el_limite_de_un_rol(sesion):
 
 
 def test_el_nuevo_limite_aplica_a_las_consultas_siguientes(sesion):
-    """Criterio 2: la cuenta ve el nuevo límite y periodo en su siguiente petición."""
+    """La cuenta ve el nuevo límite y periodo en su siguiente petición."""
     actor = _crear(sesion, "super.limites@example.com", NombreRol.SUPERMODERADOR)
     usuario = _crear(sesion, "usuario.limites@example.com")
     _resuelta(sesion, usuario, LUNES_NOCHE - timedelta(hours=1))
@@ -230,7 +225,7 @@ def test_el_cambio_queda_en_la_auditoria_con_quien_lo_hizo(sesion):
     assert admin.listar_auditoria(sesion, 1)[0].actor == "super.limites@example.com"
 
 
-# --- RR_62 criterio 3 y RR_00_11: el usuario estándar tiene menos que el moderador ------
+# --- el usuario tiene menos que el moderador y no menos que el visitante -----------
 
 
 @pytest.mark.parametrize(
@@ -346,7 +341,7 @@ def test_periodos_distintos_se_comparan_por_dia(sesion, monkeypatch):
     assert salida.limite_consultas == 300
 
 
-# --- RR_64: el contador se restablece al empezar el periodo ------------------------------
+# --- el contador se restablece al empezar el periodo -------------------------------
 
 
 def test_solo_cuentan_las_consultas_del_periodo_actual(sesion):
@@ -363,7 +358,7 @@ def test_solo_cuentan_las_consultas_del_periodo_actual(sesion):
 
 
 def test_al_restablecerse_se_puede_volver_a_consultar(sesion):
-    """Criterio 3: en el periodo siguiente vuelve a tener todo su límite."""
+    """En el periodo siguiente vuelve a tener todo su límite."""
     usuario = _crear(sesion, "usuario.limites@example.com")
     identidad = _identidad(usuario)
     limite = usuario.rol.limite_consultas
@@ -377,7 +372,7 @@ def test_al_restablecerse_se_puede_volver_a_consultar(sesion):
     assert (despues.usadas, despues.restantes) == (0, limite)
 
 
-# --- RR_65: el aviso dice cuándo se restablece --------------------------------------------
+# --- el aviso dice cuándo se restablece --------------------------------------------
 
 
 def test_cuando_se_restablece():
@@ -408,7 +403,7 @@ def _agotar(cabeceras: dict) -> None:
 
 
 def test_la_sesion_dice_el_periodo_y_cuando_se_restablece(cuenta):
-    """RR_66 y RR_65: el frontend muestra el contador y la fecha de reinicio."""
+    """El frontend muestra el contador y la fecha de reinicio."""
     sesion = api.get("/auth/sesion", headers=cuenta).json()
     with SessionLocal() as db:
         limite, periodo = (
@@ -422,7 +417,7 @@ def test_la_sesion_dice_el_periodo_y_cuando_se_restablece(cuenta):
 
 
 def test_con_el_limite_alcanzado_se_avisa_cuando_se_restablece(cuenta):
-    """RR_65 criterios 1 a 3: antes de procesar, claro y con la fecha."""
+    """Se avisa antes de procesar, con la fecha de reinicio."""
     _agotar(cuenta)
     sesion = api.get("/auth/sesion", headers=cuenta).json()
     assert sesion["consultas_restantes"] == 0
@@ -454,14 +449,13 @@ def test_el_visitante_tambien_sabe_cuando_se_restablece(monkeypatch):
 
 
 def test_una_consulta_resuelta_baja_el_contador(cuenta):
-    """RR_66 criterio 2."""
     antes = api.get("/auth/sesion", headers=cuenta).json()["consultas_restantes"]
     assert api.post("/consultas", headers=cuenta, json={"texto": "pejibaye"}).status_code == 200
     despues = api.get("/auth/sesion", headers=cuenta).json()["consultas_restantes"]
     assert despues == antes - 1
 
 
-# --- RR_63 por la API ----------------------------------------------------------------------
+# --- límites por la API ------------------------------------------------------------
 
 
 def _cabeceras_de(correo: str) -> dict[str, str]:

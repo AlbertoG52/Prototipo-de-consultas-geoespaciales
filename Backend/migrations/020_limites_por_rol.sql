@@ -1,9 +1,7 @@
--- RR_63 y RR_64: el supermoderador define cuántas consultas tiene cada rol y
--- cada cuánto se restablece su contador.
+-- Límite de consultas de cada rol y su periodo.
 --
--- El contador no se guarda ni se reinicia con un proceso: se cuentan las
--- consultas resueltas dentro del periodo actual (services/uso.py). Así se
--- restablece solo al empezar el periodo siguiente (RR_64 criterio 1).
+-- El contador no se guarda: se cuentan las consultas resueltas del periodo actual
+-- (services/uso.py), así se restablece solo al empezar el siguiente.
 
 -- Periodo del contador: 'dia', 'semana' o 'mes' (dominio.PeriodoConsultas).
 -- Los roles existentes quedan como estaban: un límite diario.
@@ -16,16 +14,15 @@ BEGIN
         ALTER TABLE roles ADD CONSTRAINT roles_periodo_consultas_valido
             CHECK (periodo_consultas IN ('dia', 'semana', 'mes'));
     END IF;
-    -- RR_63 criterio 3: un límite debe ser un número válido de consultas.
+    -- Un límite debe ser un número válido de consultas.
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'roles_limite_consultas_valido') THEN
         ALTER TABLE roles ADD CONSTRAINT roles_limite_consultas_valido
             CHECK (limite_consultas BETWEEN 1 AND 100000);
     END IF;
 END $$;
 
--- RR_00_09: los cambios de límite quedan en la auditoría, con quién los hizo
--- (app.actor_id, igual que en 011). No afectan a un usuario en particular, así
--- que usuario_afectado_id queda en NULL y el detalle dice qué rol cambió.
+-- Los cambios de límite quedan en la auditoría con quién los hizo; usuario_afectado_id
+-- queda en NULL y el detalle dice qué rol cambió.
 CREATE OR REPLACE FUNCTION registrar_auditoria_rol()
 RETURNS TRIGGER AS $$
 DECLARE

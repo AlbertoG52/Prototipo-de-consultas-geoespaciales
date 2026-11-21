@@ -1,19 +1,17 @@
 /**
  * Estado de la sesión, compartido por toda la aplicación.
  *
- * Si no hay usuario, el backend emite una sesión anónima con menos
- * consultas diarias y sin historial (RR_00_11).
+ * Si no hay usuario, el backend emite una sesión anónima con menos consultas diarias y sin
+ * historial.
  *
- * RR_00_04 — expiración por inactividad:
- *  - Mientras la persona usa la aplicación (mouse, teclado, scroll, toque) se
- *    registra la hora de la última actividad y se renueva el token.
- *  - Si pasan `minutos_inactividad` sin actividad, se cierra la sesión: se
- *    descarta el token, se vuelve a la sesión anónima y se marca
- *    `sesionExpirada` para que la interfaz pida iniciar sesión de nuevo.
- *  - El servidor aplica lo mismo por su lado: el token vence si no se renueva,
- *    así que aunque se salte este temporizador la sesión no sobrevive.
- *  - La última actividad se guarda en localStorage para que varias pestañas
- *    abiertas compartan el mismo reloj.
+ * Expiración por inactividad:
+ * - Mientras la persona usa la aplicación (mouse, teclado, scroll, toque) se registra la última
+ *   actividad y se renueva el token.
+ * - Si pasan `minutos_inactividad` sin actividad, se descarta el token, se vuelve a la sesión
+ *   anónima y se marca `sesionExpirada` para pedir un nuevo inicio de sesión.
+ * - El servidor aplica lo mismo: el token vence si no se renueva.
+ * - La última actividad se guarda en localStorage para que todas las pestañas compartan el mismo
+ *   reloj.
  */
 import {
   createContext,
@@ -37,13 +35,13 @@ interface EstadoAuth {
   autenticado: boolean;
 
   /**
-   * true mientras el servidor no responde, por ejemplo mientras Docker todavía
-   * levanta el backend. La sesión se sigue pidiendo sola hasta que conteste.
+   * true mientras el servidor no responde, por ejemplo mientras Docker levanta el backend. La
+   * sesión se sigue pidiendo hasta que conteste.
    */
   conectando: boolean;
 
   entrar: (correo: string, password: string) => Promise<void>;
-  /** Devuelve el mensaje del servidor (RR_00_07: si se envió el correo de verificación). */
+  /** Devuelve el mensaje del servidor (si se envió el correo de verificación). */
   registrarse: (nombre: string, correo: string, password: string) => Promise<string>;
   salir: () => Promise<void>;
 
@@ -51,12 +49,12 @@ interface EstadoAuth {
   refrescarSesion: () => Promise<void>;
   limpiarError: () => void;
 
-  /** RR_00_04: la sesión se cerró por inactividad y hay que volver a entrar. */
+  /** La sesión se cerró por inactividad y hay que volver a entrar. */
   sesionExpirada: boolean;
   limpiarExpiracion: () => void;
 }
 
-// RR_00_04 — reloj de inactividad compartido entre pestañas.
+// Reloj de inactividad compartido entre pestañas.
 const CLAVE_ACTIVIDAD = "ultimaActividad";
 const EVENTOS_ACTIVIDAD = ["mousemove", "mousedown", "keydown", "scroll", "wheel", "touchstart"] as const;
 /** Cada cuánto se revisa si ya se cumplió el periodo de inactividad. */
@@ -91,9 +89,8 @@ const AuthContext = createContext<EstadoAuth | null>(null);
 const esperar = (ms: number) => new Promise((listo) => setTimeout(listo, ms));
 
 /**
- * true si el servidor rechazó el token: venció, se firmó con otra SECRET_KEY o
- * es de una cuenta que no existe en esta base de datos (por ejemplo, después
- * de reiniciarla o de pasar de la base local a la de AWS).
+ * true si el servidor rechazó el token: venció, se firmó con otra SECRET_KEY o es de una cuenta que
+ * no existe en esta base de datos.
  */
 function tokenRechazado(err: unknown): boolean {
   return err instanceof api.ErrorApi && err.status === 401;
@@ -114,11 +111,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [conectando, setConectando] = useState(false);
 
   /**
-   * Devuelve la sesión actual. Si el token no sirve o no existe, pide una
-   * sesión anónima para que la aplicación siga siendo usable (RR_00_11).
+   * Devuelve la sesión actual. Si el token no sirve o no existe, pide una sesión anónima.
    *
-   * Si el servidor no responde, el error se propaga y el token se conserva:
-   * un servidor que está arrancando no es motivo para cerrar la sesión.
+   * Si el servidor no responde, el error se propaga y el token se conserva: un servidor que está
+   * arrancando no es motivo para cerrar la sesión.
    */
   const resolverSesion = useCallback(async (): Promise<Sesion> => {
     if (api.obtenerToken()) {
@@ -126,12 +122,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         return await api.obtenerSesion();
       } catch (err) {
-        // RR_74: la cuenta fue desactivada (403); la persona sigue sin cuenta.
+        // La cuenta fue desactivada (403); la persona sigue sin cuenta.
         const desactivada = err instanceof api.ErrorApi && err.status === 403;
         // Si solo falló la red (el servidor está arrancando), se conserva el
         // token y el efecto de abajo vuelve a intentar.
         if (!tokenRechazado(err) && !desactivada) throw err;
-        // RR_00_04: el token de usuario venció mientras la página estaba cerrada.
+        // El token de usuario venció mientras la página estaba cerrada.
         if (eraUsuario && !desactivada) setSesionExpirada(true);
         api.borrarToken();
       }
@@ -169,8 +165,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (err) {
       // Si solo falló la red, el contador se actualizará en el siguiente intento.
       if (!tokenRechazado(err)) return;
-      // Con una cuenta, el 401 ya lo atiende expirar() (RR_00_04), que avisa
-      // que la sesión expiró. Aquí solo se recupera un token anónimo inválido.
+      // Con una cuenta, el 401 ya lo atiende expirar(), que avisa que la sesión expiró. Aquí solo
+      // se recupera un token anónimo inválido.
       if (sesionRef.current?.tipo === "usuario") return;
       // El token dejó de servir con la aplicación abierta (venció o se
       // reinició la base de datos): se continúa como visitante en vez de
@@ -186,9 +182,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   /**
-   * RR_00_04 criterios 1 y 3 — cierra la sesión por inactividad. La persona
-   * queda como visitante y tiene que volver a autenticarse para recuperar su
-   * cuenta. Se protege contra llamadas repetidas (temporizador + 401).
+   * Cierra la sesión por inactividad. La persona queda como visitante y debe volver a autenticarse.
+   * Se protege contra llamadas repetidas (temporizador + 401).
    */
   const expirar = useCallback(async () => {
     if (expirando.current) return;
@@ -218,8 +213,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => api.alExpirarSesion(null);
   }, [expirar]);
 
-  // RR_00_04 — temporizador de inactividad. Solo para cuentas registradas y
-  // cuando el periodo no es "Nunca" (0).
+  // Temporizador de inactividad: solo para cuentas registradas y cuando el periodo no es "Nunca"
+  // (0).
   const minutos = sesion?.tipo === "usuario" ? (sesion.minutos_inactividad ?? 0) : 0;
   useEffect(() => {
     if (minutos <= 0) return;
@@ -300,10 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   /**
-   * RR_00_01 — cerrar la sesión activa.
-   *
-   * No deja al usuario sin sesión: lo devuelve a una anónima, que es el estado
-   * por defecto de la aplicación.
+   * Cierra la sesión activa y vuelve a una sesión anónima, el estado por defecto de la aplicación.
    */
   const salir = useCallback(async () => {
     setCargando(true);

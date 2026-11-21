@@ -1,4 +1,4 @@
-"""Pruebas de las reglas de RR_60 y RR_43 (services/validacion_datos.py). No usan la BD."""
+"""Pruebas de services/validacion_datos.py. No usan la BD."""
 
 import pytest
 

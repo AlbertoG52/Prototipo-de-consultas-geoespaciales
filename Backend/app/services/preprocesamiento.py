@@ -1,34 +1,22 @@
-"""Mensajes que no son una consulta — RR_22, RR_32, RR_37 y RR_40.
+"""Mensajes que no son una consulta.
 
-`interpretar(texto)` se usa ANTES de buscar especies. Si el mensaje no es una
-consulta que se pueda procesar, devuelve el motivo (MotivoOrientacion) y
-services/consultas.py responde orientando al usuario: no busca especies, no
-llama a CR-BioLM y no descuenta del límite diario. Se revisa en este orden:
+`interpretar(texto)` se usa antes de buscar especies. Si el mensaje no es una consulta
+procesable, devuelve el motivo (MotivoOrientacion) y services/consultas.py orienta al
+usuario sin llamar a CR-BioLM ni contar para el límite. Se revisa en este orden:
 
-1. RR_32 sin sentido: no tiene letras ("123", "???") o ninguna de sus palabras
-   se puede pronunciar (sin vocales o con cinco consonantes seguidas: "asdfgh").
-2. RR_22 idioma: es claramente inglés (al menos dos palabras típicas del
-   inglés y más que del español). Ante la duda, sigue: los nombres científicos
-   están en latín y no cuentan para ningún idioma.
-3. RR_40 ayuda: trae una frase de ayuda ("¿qué puedo preguntar?", "¿cómo
-   funciona?") y nada más que cortesía o palabras sobre el agente y sus fuentes
-   ("¿Qué puedo hacer con el manual de plantas?"). "¿Para qué sirve la guaria
-   morada?" sí es una consulta: sobra el nombre de la planta.
-4. RR_37 saludo: solo trae cortesía ("hola", "gracias", "¿qué tal todo?").
+1. Sin sentido: no tiene letras ("123", "???") o ninguna palabra se puede pronunciar
+   ("asdfgh").
+2. Idioma: es claramente inglés (al menos dos palabras típicas del inglés y más que del
+   español). Los nombres científicos no cuentan.
+3. Ayuda: una frase de ayuda ("¿qué puedo preguntar?") sin nada más que cortesía o palabras
+   sobre el agente. "¿Para qué sirve la guaria morada?" sí es una consulta.
+4. Saludo: solo cortesía ("hola", "gracias").
 
-`fuera_de_tema(texto)` se usa DESPUÉS de buscar, cuando no se reconoció ninguna
-especie (RR_37): si además ninguna palabra tiene que ver con plantas, geografía
-o descripción, el mensaje no es sobre flora. Antes de buscar no se puede saber:
-"guaria morada" no tiene ninguna de esas palabras y es una planta. Por eso su
-mensaje sugiere probar con el nombre científico.
+`fuera_de_tema(texto)` se usa después de buscar, si no se reconoció ninguna especie y
+ninguna palabra tiene que ver con plantas. `fuera_de_costa_rica(texto)` se usa en el mismo
+momento para preguntas por la flora de otro país; responde con el mismo motivo.
 
-`fuera_de_costa_rica(texto)` (RR_30) se usa en el mismo momento: sin especie
-reconocida, una pregunta por la flora de otro país o continente ("¿Dónde crece
-el baobab en África?") también está fuera de alcance. Se responde con el mismo
-motivo y mensaje que RR_37 (FUERA_DE_TEMA).
-
-Todo es por palabras clave, sin LLM, comparadas sin tildes ni mayúsculas
-(intencion.palabras, RR_35), igual que services/intencion.py.
+Todo es por palabras clave, sin LLM, sin tildes ni mayúsculas.
 """
 
 from __future__ import annotations
@@ -41,7 +29,7 @@ from . import intencion
 from .contexto_especie import GBIF, MANUAL
 from .intencion import GENERICAS, palabras
 
-# --- RR_32: sin sentido ---------------------------------------------------------
+# --- sin sentido -----------------------------------------------------------------
 
 _VOCALES = frozenset("aeiouy")
 _CINCO_CONSONANTES = re.compile(r"[b-df-hj-np-tv-xz]{5}")
@@ -58,7 +46,7 @@ def _es_sin_sentido(texto: str, sus_palabras: list[str]) -> bool:
     return all(_impronunciable(p) for p in sus_palabras)
 
 
-# --- RR_22: idioma ----------------------------------------------------------------
+# --- idioma ----------------------------------------------------------------------
 
 # Palabras frecuentes del inglés que no se usan en español. Sin "a", "me" ni
 # "no", que existen en los dos.
@@ -97,7 +85,7 @@ def _es_ingles(texto: str, sus_palabras: list[str]) -> bool:
     return ingles >= 2 and ingles > espanol
 
 
-# --- RR_37 y RR_40: cortesía y ayuda ----------------------------------------------
+# --- cortesía y ayuda ------------------------------------------------------------
 
 _SALUDOS = frozenset({"hola", "holi", "holis", "buenas", "buenos", "buen", "dias", "tardes",
                       "noches", "saludos", "hey", "hello", "hi", "tal", "pura"})  # fmt: skip
@@ -178,7 +166,7 @@ def _es_saludo(sus_palabras: list[str]) -> bool:
     return any(p in _CORTESIA for p in sus_palabras) and all(p in permitidas for p in sus_palabras)
 
 
-# --- RR_37: fuera de tema -----------------------------------------------------------
+# --- fuera de tema ---------------------------------------------------------------
 
 # Palabras sobre plantas que no están en las listas de services/intencion.py.
 _FLORA = frozenset(
@@ -196,22 +184,19 @@ _FLORA = frozenset(
 
 
 def fuera_de_tema(texto: str) -> bool:
-    """RR_37: ninguna palabra del texto tiene que ver con plantas (ver el módulo).
-
-    Usa las listas de services/intencion.py en el momento de llamarla, así que
-    incluye lo que RR_29 agregue a HABITAT.
+    """Ninguna palabra del texto tiene que ver con plantas. Usa las listas de
+    services/intencion.py en el momento de llamarla.
     """
     sobre_plantas = _FLORA | intencion.GEOESPACIALES | intencion.HABITAT | intencion.DESCRIPTIVAS
     return not any(p in sobre_plantas for p in palabras(texto))
 
 
-# --- RR_30: fuera de alcance (flora de otro lugar) ------------------------------------
+# --- fuera de alcance (flora de otro lugar) ------------------------------------
 
-# Países y continentes que no son Costa Rica. Sin los que también son parte de
-# nombres comunes de plantas en Costa Rica: "chile" (chile dulce), "china" (la
-# flor), "india" (almendro de la India, caña india), "jamaica" (flor de
-# jamaica), "brasil" (palo de Brasil), "guinea" (zacate guinea). Tampoco
-# "Centroamérica" ni "América", que incluyen a Costa Rica.
+# Países y continentes que no son Costa Rica. Se omiten los que forman parte de nombres
+# comunes de plantas en Costa Rica: "chile" (chile dulce), "china", "india" (almendro de la
+# India), "jamaica" (flor de jamaica), "brasil" (palo de Brasil), "guinea" (zacate guinea).
+# Tampoco "Centroamérica" ni "América", que incluyen a Costa Rica.
 _OTROS_LUGARES = frozenset(
     {
         "africa", "asia", "europa", "oceania", "antartida", "norteamerica",
@@ -235,11 +220,10 @@ _COSTA_RICA = frozenset(
 
 
 def fuera_de_costa_rica(texto: str) -> bool:
-    """RR_30: pregunta por la flora de otro país o continente y no por la de Costa Rica.
+    """Pregunta por la flora de otro país o continente y no por la de Costa Rica.
 
-    Como `fuera_de_tema`, se usa solo cuando no se reconoció ninguna especie: con
-    una especie del Manual la respuesta es sobre Costa Rica aunque se nombre otro
-    país. "¿El baobab de África crece en Costa Rica?" no está fuera de alcance.
+    Solo se usa cuando no se reconoció ninguna especie: con una especie del Manual la
+    respuesta es sobre Costa Rica aunque se nombre otro país.
     """
     sus_palabras = palabras(texto)
     frase = f" {' '.join(sus_palabras)} "
@@ -254,7 +238,7 @@ def fuera_de_costa_rica(texto: str) -> bool:
 
 
 def interpretar(texto: str) -> MotivoOrientacion | None:
-    """Por qué `texto` no es una consulta procesable, o None si lo es (ver el módulo)."""
+    """Por qué `texto` no es una consulta procesable, o None si lo es."""
     sus_palabras = palabras(texto)
     if _es_sin_sentido(texto, sus_palabras):
         return MotivoOrientacion.SIN_SENTIDO
@@ -267,10 +251,8 @@ def interpretar(texto: str) -> MotivoOrientacion | None:
     return None
 
 
-# RR_40 criterio 3: consultas válidas con nombre científico, que funcionan con el
-# catálogo de demostración y con el de CR-BioLM (los nombres comunes todavía no
-# los reconoce CR-BioLM, RR_25). Cada especie debe estar en los dos: el Manual de
-# CR-BioLM no tiene Cedrela odorata, por eso se usa C. tonduzii.
+# Consultas de ejemplo con nombre científico, válidas en el catálogo de demostración y en el
+# de CR-BioLM. El Manual no tiene Cedrela odorata, por eso se usa C. tonduzii.
 EJEMPLOS_DE_CONSULTA = (
     "¿Dónde crece Quercus costaricensis?",
     "¿Cómo son las hojas de Cedrela tonduzii?",
@@ -310,7 +292,7 @@ _MENSAJES = {
 
 
 def mensaje_de(motivo: MotivoOrientacion, texto: str) -> str:
-    """Lo que se le responde al usuario (RR_37 y RR_40 criterio 2, RR_22 criterio 2...)."""
+    """Mensaje de orientación para el usuario según el motivo."""
     if motivo is not MotivoOrientacion.SALUDO:
         return _MENSAJES[motivo]
     sus_palabras = set(palabras(texto))

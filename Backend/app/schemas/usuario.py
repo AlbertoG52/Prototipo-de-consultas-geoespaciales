@@ -16,10 +16,10 @@ LONGITUD_MAXIMA_NOMBRE = 120
 
 
 def validar_nombre(valor: str) -> str:
-    """Regla única del nombre visible, para el registro y para el perfil.
+    """Regla del nombre visible, para el registro y el perfil.
 
-    Se sanitiza (RR_00_08) y se colapsan espacios, tabuladores y saltos de
-    línea; el largo se revisa después de limpiar, así "  a  " no es válido.
+    Se sanitiza y se colapsan los espacios; el largo se revisa después, así "  a  " no es
+    válido.
     """
     limpio = " ".join(sanitizar_texto(valor).split())
     if len(limpio) < LONGITUD_MINIMA_NOMBRE:
@@ -28,7 +28,7 @@ def validar_nombre(valor: str) -> str:
 
 
 def validar_password(valor: str) -> str:
-    """Reglas mínimas de contraseña (RR_00_03), en el registro y en cada cambio."""
+    """Reglas mínimas de contraseña, en el registro y en cada cambio."""
     if len(valor) < LONGITUD_MINIMA_PASSWORD:
         raise ValueError(
             f"La contraseña debe tener al menos {LONGITUD_MINIMA_PASSWORD} caracteres."
@@ -46,7 +46,7 @@ def validar_password(valor: str) -> str:
     return valor
 
 
-# RR_61 criterio 3: campos con los que alguien intentaría elegir su rol al registrarse.
+# Campos con los que alguien intentaría elegir su rol al registrarse.
 CAMPOS_DE_ROL = frozenset({"rol", "rol_id", "role", "role_id"})
 MENSAJE_ROL_EN_REGISTRO = (
     "No se puede elegir el rol al registrarse: toda cuenta nueva es de usuario estándar."
@@ -54,9 +54,8 @@ MENSAJE_ROL_EN_REGISTRO = (
 
 
 class RegistroRequest(BaseModel):
-    """RR_00_01. RR_61: el rol no se recibe; routers/auth.py asigna siempre 'usuario'.
-
-    Cualquier campo de más se rechaza (422). Los de rol, con un mensaje propio.
+    """Registro de una cuenta. El rol no se recibe: routers/auth.py asigna siempre 'usuario'.
+    Cualquier campo de más se rechaza (422).
     """
 
     model_config = ConfigDict(extra="forbid")

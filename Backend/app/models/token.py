@@ -1,4 +1,4 @@
-"""Token temporal — mapea la tabla creada en 005 (RR_00_06 y RR_00_07)."""
+"""Token temporal de verificación de correo o de recuperación de contraseña."""
 
 from datetime import datetime
 

@@ -29,7 +29,7 @@ app.include_router(especies.router)
 
 @app.get("/health", tags=["estado"])
 def health():
-    """Chequeo simple de que la API está viva."""
+    """Indica que la API está activa."""
     return {"status": "ok"}
 
 
@@ -45,8 +45,7 @@ def db_check():
 def mcp_check():
     """Verifica la conexión con CR-BioLM listando las herramientas de su servidor MCP.
 
-    El motivo del fallo queda en el log del backend; aquí solo se informa que
-    no hay conexión, para no exponer detalles internos.
+    El motivo de un fallo queda en el log; la respuesta no expone detalles internos.
     """
     try:
         herramientas = mcp_cliente.herramientas_disponibles()

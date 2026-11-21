@@ -1,14 +1,8 @@
--- RR_57: registro del tiempo de respuesta de cada consulta.
+-- Tiempo de respuesta de cada consulta.
 --
--- Una fila por cada POST /consultas, termine bien o mal: cuánto tardó desde
--- que llegó al backend hasta que la respuesta quedó lista, y cómo terminó.
--- La lee el equipo técnico en GET /admin/tiempos (solo supermoderador) para
--- encontrar las consultas lentas.
---
--- No guarda el texto de la consulta ni quién la hizo: el visitante anónimo no
--- deja rastro de lo que consultó (RR_00_11). De una cuenta registrada se
--- guarda el id de la consulta, que ya está en 'consultas'; si esa consulta se
--- borra, el tiempo se conserva sin el enlace.
+-- Una fila por cada POST /consultas, termine bien o mal: cuánto tardó y cómo terminó. Se
+-- consulta en GET /admin/tiempos. No guarda el texto ni quién consultó; de una cuenta
+-- guarda el id de la consulta.
 CREATE TABLE IF NOT EXISTS tiempos_respuesta (
     id            SERIAL PRIMARY KEY,
     registrada_en TIMESTAMPTZ NOT NULL DEFAULT now(),

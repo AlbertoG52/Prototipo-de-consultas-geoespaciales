@@ -1,35 +1,28 @@
 """Adaptador MCP: la única puerta del backend hacia CR-BioLM.
 
-CR-BioLM expone sus servicios (catálogo del Manual de Plantas, ocurrencias de
-GBIF, mapas y respuestas en lenguaje natural) como herramientas de un servidor
-MCP. Este módulo es lo único del backend que sabe que ese servidor existe: abre
-la conexión, llama una herramienta y devuelve el resultado ya interpretado como
-un `Sobre`. Ningún router ni otro servicio importa el SDK de MCP.
+CR-BioLM expone sus servicios (catálogo del Manual, registros de GBIF, mapas y respuestas
+redactadas) como herramientas de un servidor MCP. Este módulo abre la conexión, llama una
+herramienta y devuelve el resultado como un `Sobre`. Ningún otro módulo importa el SDK de
+MCP.
 
-Uso, desde código síncrono (los endpoints del proyecto lo son):
+Uso desde código síncrono:
 
     from app.services import mcp_cliente
 
     sobre = mcp_cliente.llamar("get_species", name="Quercus costaricensis")
     sobre.valor["elev_min"], sobre.cita, sobre.advertencia
 
-Desde una función `async` se usa `allamar(...)` con `await`.
+Desde una función `async` se usa `await allamar(...)`.
 
-Qué hace:
-- Abre una sesión por llamada. Es lo más simple y suficiente para el
-  prototipo: el servidor corre en la misma máquina o en la red de Docker.
-- Corta la llamada si pasa de MCP_TIMEOUT_SEGUNDOS, o antes si la consulta que
-  la hizo tiene menos tiempo restante (RR_38, ver tiempo.plazo).
-- Reintenta solo cuando no se pudo conectar, y solo si la herramienta todavía no
-  se había pedido. Una llamada que ya llegó al servidor no se repite: podría
-  haber gastado una consulta al LLM (L2), y repetirla la cobraría dos veces.
-- Limita las llamadas pesadas simultáneas (MCP_LLAMADAS_SIMULTANEAS, DEF-13):
-  las demás esperan turno en vez de saturar CR-BioLM.
-- Convierte cada fallo en una excepción propia (ver `ErrorMCP`), para que los
-  routers muestren un mensaje claro con opción de reintentar (RR_05) sin
-  conocer los detalles del protocolo.
-- Registra en el log cuánto tardó cada llamada (el tiempo de la consulta
-  completa lo registra RR_57, ver services/tiempos.py).
+- Abre una sesión por llamada.
+- Corta la llamada al pasar MCP_TIMEOUT_SEGUNDOS, o antes si a la consulta le queda menos
+  tiempo.
+- Reintenta solo cuando no se pudo conectar. Una llamada que llegó al servidor no se
+  repite, para no pagar dos veces al LLM.
+- Limita las llamadas pesadas simultáneas (MCP_LLAMADAS_SIMULTANEAS); las demás esperan
+  turno.
+- Convierte cada fallo en una excepción propia (`ErrorMCP`).
+- Registra en el log cuánto tardó cada llamada.
 """
 
 from __future__ import annotations
@@ -54,7 +47,7 @@ from mcp.types import CallToolResult, TextContent
 from .. import config
 from ..tiempo import alcanza_para_esperar, segundos_restantes
 
-# El logger de uvicorn es el que ya aparece en los logs del contenedor.
+# El logger de uvicorn es el que aparece en los logs del contenedor.
 logger = logging.getLogger("uvicorn.error")
 
 # Valores de 'confidence' que usa CR-BioLM en su sobre de procedencia.
@@ -84,7 +77,7 @@ class MCPNoDisponible(ErrorMCP):
 
 
 class MCPTiempoAgotado(ErrorMCP):
-    """La llamada superó MCP_TIMEOUT_SEGUNDOS o el tiempo que le quedaba a la consulta (RR_38)."""
+    """La llamada superó MCP_TIMEOUT_SEGUNDOS o el tiempo que le quedaba a la consulta."""
 
 
 class MCPErrorHerramienta(ErrorMCP):
@@ -100,16 +93,15 @@ class MCPRespuestaInvalida(ErrorMCP):
 
 @dataclass(frozen=True)
 class Sobre:
-    """El sobre de procedencia que devuelve cada herramienta de CR-BioLM.
+    """Sobre de procedencia que devuelve cada herramienta de CR-BioLM.
 
-    Traduce a los nombres del proyecto los campos de CR-BioLM:
-    value -> valor, source -> fuente, citation -> cita,
+    Traduce los campos de CR-BioLM: value -> valor, source -> fuente, citation -> cita,
     confidence -> confianza, caveat -> advertencia.
 
     - fuente: MPCR, GBIF, DEM, SINAC o combinaciones como "MPCR+GBIF".
-    - cita: referencia lista para mostrar, p. ej. "Tomo IV, p. 320" (RR_50, RR_51).
+    - cita: referencia lista para mostrar, p. ej. "Tomo IV, p. 320".
     - confianza: "exact", "estimated" o "insufficient".
-    - advertencia: si no está vacía, hay que mostrarla junto al dato; no se descarta.
+    - advertencia: si no está vacía, se muestra junto al dato.
     """
 
     valor: Any
@@ -120,7 +112,7 @@ class Sobre:
 
     @property
     def es_suficiente(self) -> bool:
-        """False cuando CR-BioLM avisa que no hay datos suficientes (RR_53)."""
+        """False cuando CR-BioLM avisa que no hay datos suficientes."""
         return self.confianza != CONFIANZA_INSUFICIENTE
 
     @classmethod
@@ -148,9 +140,8 @@ def llamar(herramienta: str, **argumentos: Any) -> Sobre:
         return anyio.run(partial(allamar, herramienta, **argumentos))
 
 
-# DEF-13 — las herramientas que hacen trabajar de verdad a CR-BioLM: dibujar el
-# mapa, descargar registros de GBIF, el LLM y la búsqueda semántica. Las de
-# consulta a tablas (L0) no esperan turno.
+# Herramientas que hacen trabajar de verdad a CR-BioLM: mapa, registros de GBIF, LLM y
+# búsqueda semántica. Las consultas a tablas no esperan turno.
 HERRAMIENTAS_PESADAS = frozenset(
     {
         "get_species_map_image",
@@ -171,10 +162,10 @@ _turnos = (
 
 @contextmanager
 def _turno(herramienta: str) -> Iterator[None]:
-    """DEF-13: espera turno para una herramienta pesada (MCP_LLAMADAS_SIMULTANEAS).
+    """Espera turno para una herramienta pesada (MCP_LLAMADAS_SIMULTANEAS).
 
-    Espera a lo sumo lo que le queda a la consulta (RR_38) o MCP_TIMEOUT_SEGUNDOS;
-    si no hubo turno, es tiempo agotado, igual que una llamada que tarda de más.
+    Espera a lo sumo lo que le queda a la consulta o MCP_TIMEOUT_SEGUNDOS; si no hubo
+    turno, es tiempo agotado.
     """
     if _turnos is None or herramienta not in HERRAMIENTAS_PESADAS:
         yield
@@ -254,7 +245,7 @@ async def _sesion() -> AsyncIterator[ClientSession]:
 
 
 async def _con_reintentos(herramienta: str, operacion, *argumentos):
-    """Ejecuta `operacion` con tiempo máximo y reintentos de conexión (RR_38)."""
+    """Ejecuta `operacion` con tiempo máximo y reintentos de conexión."""
     intentos = config.MCP_REINTENTOS_CONEXION + 1
     for intento in range(1, intentos + 1):
         limite = _tiempo_para_la_llamada(herramienta)
@@ -283,7 +274,7 @@ async def _con_reintentos(herramienta: str, operacion, *argumentos):
 
 
 def _tiempo_para_la_llamada(herramienta: str) -> float:
-    """MCP_TIMEOUT_SEGUNDOS, o lo que le quede a la consulta si es menos (RR_38)."""
+    """MCP_TIMEOUT_SEGUNDOS, o lo que le quede a la consulta si es menos."""
     restantes = segundos_restantes()
     if restantes is None:
         return config.MCP_TIMEOUT_SEGUNDOS

@@ -1,10 +1,8 @@
--- RR_22, RR_32, RR_37 y RR_40: consultas que no se procesan y se responden
--- orientando al usuario (saludo, ayuda, otro idioma, sin sentido, fuera de tema).
+-- Consultas que se responden orientando al usuario (saludo, ayuda, otro idioma, sin
+-- sentido, fuera de tema).
 --
--- Se agrega un cuarto estado, 'orientacion', y la columna 'motivo' con el porqué
--- (dominio.MotivoOrientacion). Igual que 'ambigua' y 'sin_coincidencias', se
--- guarda en la conversación pero no descuenta del límite diario: el conteo solo
--- mira las 'resuelta' (idx_consultas_resueltas, 012).
+-- Se agrega el estado 'orientacion' y la columna 'motivo' (dominio.MotivoOrientacion). Se
+-- guardan en la conversación y no cuentan para el límite.
 --
 --   estado             motivo
 --   resuelta           NULL

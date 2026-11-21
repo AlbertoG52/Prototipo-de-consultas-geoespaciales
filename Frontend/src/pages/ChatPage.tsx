@@ -1,18 +1,14 @@
 /**
  * Conversación con el agente.
  *
- * Requerimientos que se implementan aquí:
- *  - RR_02 campo de texto para la consulta
- *  - RR_13 reformulación de la última consulta
- *  - RR_16 sugerencias de nombres de especie mientras se escribe (lógica en utils/sugerencias.ts)
- *  - RR_34 límite de caracteres de la consulta (contador y aviso)
- *  - RR_22, RR_32, RR_37, RR_40 orientación con ejemplos cuando el mensaje no es una consulta
+ * - Campo de texto para la consulta, con contador y aviso al acercarse al largo máximo.
+ * - Recuperar la última consulta para editarla.
+ * - Sugerencias de nombres de especie mientras se escribe (utils/sugerencias.ts).
+ * - Orientación con ejemplos cuando el mensaje no es una consulta.
  *
- * Lo que muestra cada mensaje vive en components/:
- *  - TarjetaRespuesta: RR_10 copiar, RR_15 descargar, RR_18 mapa o lista, RR_20 ficha,
- *    RR_12 detalle de un registro y RR_19 filtro por elevación (en la lista)
- *  - Mapa: RR_46 mapa de distribución de CR-BioLM (PNG), DetallePunto y FiltroElevacion
- *  - SelectorDeEspecie: RR_17 selección ante varias coincidencias
+ * Lo que muestra cada mensaje vive en components/: TarjetaRespuesta (copiar, descargar, mapa o
+ * lista, ficha), Mapa (mapa de CR-BioLM, detalle de un registro y filtro por elevación) y
+ * SelectorDeEspecie (elegir entre varias coincidencias).
  */
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
@@ -28,7 +24,7 @@ import { formatearReinicio, largoConsulta, PERIODO_ACTUAL, textoConsultaLarga } 
 import { MENSAJE_VARIAS_ESPECIES, nombraVariasEspecies } from "../utils/especies";
 import { incorporarNombre, nombreAInsertar, palabraEnCurso } from "../utils/sugerencias";
 
-// RR_34 — el contador de caracteres aparece desde el 80 % del límite.
+// El contador de caracteres aparece desde el 80 % del límite.
 const PROPORCION_AVISO_LIMITE = 0.8;
 
 const CONSULTAS_DE_EJEMPLO = [
@@ -114,8 +110,8 @@ export function ChatPage() {
     };
   }, []);
 
-  // RR_16 — se piden sugerencias 250 ms después de la última tecla, a partir de
-  // 2 letras. Si llega una respuesta de una palabra anterior, se descarta.
+  // Se piden sugerencias 250 ms después de la última tecla, a partir de 2 letras. Si llega una
+  // respuesta de una palabra anterior, se descarta.
   const [sugerencias, setSugerencias] = useState<EspecieCandidata[]>([]);
   const fragmento = palabraEnCurso(entrada);
   useEffect(() => {
@@ -136,9 +132,9 @@ export function ChatPage() {
     };
   }, [fragmento]);
 
-  // Se lleva a la vista el mensaje nuevo. Casi siempre es el último, pero al
-  // elegir la especie de una consulta pendiente en una conversación reabierta
-  // (RR_17) la respuesta aparece en medio, justo debajo de sus opciones.
+  // Se lleva a la vista el mensaje nuevo. Casi siempre es el último, pero al elegir la especie de
+  // una consulta pendiente en una conversación reabierta la respuesta aparece en medio, justo
+  // debajo de sus opciones.
   const idsVistos = useRef<Set<string>>(new Set());
   useEffect(() => {
     const nuevo = mensajes.find((m) => !idsVistos.current.has(m.id));
@@ -154,14 +150,13 @@ export function ChatPage() {
     }
   }, [mensajes]);
 
-  // Sin sesión todavía (el servidor está arrancando) no es lo mismo que sin
-  // consultas: antes se mostraba "Agotaste tus consultas" y la caja quedaba
-  // bloqueada aunque el servidor terminara de levantar.
+  // Sin sesión todavía (el servidor está arrancando) no es lo mismo que sin consultas: la caja no
+  // se bloquea mientras el servidor termina de levantar.
   const sinConsultas = sesion !== null && sesion.consultas_restantes <= 0;
   const bloqueado = sesion === null || sinConsultas;
 
-  // RR_34 — el límite lo define el servidor. No se corta lo que se escribe o se
-  // pega: se muestra cuánto sobra y no se deja enviar hasta acortarlo.
+  // El límite lo define el servidor. No se corta lo que se escribe o se pega: se muestra cuánto
+  // sobra y no se deja enviar hasta acortarlo.
   const limite = sesion?.longitud_maxima_consulta;
   const largo = largoConsulta(entrada);
   const excede = limite !== undefined && largo > limite;
@@ -177,15 +172,13 @@ export function ChatPage() {
     await enviar(valor);
   };
 
-  // RR_13 — la última consulta que envió el usuario (también en una
-  // conversación reabierta del historial).
+  // La última consulta que envió el usuario (también en una conversación reabierta).
   let ultimaConsulta: Extract<Mensaje, { clase: "consulta" }> | undefined;
   for (const m of mensajes) if (m.clase === "consulta") ultimaConsulta = m;
 
   /**
-   * RR_13 criterios 1 y 2 — recupera el texto de la última consulta en el
-   * campo de entrada para modificarlo. Al enviarlo pasa por `mandar` como
-   * cualquier consulta, así que se procesa como una nueva (criterio 3).
+   * Recupera el texto de la última consulta en el campo para modificarlo. Al enviarlo se procesa
+   * como una consulta nueva.
    */
   const editarUltima = () => {
     if (!ultimaConsulta || bloqueado) return;
@@ -202,7 +195,7 @@ export function ChatPage() {
   };
 
   const alTeclear = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // RR_13 — flecha arriba con el campo vacío recupera la última consulta.
+    // Flecha arriba con el campo vacío recupera la última consulta.
     if (e.key === "ArrowUp" && !entrada && ultimaConsulta) {
       e.preventDefault();
       editarUltima();
@@ -237,7 +230,7 @@ export function ChatPage() {
             >
               {m.texto}
             </div>
-            {/* RR_13 — solo la última consulta se puede recuperar para editarla. */}
+            {/* Solo la última consulta se puede recuperar para editarla. */}
             {m.id === ultimaConsulta?.id && !enviando && !bloqueado && (
               <button
                 onClick={editarUltima}
@@ -267,7 +260,7 @@ export function ChatPage() {
         );
 
       case "opciones": {
-        // RR_36 — si nombra varias especies (no un género, RR_28), se pueden buscar todas.
+        // Si nombra varias especies (no un género), se pueden buscar todas.
         const varias = nombraVariasEspecies(m.texto, m.candidatos, m.mensaje);
         return (
           <SelectorDeEspecie
@@ -275,8 +268,8 @@ export function ChatPage() {
             mensaje={varias ? MENSAJE_VARIAS_ESPECIES : m.mensaje}
             candidatos={m.candidatos}
             deshabilitado={enviando || m.resuelta}
-            // RR_17la consulta continúa con la especie elegida. Con cuenta se
-            // envía también la consulta guardada, para no cobrarla dos veces.
+            // La consulta continúa con la especie elegida. Con cuenta se envía también la consulta
+            // guardada, para que no cuente dos veces.
             onElegir={(id) => void enviar(m.texto, id, m.consultaId)}
             onBuscarTodas={varias ? () => void buscarTodas(m) : undefined}
             aviso={m.aviso}
@@ -296,7 +289,7 @@ export function ChatPage() {
           </div>
         );
 
-      // RR_22, RR_32, RR_37, RR_40 — el mensaje puede traer saltos de línea (la ayuda).
+      // El mensaje puede traer saltos de línea (la ayuda).
       case "orientacion":
         return (
           <div key={m.id} className="flex justify-start">
@@ -370,7 +363,7 @@ export function ChatPage() {
                 Escribe abajo el nombre común o científico de una especie y te muestro dónde se
                 ha registrado y qué se sabe de ella.
               </p>
-              {/* RR_02 — ejemplos de consulta; solo con la conversación vacía. */}
+              {/* Ejemplos de consulta; solo con la conversación vacía. */}
               <div className="flex items-center gap-2 flex-wrap mt-4">
                 <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>Prueba con:</span>
                 {CONSULTAS_DE_EJEMPLO.map((ej) => (
@@ -401,9 +394,8 @@ export function ChatPage() {
       >
         <div ref={contenidoConsultaRef} className="w-full max-w-4xl mx-auto">
           {/*
-            RR_16 — sugerencias de nombres mientras se escribe; solo aparecen
-            cuando hay. Cada una muestra el nombre científico y el común; al
-            elegirla se incorpora al campo en lugar de lo que se venía escribiendo.
+            Sugerencias de nombres mientras se escribe; solo aparecen cuando hay. Cada una muestra
+            el nombre científico y el común; al elegirla reemplaza lo que se venía escribiendo.
           */}
           {sugerencias.length > 0 && (
             <div className="flex items-center gap-2 flex-wrap mb-3">
@@ -443,7 +435,7 @@ export function ChatPage() {
               className="rounded-xl px-4 py-3 mb-3 text-sm"
               style={{ background: "var(--color-error-fondo)", border: "1px solid var(--color-error-borde)", color: "var(--color-error-texto)" }}
             >
-              {/* RR_65 — antes de enviar: qué periodo se agotó y cuándo se restablece. */}
+              {/* Antes de enviar: qué periodo se agotó y cuándo se restablece. */}
               {sesion && avisoSinConsultas(sesion)}{" "}
               {sesion?.tipo === "anonimo" && (
                 <button
@@ -457,7 +449,7 @@ export function ChatPage() {
             </div>
           )}
 
-          {/* RR_02 — campo de texto libre en español para la consulta. */}
+          {/* Campo de texto libre en español para la consulta. */}
           <div
             className="flex items-end gap-3 rounded-2xl px-4 py-2"
             style={{ border: "1.5px solid var(--color-borde-fuerte)", background: "var(--color-fondo)" }}
@@ -499,7 +491,7 @@ export function ChatPage() {
               Enviar
             </button>
           </div>
-          {/* RR_34 criterios 2 y 3 — el contador aparece cerca del límite y avisa al pasarlo. */}
+          {/* El contador aparece cerca del límite y avisa al pasarlo. */}
           <div id="limite-consulta" aria-live="polite">
             {limite !== undefined && (excede || cercaDelLimite) && (
               <p
@@ -526,7 +518,7 @@ export function ChatPage() {
   );
 }
 
-/** RR_65 — "Agotaste tus consultas de esta semana. Se restablecen el 26/10/2026, 00:00." */
+/** "Agotaste tus consultas de esta semana. Se restablecen el 26/10/2026, 00:00." */
 function avisoSinConsultas(sesion: Sesion): string {
   const periodo = sesion.periodo_consultas === "dia" ? "de hoy" : `de ${PERIODO_ACTUAL[sesion.periodo_consultas]}`;
   return `Agotaste tus consultas ${periodo}. Se restablecen el ${formatearReinicio(sesion.consultas_se_restablecen_en)}.`;

@@ -1,7 +1,5 @@
-"""Tipos de consulta permitidos por rol — mapea la tabla de 019 (RR_77).
-
-Una fila por rol configurable y tipo de pregunta. La lógica está en
-services/permisos.py.
+"""Tipos de consulta permitidos por rol: una fila por rol y tipo de pregunta. La lógica está
+en services/permisos.py.
 """
 
 from datetime import datetime

@@ -1,8 +1,7 @@
-"""Pruebas de la página de perfil: cambiar el nombre y la contraseña.
+"""Pruebas del perfil: cambiar el nombre y la contraseña.
 
-No necesitan base de datos: se llaman los endpoints con un usuario y una
-sesión simulados. Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+No necesitan base de datos: usan un usuario y una sesión simulados. Se ejecutan con: docker
+compose exec backend python -m pytest tests -q
 """
 
 import pytest
@@ -56,7 +55,7 @@ def test_cambiar_nombre_guarda_y_devuelve_el_usuario():
 
 @pytest.mark.parametrize("debil", ["corta1!", "sinmayuscula1!", "SinNumero!", "SinSimbolo1"])
 def test_nueva_password_usa_las_reglas_del_registro(debil):
-    # RR_00_03 criterio 3: la validación también aplica al cambiar la contraseña.
+    # Las reglas de contraseña también aplican al cambiarla.
     with pytest.raises(ValidationError):
         CambioPasswordRequest(password_actual=ACTUAL, password_nueva=debil)
 
@@ -68,7 +67,7 @@ def test_cambio_de_password_correcto():
     )
     assert verificar_password(NUEVA, usuario.password_hash)
     assert not verificar_password(ACTUAL, usuario.password_hash)
-    assert NUEVA not in usuario.password_hash  # RR_00_02: nunca en claro
+    assert NUEVA not in usuario.password_hash  # nunca en claro
     assert db.commits == 1
 
 
