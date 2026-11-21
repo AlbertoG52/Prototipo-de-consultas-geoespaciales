@@ -1,8 +1,7 @@
-"""Comportamiento por defecto de las respuestas — mapea la tabla de 018 (RR_80).
+"""Comportamiento por defecto de las respuestas (tabla configuracion_respuestas).
 
-Tiene una sola fila (id = 1): si las respuestas incluyen el mapa y las fuentes
-para quien no ha cambiado su preferencia. La lógica está en
-services/preferencias.py.
+Tiene una sola fila (id = 1): si las respuestas incluyen el mapa y las fuentes para quien
+no tiene preferencia propia. La lógica está en services/preferencias.py.
 """
 
 from datetime import datetime
@@ -13,7 +12,7 @@ from sqlalchemy.sql import func
 
 from ..db import Base
 
-# Id de la única fila de la tabla (la siembra la migración 018).
+# Id de la única fila (la crea la migración 018).
 FILA_UNICA = 1
 
 

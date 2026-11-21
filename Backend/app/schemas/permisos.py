@@ -1,4 +1,4 @@
-"""Esquemas de los tipos de consulta permitidos por rol — RR_77."""
+"""Esquemas de los tipos de consulta permitidos por rol."""
 
 from datetime import datetime
 
@@ -16,9 +16,8 @@ class PermisosDeRol(EsquemaSalida):
 
 
 class PermisosTiposConsulta(EsquemaSalida):
-    """GET /admin/permisos-consulta: la configuración de todos los roles y su último cambio.
-
-    El supermoderador no aparece: siempre puede hacer todos los tipos.
+    """GET /admin/permisos-consulta: configuración de todos los roles y su último cambio. El
+    supermoderador no aparece: siempre puede todo.
     """
 
     roles: list[PermisosDeRol]

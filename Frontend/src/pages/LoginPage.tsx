@@ -1,6 +1,4 @@
-/**
- * Inicio de sesión — RR_00_01.
- */
+/** Inicio de sesión. */
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router";
 
@@ -11,8 +9,8 @@ import { useAuth } from "../context/AuthContext";
 export function LoginPage() {
   const navigate = useNavigate();
   const { entrar, limpiarError, sesionExpirada, limpiarExpiracion } = useAuth();
-  // RR_00_04: se recuerda el motivo para mostrarlo y se limpia del contexto,
-  // así volver al agente sin iniciar sesión no redirige otra vez aquí.
+  // Se recuerda el motivo para mostrarlo y se limpia del contexto, así volver al agente sin iniciar
+  // sesión no redirige otra vez aquí.
   const [porInactividad] = useState(sesionExpirada);
   useEffect(() => {
     if (sesionExpirada) limpiarExpiracion();
@@ -36,7 +34,7 @@ export function LoginPage() {
       navigate("/");
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo iniciar sesión.");
-      // DEF-06: tras un intento fallido se vacía la contraseña; el correo se deja.
+      // Tras un intento fallido se vacía la contraseña; el correo se conserva.
       setPassword("");
     } finally {
       setCargando(false);
@@ -56,7 +54,7 @@ export function LoginPage() {
       {error && (
         <Aviso tipo="error">
           {error}
-          {/* RR_00_07 — cuenta sin verificar: se ofrece reenviar el enlace. */}
+          {/* Cuenta sin verificar: se ofrece reenviar el enlace. */}
           {/verificar tu correo/i.test(error) && (
             <Link
               to="/verify-email"
@@ -103,7 +101,7 @@ export function LoginPage() {
         <div style={{ flex: 1, height: 1, background: "var(--color-borde)" }} />
       </div>
 
-      {/* RR_00_11 — se puede usar el agente sin cuenta. */}
+      {/* Se puede usar el agente sin cuenta. */}
       <button
         onClick={() => navigate("/")}
         className="w-full rounded-xl py-3 text-sm font-medium transition-all"

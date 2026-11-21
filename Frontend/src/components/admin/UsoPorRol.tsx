@@ -1,8 +1,6 @@
 /**
- * RR_76 criterio 3 — uso del sistema por rol (GET /admin/uso-por-rol).
- *
- * Cuántas cuentas tiene cada rol y cuántas consultas guardadas hicieron, según
- * el rol que cada cuenta tiene hoy. El detalle por cuenta está en "Ver uso".
+ * Uso del sistema por rol (GET /admin/uso-por-rol): cuántas cuentas tiene cada rol y cuántas
+ * consultas guardadas hicieron. El detalle por cuenta está en "Ver uso".
  */
 import { ETIQUETAS_ROL, formatearNumero } from "../../config/textos";
 import type { UsoDeRol } from "../../types";

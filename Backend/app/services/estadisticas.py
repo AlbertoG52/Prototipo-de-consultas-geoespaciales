@@ -1,28 +1,17 @@
-"""Estadísticas de uso del sistema — RR_78.
+"""Estadísticas de uso del sistema.
 
-- Criterio 1: el supermoderador ve el total de consultas realizadas.
-- Criterio 2: agrupadas por rol. Cada cuenta cuenta con el rol que tiene hoy,
-  como el uso por rol de RR_76 (services/admin.py); el visitante sin cuenta es
-  un grupo aparte (dominio.GrupoDeUso).
-- Criterio 3: no hay nada precalculado: cada petición cuenta lo que hay en la
-  BD, así que trae las consultas nuevas. El panel vuelve a pedirlas cada 30 s.
+Total de consultas por grupo (rol actual de la cuenta o visitante), por día y por tipo de
+pregunta. No hay nada precalculado: cada petición cuenta lo que hay en la BD.
 
-Qué es una consulta realizada (misma regla que RR_76):
+Qué cuenta como consulta:
 
-    cuentas      filas de 'consultas' (012) que no son orientaciones: resueltas,
-                 ambiguas y sin coincidencias. Una ambigua es una sola fila,
-                 aunque se resuelva después. Fecha: cuándo se hizo.
-    visitantes   del visitante no se guardan consultas (RR_00_11): se cuentan
-                 sus filas de 'tiempos_respuesta' (015) resueltas o sin
-                 coincidencias. Una ambigua y la especie que elige quedan como
-                 dos filas, así que cuenta cuando se resuelve. Solo hay datos
-                 desde la tabla 015.
+  cuentas      filas de 'consultas' que no son orientaciones. Una ambigua es una sola fila,
+  aunque se resuelva después.
+  visitantes   como no se guardan sus consultas, sus filas de 'tiempos_respuesta' resueltas
+  o sin coincidencias.
 
-El tipo de pregunta (RR_29) sale de la intención registrada en
-'tiempos_respuesta' (017, RR_33), con la misma regla que los visitantes.
-
-Los días son los de Costa Rica (de 00:00 a 24:00 en UTC-6), como el límite
-diario (services/uso.py).
+El tipo de pregunta sale de la intención registrada en 'tiempos_respuesta'. Los días son
+los de Costa Rica (UTC-6).
 """
 
 from __future__ import annotations
@@ -52,10 +41,10 @@ from ..schemas.estadisticas import (
 )
 from ..tiempo import HORA_COSTA_RICA, ahora
 
-# Resultados de 'tiempos_respuesta' que cuentan como consulta (ver el módulo).
+# Resultados de 'tiempos_respuesta' que cuentan como consulta.
 RESULTADOS_CONTADOS = (ResultadoConsulta.RESUELTA, ResultadoConsulta.SIN_COINCIDENCIAS)
 
-# DEF-05: cuánto hay que sumarle a una hora UTC para tener la de Costa Rica.
+# Diferencia entre la hora UTC y la de Costa Rica.
 _DESFASE_COSTA_RICA = HORA_COSTA_RICA.utcoffset(None) or timedelta(0)
 
 # Días del gráfico de consultas por día, contando hoy.
@@ -85,10 +74,8 @@ class Conteo:
 
 
 def inicio_del_dia(dias_atras: int = 0) -> datetime:
-    """Medianoche de Costa Rica de hoy, o de `dias_atras` días antes (DEF-05).
-
-    Igual que el límite diario (services/uso.py): de 18:00 a 24:00 en Costa Rica
-    ya es el día siguiente en UTC, y "hoy" no debe empezar a esa hora.
+    """Medianoche de Costa Rica de hoy, o de `dias_atras` días antes. De 18:00 a 24:00 en
+    Costa Rica ya es el día siguiente en UTC.
     """
     dia = ahora().astimezone(HORA_COSTA_RICA).date() - timedelta(days=dias_atras)
     return datetime.combine(dia, time.min, tzinfo=HORA_COSTA_RICA)
@@ -104,7 +91,7 @@ def desde_de(periodo: PeriodoEstadisticas) -> datetime | None:
 
 
 def estadisticas(db: Session, periodo: PeriodoEstadisticas) -> EstadisticasUso:
-    """Criterios 1, 2 y 3: el uso del sistema en el periodo, calculado ahora."""
+    """Uso del sistema en el periodo, calculado ahora."""
     desde = desde_de(periodo)
     grupos = por_grupo(db, desde)
     total = sum(grupos.values(), Conteo())
@@ -151,7 +138,7 @@ def resumen(db: Session) -> ResumenUso:
 def por_grupo(
     db: Session, desde: datetime | None, hasta: datetime | None = None
 ) -> dict[GrupoDeUso, Conteo]:
-    """Criterio 2: el conteo de cada grupo entre `desde` y `hasta`, con ceros."""
+    """Conteo de cada grupo entre `desde` y `hasta`, con ceros."""
     conteos = dict.fromkeys(GrupoDeUso, Conteo())
     for rol, conteo in _de_cuentas(db, desde, hasta):
         conteos[GrupoDeUso(rol)] = conteo
@@ -208,7 +195,7 @@ def _por_dia(db: Session) -> list[ConsultasDelDia]:
         (Consulta.realizada_en, _es_de_cuenta()),
         (TiempoRespuesta.registrada_en, _es_de_visitante()),
     ):
-        # DEF-05: el día de Costa Rica (UTC-6, sin horario de verano), no el de UTC.
+        # El día de Costa Rica (UTC-6, sin horario de verano), no el de UTC.
         dia = func.date(columna + _DESFASE_COSTA_RICA)
         filas = db.query(dia, func.count()).filter(condicion, columna >= desde).group_by(dia)
         for fecha, consultas in filas.tuples():
@@ -217,7 +204,7 @@ def _por_dia(db: Session) -> list[ConsultasDelDia]:
 
 
 def _por_tipo(db: Session, desde: datetime | None) -> list[ConsultasDeTipo]:
-    """Cuántas consultas hubo de cada tipo de pregunta (RR_29), con ceros."""
+    """Cuántas consultas hubo de cada tipo de pregunta, con ceros."""
     filas = (
         db.query(TiempoRespuesta.intencion, func.count(TiempoRespuesta.id))
         .filter(

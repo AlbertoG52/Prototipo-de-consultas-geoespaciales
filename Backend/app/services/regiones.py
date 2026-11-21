@@ -1,20 +1,17 @@
-"""Región o zona mencionada en la consulta — RR_39.
+"""Región o zona mencionada en la consulta.
 
-Reconoce las regiones botánicas y las vertientes del Manual (get_vocabulary de
-CR-BioLM): son los mismos nombres que trae cada punto de GBIF en `region` y
-`vertiente`. Las provincias no son regiones botánicas y no se reconocen.
+Reconoce las regiones botánicas y las vertientes del Manual (get_vocabulary de CR-BioLM),
+los mismos nombres que trae cada punto de GBIF en `region` y `vertiente`. Las provincias no
+se reconocen. En orden:
 
-En orden:
-1. El nombre completo de una región ("Cordillera de Talamanca", "Golfito"),
-   con sus variantes que empiezan igual ("Valle Central" incluye la Occidental
-   y la Oriental).
-2. Si no hay ninguno, una palabra propia de una o varias regiones
-   ("Talamanca": la Cordillera y Baja Talamanca). Las genéricas ("cordillera",
-   "valle", "central", "general"...) no cuentan solas.
+1. El nombre completo de una región ("Cordillera de Talamanca"), con sus variantes ("Valle
+   Central" incluye la Occidental y la Oriental).
+2. Una palabra propia de una o varias regiones ("Talamanca"). Las genéricas ("cordillera",
+   "valle", "central"...) no cuentan solas.
 3. La vertiente: "Caribe" o "Pacífico".
 
-Sin región ni vertiente devuelve None y la búsqueda sigue sin filtro
-(criterio 3). Se compara sin tildes, mayúsculas ni signos.
+Sin región ni vertiente devuelve None y la búsqueda sigue sin filtro. Se compara sin
+tildes, mayúsculas ni signos.
 """
 
 from __future__ import annotations
@@ -48,7 +45,7 @@ class Zona:
 
 
 def extraer_zona(texto: str, vocabulario: dict[str, Any] | None) -> Zona | None:
-    """La zona que menciona `texto`, o None si no menciona ninguna (ver el módulo)."""
+    """La zona que menciona `texto`, o None si no menciona ninguna."""
     if not vocabulario:
         return None
     frase = f" {_clave(texto)} "

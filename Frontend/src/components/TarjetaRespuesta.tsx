@@ -1,17 +1,10 @@
 /**
- * Tarjeta de una respuesta del agente — RR_07, RR_08, RR_10, RR_14, RR_15,
- * RR_18, RR_20 y RR_46: texto, mapa de CR-BioLM o lista de registros, fuentes,
+ * Tarjeta de una respuesta del agente: texto, mapa de CR-BioLM o lista de registros, fuentes,
  * copiar, descargar y acceso a la ficha.
  *
- * RR_50 y RR_51: fuentes de la respuesta, cita de la fuente debajo del texto y
- * si la información viene del Manual de Plantas (MPCR), de GBIF o de ambas.
- *
- * RR_49: si el texto lo redactó el LLM de CR-BioLM, trae las citas del Manual
- * dentro (【…】); se muestran como cita, p. ej. "(Tomo V, p.779)".
- *
- * RR_12 (detalle de un registro) y RR_19 (filtro por elevación) viven en la
- * lista de registros: el mapa es un PNG de CR-BioLM y no permite seleccionar
- * ni ocultar puntos.
+ * Las citas del Manual que trae el texto redactado por el LLM (【…】) se muestran como cita, p. ej.
+ * "(Tomo V, p.779)". El detalle de un registro y el filtro por elevación viven en la lista de
+ * registros, porque el mapa es un PNG.
  */
 import { useCallback, useEffect, useState } from "react";
 
@@ -41,45 +34,43 @@ export function TarjetaRespuesta({
 }: {
   consulta: string;
   respuesta: RespuestaConsulta;
-  /** RR_20 criterio 3 — abre la ficha de la especie de esta respuesta (por su id). */
+  /** Abre la ficha de la especie de esta respuesta (por su id). */
   onVerFicha: (especieId: string) => void;
 }) {
   const [copiado, setCopiado] = useState(false);
-  // RR_53 criterio 3: solo hay mapa si CR-BioLM lo generó (mapa != null).
-  // RR_54: y solo si es el de la especie de esta respuesta.
+  // Solo hay mapa si CR-BioLM lo generó y es el de la especie de esta respuesta.
   const mapa = mapaDeLaEspecie(respuesta.mapa, respuesta.especie.id) ? respuesta.mapa : null;
   const hayMapa = mapa !== null;
   const hayRegistros = respuesta.registros.length > 0;
-  // RR_18 — el usuario alterna entre el mapa y la lista de registros. Si falta
-  // una de las dos, se muestra la que haya.
+  // El usuario alterna entre el mapa y la lista de registros. Si falta una, se muestra la que haya.
   const [vistaElegida, setVista] = useState<"mapa" | "lista">("mapa");
   // Sin mapa no se muestra este bloque (ver abajo), así que solo importa con mapa.
   const vista = !hayRegistros ? "mapa" : vistaElegida;
-  // RR_12 — registro cuyo detalle está abierto (índice en respuesta.registros).
+  // Registro cuyo detalle está abierto (índice en respuesta.registros).
   const [seleccionado, setSeleccionado] = useState<number | null>(null);
   const cerrarDetalle = useCallback(() => setSeleccionado(null), []);
-  // RR_19 — rango de elevación del filtro de la lista ("" = sin límite).
+  // Rango de elevación del filtro de la lista ("" = sin límite).
   const [rango, setRango] = useState<RangoElevacion>(RANGO_VACIO);
   const filtro = filtrarPorElevacion(respuesta.registros, rango);
-  // RR_51 — de dónde sale el texto, los registros y la respuesta en general.
+  // De dónde sale el texto, los registros y la respuesta en general.
   const citaTexto = procedenciaDe(respuesta.procedencia, "texto");
   const fuenteRegistros = procedenciaDe(respuesta.procedencia, "registros");
-  // RR_59 con RR_68: si la respuesta viene sin fuentes, tampoco trae la
-  // procedencia de los registros; la cantidad se sigue mostrando si hay.
+  // Si la respuesta viene sin fuentes, tampoco trae la procedencia de los registros; la cantidad se
+  // sigue mostrando.
   const sinFuentes = respuesta.fuentes.length === 0 && respuesta.procedencia.length === 0;
   const mostrarCantidad = fuenteRegistros !== undefined || (sinFuentes && respuesta.total_registros > 0);
   const origen = origenDeLaInformacion(respuesta.procedencia);
 
-  // RR_12 — lugar del registro abierto entre los visibles, para recorrerlos.
+  // Lugar del registro abierto entre los visibles, para recorrerlos.
   const posicionVisible = seleccionado === null ? -1 : filtro.indices.indexOf(seleccionado);
 
-  // Si el filtro oculta el punto cuyo detalle está abierto, el detalle se cierra
-  // (RR_12 criterio 2: el detalle siempre corresponde a un punto visible).
+  // Si el filtro oculta el registro abierto, el detalle se cierra: siempre corresponde a un punto
+  // visible.
   useEffect(() => {
     if (seleccionado !== null && !filtro.indices.includes(seleccionado)) setSeleccionado(null);
   }, [seleccionado, filtro.indices]);
 
-  /** RR_15 — la respuesta completa, con la consulta que la originó. */
+  /** La respuesta completa, con la consulta que la originó. */
   const descargarRespuesta = () => {
     descargarArchivo(
       `${nombreBase(respuesta)}.txt`,
@@ -88,7 +79,7 @@ export function TarjetaRespuesta({
     );
   };
 
-  /** RR_10 — copiar el texto de la respuesta y confirmarlo visualmente. */
+  /** Copia el texto de la respuesta y lo confirma visualmente. */
   const copiar = async () => {
     try {
       await navigator.clipboard.writeText(respuesta.texto);
@@ -121,8 +112,10 @@ export function TarjetaRespuesta({
             </div>
           )}
           <div className="flex items-center gap-4 mt-3 flex-wrap">
-            {/* RR_59: cantidad de registros encontrados ("Sin registros" si no hay).
-                Se omite solo si GBIF no respondió (RR_58): el aviso lo explica. */}
+            {/*
+              Cantidad de registros encontrados ("Sin registros" si no hay). Se omite si GBIF no
+              respondió: el aviso lo explica.
+            */}
             {mostrarCantidad && (
               <span
                 className="text-xs px-2 py-1 rounded-full"
@@ -131,7 +124,7 @@ export function TarjetaRespuesta({
                 {textoRegistros(respuesta.total_registros)}
               </span>
             )}
-            {/* RR_56: de cuándo son los registros de GBIF (CR-BioLM los actualiza). */}
+            {/* De cuándo son los registros de GBIF (CR-BioLM los actualiza). */}
             {fuenteRegistros && respuesta.registros_actualizados_en && (
               <span
                 className="text-xs px-2 py-1 rounded-full"
@@ -155,11 +148,11 @@ export function TarjetaRespuesta({
         <div className="px-4 sm:px-6 py-5">
           {/* whitespace-pre-line: respeta los saltos de línea del LLM (sus listas con "- "). */}
           <p className="text-sm leading-relaxed whitespace-pre-line" style={{ color: "var(--color-texto-cuerpo)" }}>
-            {/* RR_49 / RR_51: las citas del Manual dentro del texto, con formato de cita. */}
+            {/* Las citas del Manual dentro del texto, con formato de cita. */}
             {partirCitas(respuesta.texto).map((trozo, i) =>
               trozo.tipo === "texto" ? (
                 <span key={i}>
-                  {/* RR_49: la negrita y la cursiva (Markdown) del texto del LLM. */}
+                  {/* La negrita y la cursiva (Markdown) del texto del LLM. */}
                   {partirFormato(trozo.valor).map((f, j) =>
                     f.negrita ? (
                       <strong key={j} className="font-semibold">{f.valor}</strong>
@@ -177,22 +170,23 @@ export function TarjetaRespuesta({
               ),
             )}
           </p>
-          {/* RR_51 criterio 2: cita específica de la fuente del texto. */}
+          {/* Cita específica de la fuente del texto. */}
           {citaTexto && (
             <p className="mt-1.5 text-xs" style={{ color: "var(--color-texto-tenue)" }}>
               — <cite className="not-italic">{citaTexto.fuente}, {citaTexto.detalle}</cite>
             </p>
           )}
 
-          {/* RR_43 y RR_58: por qué falta el mapa o los registros. */}
+          {/* Por qué falta el mapa o los registros. */}
           <Avisos avisos={respuesta.avisos} className="mt-4" />
 
-          {/* Sin mapa, la respuesta queda solo con el texto: no se muestra ni el
-              mapa ni la lista de registros. La cantidad sigue en la etiqueta del
-              encabezado (RR_59) y los registros, en la ficha completa. */}
+          {/*
+            Sin mapa, la respuesta queda solo con el texto. La cantidad de registros sigue en el
+            encabezado y los registros, en la ficha completa.
+          */}
           {hayMapa && (
             <>
-              {/* RR_18 cambiar entre la vista de mapa y la de lista (si hay las dos). */}
+              {/* Cambiar entre la vista de mapa y la de lista (si hay las dos). */}
               {hayMapa && hayRegistros && (
                 <div
                   className="flex gap-1 mt-4 mb-3 p-1 rounded-xl"
@@ -222,7 +216,7 @@ export function TarjetaRespuesta({
                 </div>
               )}
 
-              {/* RR_18 ambas vistas son de la misma especie de la respuesta. */}
+              {/* Ambas vistas son de la misma especie de la respuesta. */}
               {vista === "mapa" && mapa ? (
                 <div className={hayRegistros ? "" : "mt-4"}>
                   <div className="flex items-center gap-1.5 mb-2">
@@ -239,19 +233,19 @@ export function TarjetaRespuesta({
                 </div>
               ) : (
                 <div className={hayMapa ? "" : "mt-4"}>
-                  {/* RR_59: CR-BioLM entrega como máximo 500 puntos; si hay más, se aclara. */}
+                  {/* CR-BioLM entrega como máximo 500 puntos; si hay más, se aclara. */}
                   {respuesta.registros.length < respuesta.total_registros && (
                     <p className="mb-2 text-xs" style={{ color: "var(--color-texto-secundario)" }}>
                       Se muestran {textoRegistros(respuesta.registros.length)} de {respuesta.total_registros.toLocaleString(IDIOMA_FECHAS)}.
                     </p>
                   )}
-                  {/* RR_51: la lista dice de qué fuente son los registros. */}
+                  {/* La lista dice de qué fuente son los registros. */}
                   {fuenteRegistros && (
                     <p className="mb-2 text-xs" style={{ color: "var(--color-texto-secundario)" }}>
                       Registros de presencia de {fuenteRegistros.fuente}.
                     </p>
                   )}
-                  {/* RR_19 — filtrar la lista por rango de elevación. */}
+                  {/* Filtrar la lista por rango de elevación. */}
                   <FiltroElevacion
                     rango={rango}
                     onCambiar={setRango}
@@ -284,7 +278,7 @@ export function TarjetaRespuesta({
                             return (
                               <tr
                                 key={i}
-                                // RR_12 criterio 1: al seleccionar un registro se abre su detalle.
+                                // Al seleccionar un registro se abre su detalle.
                                 onClick={alternar}
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter" || e.key === " ") {
@@ -339,7 +333,7 @@ export function TarjetaRespuesta({
             </>
           )}
 
-          {/* RR_51 criterio 1: si la información viene del MPCR, de GBIF o de ambas. */}
+          {/* Si la información viene del Manual (MPCR), de GBIF o de ambas. */}
           {origen && (
             <p className="mt-4 text-xs" style={{ color: "var(--color-texto-secundario)" }}>
               Información de: <span className="font-medium" style={{ color: "var(--color-texto-cuerpo)" }}>{origen}</span>
@@ -348,7 +342,7 @@ export function TarjetaRespuesta({
 
           <div className={`${origen ? "mt-2" : "mt-4"} flex items-center justify-between flex-wrap gap-2`}>
             <div className="flex items-center gap-2 flex-wrap">
-              {/* RR_68: sin fuentes (preferencia del moderador o del sistema) no hay lista. */}
+              {/* Sin fuentes (preferencia del moderador o del sistema) no hay lista. */}
               {respuesta.fuentes.length > 0 && (
                 <span className="text-sm" style={{ color: "var(--color-texto-secundario)" }}>Fuentes:</span>
               )}
@@ -363,7 +357,7 @@ export function TarjetaRespuesta({
               ))}
             </div>
             <div className="flex items-center gap-1">
-              {/* RR_10 — botón visible, y confirmación visual al copiar. */}
+              {/* Botón visible y confirmación visual al copiar. */}
               <button
                 onClick={copiar}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
@@ -377,7 +371,7 @@ export function TarjetaRespuesta({
                 <Copy size={12} />
                 {copiado ? "Copiado" : "Copiar"}
               </button>
-              {/* RR_15 — descargar la respuesta como texto. */}
+              {/* Descargar la respuesta como texto. */}
               <button
                 onClick={descargarRespuesta}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all"
@@ -397,7 +391,7 @@ export function TarjetaRespuesta({
             </div>
           </div>
 
-          {/* RR_45: de dónde sale cada dato. */}
+          {/* De dónde sale cada dato. */}
           <OrigenDeLosDatos procedencia={respuesta.procedencia} className="mt-3" />
         </div>
       </div>

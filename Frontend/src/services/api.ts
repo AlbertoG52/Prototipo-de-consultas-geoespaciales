@@ -1,9 +1,8 @@
 /**
  * Cliente HTTP de la API.
  *
- * Única puerta de salida del frontend hacia el backend: ninguna vista llama a
- * fetch directamente. Así el manejo del token y de los errores vive en un solo
- * lugar.
+ * Es la única salida del frontend hacia el backend: ninguna vista llama a fetch directamente, así
+ * el manejo del token y de los errores vive en un solo lugar.
  */
 import type {
   CambioPermisos,
@@ -49,9 +48,8 @@ export function borrarToken() {
 }
 
 /**
- * Tipo de sesión del token guardado, leído de su contenido sin verificar la
- * firma. Solo sirve para decisiones de interfaz (p. ej. avisar que una sesión
- * de usuario expiró); el servidor es quien valida el token.
+ * Tipo de sesión del token guardado, leído sin verificar la firma. Solo sirve para decisiones de
+ * interfaz; el servidor es quien valida el token.
  */
 export function tipoDeToken(token: string | null = obtenerToken()): TipoSesion | null {
   if (!token) return null;
@@ -65,11 +63,10 @@ export function tipoDeToken(token: string | null = obtenerToken()): TipoSesion |
 }
 
 /**
- * RR_00_04 — aviso de sesión expirada.
+ * Aviso de sesión expirada.
  *
- * Cuando una petición hecha con el token de un usuario registrado recibe 401,
- * el token venció (por inactividad) o dejó de ser válido. AuthContext se
- * suscribe aquí para cerrar la sesión y pedir un nuevo inicio de sesión.
+ * Un 401 con el token de un usuario registrado indica que el token venció o dejó de ser válido.
+ * AuthContext se suscribe aquí para cerrar la sesión y pedir un nuevo inicio de sesión.
  */
 let alExpirar: (() => void) | null = null;
 
@@ -95,11 +92,10 @@ export class ErrorApi extends Error {
 }
 
 /**
- * RR_38 — el navegador dejó de esperar la respuesta.
+ * El navegador dejó de esperar la respuesta.
  *
- * El servidor corta la consulta al llegar a su tiempo máximo y responde 504;
- * este error es la red de seguridad para cuando ni siquiera esa respuesta llega
- * (servidor colgado o red caída a mitad de la petición).
+ * El servidor responde 504 al agotar el tiempo de la consulta; este error cubre el caso en que ni
+ * esa respuesta llega (servidor colgado o red caída).
  */
 export class TiempoAgotado extends Error {
   constructor() {
@@ -109,8 +105,8 @@ export class TiempoAgotado extends Error {
 }
 
 async function manejar<T>(res: Response): Promise<T> {
-  // RR_00_04: un 401 con el token de un usuario = la sesión venció.
-  // (Se excluye el login: ahí un 401 significa credenciales incorrectas.)
+  // Un 401 con el token de un usuario indica que la sesión venció. Se excluye el login, donde un
+  // 401 significa credenciales incorrectas.
   if (res.status === 401 && tipoDeToken() === "usuario" && !res.url.endsWith("/auth/login")) {
     alExpirar?.();
   }
@@ -133,11 +129,10 @@ async function manejar<T>(res: Response): Promise<T> {
 }
 
 /**
- * Hace una petición a la API con el token guardado y devuelve el cuerpo ya
- * interpretado (o lanza ErrorApi). Los endpoints públicos ignoran el token.
+ * Hace una petición con el token guardado y devuelve el cuerpo interpretado, o lanza ErrorApi.
  *
- * Con `esperaMaximaMs`, la petición se cancela si no termina en ese tiempo y
- * se lanza TiempoAgotado (RR_38).
+ * Con `esperaMaximaMs`, la petición se cancela si no termina en ese tiempo y se lanza
+ * TiempoAgotado.
  */
 async function pedir<T>(
   ruta: string,
@@ -174,33 +169,33 @@ type Mensaje = { mensaje: string };
 
 // Sesión
 
-/** RR_00_11 — entrar sin cuenta. Se pide en la primera visita. */
+/** Entrar sin cuenta. Se pide en la primera visita. */
 export const iniciarSesionAnonima = () => pedirToken("/auth/anonimo");
 
-/** RR_00_01 — iniciar sesión con credenciales. */
+/** Inicia sesión con credenciales. */
 export const iniciarSesion = (correo: string, password: string) =>
   pedirToken("/auth/login", "POST", { correo, password });
 
-/** RR_00_01 — crear una cuenta. */
+/** Crea una cuenta. */
 export const registrar = (datos: RegistroRequest) =>
   pedir<Mensaje & { usuario: Usuario }>("/auth/registro", "POST", datos);
 
-/** RR_00_07 — valida el token del enlace de verificación. */
+/** Valida el token del enlace de verificación. */
 export const verificarCorreo = (token: string) => pedir<Mensaje>("/auth/verificar", "POST", { token });
 
-/** RR_00_07 — pide un enlace de verificación nuevo. */
+/** Pide un enlace de verificación nuevo. */
 export const reenviarVerificacion = (correo: string) =>
   pedir<Mensaje>("/auth/reenviar-verificacion", "POST", { correo });
 
-/** RR_00_06 — pide el enlace para cambiar la contraseña. */
+/** Pide el enlace para cambiar la contraseña. */
 export const solicitarRecuperacion = (correo: string) =>
   pedir<Mensaje>("/auth/recuperar", "POST", { correo });
 
-/** RR_00_06 — guarda la contraseña nueva con el token del enlace. */
+/** Guarda la contraseña nueva con el token del enlace. */
 export const restablecerPassword = (token: string, password: string) =>
   pedir<Mensaje>("/auth/restablecer", "POST", { token, password });
 
-/** RR_00_01 — cerrar la sesión activa. El token se descarta aunque el servidor no responda. */
+/** Cierra la sesión activa. El token se descarta aunque el servidor no responda. */
 export async function cerrarSesion(): Promise<void> {
   await pedir<void>("/auth/logout", "POST").catch(() => undefined);
   borrarToken();
@@ -210,9 +205,8 @@ export async function cerrarSesion(): Promise<void> {
 export const obtenerSesion = () => pedir<Sesion>("/auth/sesion");
 
 /**
- * RR_00_04 — renueva la sesión porque hubo actividad. El servidor devuelve un
- * token con el periodo de inactividad completo. Si el token ya venció,
- * responde 401 y se dispara el aviso de sesión expirada.
+ * Renueva la sesión porque hubo actividad. Si el token ya venció, el servidor responde 401 y se
+ * dispara el aviso de sesión expirada.
  */
 export async function renovarSesion(): Promise<void> {
   await pedirToken("/auth/renovar");
@@ -223,12 +217,11 @@ export async function renovarSesion(): Promise<void> {
 /**
  * Envía una consulta en lenguaje natural.
  *
- * - `especieId`: la especie que eligió el usuario entre varias coincidencias (RR_17).
- * - `conversacionId`: la conversación donde se guarda; sin ella el servidor
- *   crea una nueva (RR_09). Solo aplica con cuenta.
- * - `consultaId`: la consulta ambigua guardada que se está resolviendo. El
- *   servidor resuelve esa misma consulta, así que no se cobra dos veces.
- * - `esperaMaximaMs`: cuánto esperar la respuesta antes de lanzar TiempoAgotado (RR_38).
+ * - `especieId`: la especie elegida entre varias coincidencias.
+ * - `conversacionId`: la conversación donde se guarda; sin ella el servidor crea una nueva. Solo
+ *   con cuenta.
+ * - `consultaId`: la consulta ambigua guardada que se resuelve; no cuenta dos veces.
+ * - `esperaMaximaMs`: cuánto esperar antes de lanzar TiempoAgotado.
  */
 export const enviarConsulta = (
   texto: string,
@@ -251,10 +244,10 @@ export const enviarConsulta = (
     opciones.esperaMaximaMs,
   );
 
-/** RR_09 — conversaciones de la cuenta, la de actividad más reciente primero. */
+/** Conversaciones de la cuenta, la de actividad más reciente primero. */
 export const listarConversaciones = () => pedir<ConversacionResumen[]>("/conversaciones");
 
-/** RR_09 — una conversación completa, para reabrirla sin repetir las consultas. */
+/** Una conversación completa, para reabrirla sin repetir las consultas. */
 export const obtenerConversacion = (id: number) => pedir<ConversacionDetalle>(`/conversaciones/${id}`);
 
 // Perfil — solo cuentas registradas; un visitante recibe 401.
@@ -262,7 +255,7 @@ export const obtenerConversacion = (id: number) => pedir<ConversacionDetalle>(`/
 /** Cambia el nombre visible de la cuenta. Devuelve el usuario actualizado. */
 export const cambiarNombre = (nombre: string) => pedir<Usuario>("/perfil", "PATCH", { nombre });
 
-/** Cambia la contraseña. El servidor verifica la actual y valida la nueva (RR_00_03). */
+/** Cambia la contraseña. El servidor verifica la actual y valida la nueva. */
 export const cambiarPassword = (passwordActual: string, passwordNueva: string) =>
   pedir<void>("/perfil/password", "POST", {
     password_actual: passwordActual,
@@ -270,46 +263,43 @@ export const cambiarPassword = (passwordActual: string, passwordNueva: string) =
   });
 
 /**
- * RR_00_04 — minutos sin actividad que cierran la sesión (0 = nunca). Guarda
- * el token nuevo que devuelve el servidor para que aplique de inmediato.
+ * Minutos sin actividad que cierran la sesión (0 = nunca). Guarda el token nuevo para que aplique
+ * de inmediato.
  */
 export async function cambiarInactividad(minutos: number): Promise<void> {
   await pedirToken("/perfil/inactividad", "PATCH", { minutos });
 }
 
-/** RR_67, RR_68, RR_79 — preferencias de respuesta del moderador (otro rol: 403). */
+/** Preferencias de respuesta del moderador (otro rol: 403). */
 export const obtenerPreferencias = () => pedir<PreferenciasModerador>("/perfil/preferencias");
 
 /**
- * RR_67, RR_68 — cambia si las respuestas del moderador incluyen el mapa o las
- * fuentes. Solo se envían los campos que cambian; `null` vuelve a la del
- * sistema (RR_80). Aplica desde la consulta siguiente.
+ * Cambia si las respuestas del moderador incluyen el mapa o las fuentes. Solo se envían los campos
+ * que cambian; `null` vuelve a la del sistema.
  */
 export const cambiarPreferencias = (cambio: {
   incluir_mapa?: boolean | null;
   incluir_fuentes?: boolean | null;
 }) => pedir<PreferenciasModerador>("/perfil/preferencias", "PATCH", cambio);
 
-// Especies — no consumen consultas del límite diario.
+// Especies — no cuentan para el límite de consultas.
 
-/** RR_20 — ficha completa de una especie, por su id del catálogo. 404 si no existe. */
+/** Ficha completa de una especie, por su id del catálogo. 404 si no existe. */
 export const obtenerFicha = (especieId: string) =>
   pedir<FichaEspecie>(`/especies/${encodeURIComponent(especieId)}`);
 
 /**
- * Ruta válida del mapa de una especie, tal como la arma el backend en
- * `MapaEspecie.url`. Se exige este formato antes de pedirla para que el token
- * nunca se envíe a otra dirección.
+ * Ruta válida del mapa de una especie, como la arma el backend en `MapaEspecie.url`. Se exige antes
+ * de pedirla para que el token nunca se envíe a otra dirección.
  */
 const RUTA_MAPA = /^\/especies\/[a-z0-9-]+\/mapa$/;
 
 /**
- * RR_46 — imagen PNG del mapa de distribución generado por CR-BioLM.
+ * Imagen PNG del mapa de distribución generado por CR-BioLM.
  *
- * El endpoint pide sesión, así que un <img src> directo no sirve (no envía el
- * token): se descarga aquí con el header Authorization y se devuelve como
- * Blob. Quien la muestre crea la URL con URL.createObjectURL y la libera con
- * URL.revokeObjectURL al desmontarse. `ruta` es `MapaEspecie.url`.
+ * El endpoint pide sesión, así que se descarga con el header Authorization y se devuelve como Blob.
+ * Quien la muestre crea la URL con URL.createObjectURL y la libera con URL.revokeObjectURL. `ruta`
+ * es `MapaEspecie.url`.
  */
 export async function obtenerImagenMapa(ruta: string): Promise<Blob> {
   if (!RUTA_MAPA.test(ruta)) throw new ErrorApi("La dirección del mapa no es válida.", 400);
@@ -319,58 +309,57 @@ export async function obtenerImagenMapa(ruta: string): Promise<Blob> {
   return res.blob();
 }
 
-/** RR_16 — especies ya consultadas cuyo nombre coincide con `fragmento` (2+ letras). */
+/** Especies ya consultadas cuyo nombre coincide con `fragmento` (2+ letras). */
 export const sugerirEspecies = (fragmento: string) =>
   pedir<EspecieCandidata[]>(`/especies?q=${encodeURIComponent(fragmento)}`);
 
-// Administración — solo supermoderador (RR_00_10); el servidor responde 403 al resto.
+// Administración — solo supermoderador; el servidor responde 403 al resto.
 
 export const listarUsuarios = () => pedir<Usuario[]>("/admin/usuarios");
 
-/** RR_00_09 — el cambio queda en la auditoría con quien lo hizo. */
+/** El cambio queda en la auditoría con quien lo hizo. */
 export const cambiarUsuario = (id: number, campo: "estado" | "rol", valor: string) =>
   pedir<Usuario>(`/admin/usuarios/${id}/${campo}`, "PATCH", { [campo]: valor });
 
 export const obtenerAuditoria = () => pedir<RegistroAuditoria[]>("/admin/auditoria");
 
-/** RR_80 — comportamiento por defecto de las respuestas (mapa y fuentes). */
+/** Comportamiento por defecto de las respuestas (mapa y fuentes). */
 export const obtenerPreferenciasPorDefecto = () =>
   pedir<PreferenciasPorDefecto>("/admin/preferencias-respuesta");
 
-/** RR_80 criterio 3 — aplica a todos los que no han cambiado su preferencia. */
+/** Aplica a todos los que no han cambiado su preferencia. */
 export const cambiarPreferenciasPorDefecto = (preferencias: PreferenciasRespuesta) =>
   pedir<PreferenciasPorDefecto>("/admin/preferencias-respuesta", "PUT", preferencias);
 
-/** RR_77 — los tipos de consulta que puede hacer cada rol. */
+/** Tipos de consulta que puede hacer cada rol. */
 export const obtenerPermisosDeConsulta = () => pedir<PermisosTiposConsulta>("/admin/permisos-consulta");
 
-/** RR_77 criterio 1 — deja permitidos solo los tipos enviados de cada rol. */
+/** Deja permitidos solo los tipos enviados de cada rol. */
 export const cambiarPermisosDeConsulta = (cambio: CambioPermisos) =>
   pedir<PermisosTiposConsulta>("/admin/permisos-consulta", "PUT", cambio);
 
-/** RR_78 — total de consultas del periodo, por rol, por día y por tipo de pregunta. */
+/** Total de consultas del periodo, por rol, por día y por tipo de pregunta. */
 export const obtenerEstadisticas = (periodo: PeriodoEstadisticas) =>
   pedir<EstadisticasUso>(`/admin/estadisticas?periodo=${periodo}`);
 
-/** RR_78 — cifras de las tarjetas del panel (cuentas, consultas de hoy, ayer y 30 días). */
+/** Cifras de las tarjetas del panel (cuentas, consultas de hoy, ayer y 30 días). */
 export const obtenerResumenDeUso = () => pedir<ResumenUso>("/admin/estadisticas/resumen");
 
-/** RR_76 — una página del historial de uso de una cuenta, de lo más reciente a lo más antiguo. */
+/** Una página del historial de uso de una cuenta, de lo más reciente a lo más antiguo. */
 export const obtenerHistorialDeUso = (usuarioId: number, limite: number, desplazamiento: number) =>
   pedir<HistorialUso>(
     `/admin/usuarios/${usuarioId}/consultas?limite=${limite}&desplazamiento=${desplazamiento}`,
   );
 
-/** RR_76 criterio 3 — cuentas y consultas guardadas de cada rol. */
+/** Cuentas y consultas guardadas de cada rol. */
 export const obtenerUsoPorRol = () => pedir<UsoDeRol[]>("/admin/uso-por-rol");
 
-/** RR_63 — el límite de consultas de cada rol y su periodo. */
+/** Límite de consultas de cada rol y su periodo. */
 export const listarRoles = () => pedir<RolOut[]>("/admin/roles");
 
 /**
- * RR_63 y RR_64 — define el límite y el periodo de un rol. Aplica a las
- * consultas siguientes; el cambio queda en la auditoría (RR_00_09). El servidor
- * responde con el motivo si el límite no es válido o rompe la regla entre roles.
+ * Define el límite y el periodo de un rol. Aplica a las consultas siguientes y queda en la
+ * auditoría. El servidor responde con el motivo si el límite no es válido.
  */
 export const configurarLimite = (rol: NombreRol, limite: number, periodo: PeriodoConsultas) =>
   pedir<RolOut>(`/admin/roles/${rol}`, "PATCH", { limite_consultas: limite, periodo_consultas: periodo });

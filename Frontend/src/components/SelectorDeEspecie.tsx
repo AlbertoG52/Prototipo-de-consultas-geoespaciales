@@ -1,7 +1,6 @@
 /**
- * RR_17 — lista de especies que coinciden, para que el usuario elija.
- * RR_36 — con `onBuscarTodas`, también se pueden buscar todas; `aviso` dice por
- * qué no se pudo (consultas insuficientes).
+ * Lista de especies que coinciden, para que el usuario elija. Con `onBuscarTodas` también se pueden
+ * buscar todas; `aviso` dice por qué no se pudo (consultas insuficientes).
  */
 export function SelectorDeEspecie({
   mensaje,

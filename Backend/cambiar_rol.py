@@ -1,17 +1,13 @@
-"""
-Cambia el rol de una cuenta existente desde el servidor —  RR_00_10.
+"""Cambia el rol de una cuenta existente desde el servidor.
 
-El registro público siempre crea cuentas con rol 'usuario', así que esta es la
-forma de obtener el primer supermoderador, y de recuperar el acceso si en
-algún momento no queda ninguno activo. Requiere acceso al contenedor: nadie
-puede darse más permisos desde la aplicación.
+El registro siempre crea cuentas con rol 'usuario'; este script permite crear el primer
+supermoderador o recuperar el acceso si no queda ninguno activo. Requiere acceso al
+contenedor.
 
-Uso:
-    docker compose exec backend python cambiar_rol.py <correo> <rol>
+Uso: docker compose exec backend python cambiar_rol.py <correo> <rol>
 
-Roles válidos: los de la tabla 'roles' (usuario, moderador, supermoderador).
-El cambio queda registrado en 'auditoria' por el trigger de 003, sin actor,
-porque no lo hace ningún usuario de la aplicación.
+Roles válidos: usuario, moderador, supermoderador. El cambio queda en 'auditoria' sin
+actor.
 """
 
 import os

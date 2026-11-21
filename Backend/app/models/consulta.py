@@ -1,8 +1,6 @@
-"""Consulta de un usuario registrado — tablas 004, 009 y 012.
+"""Consulta de un usuario registrado y su respuesta.
 
-Un visitante anónimo NO deja filas aquí: el criterio 1 de RR_00_11 dice que el
-sistema no almacena sus consultas anteriores. Su conteo diario va en
-ConsumoAnonimo, que guarda solo el número.
+Del visitante no se guardan consultas; su conteo diario va en ConsumoAnonimo.
 """
 
 from __future__ import annotations
@@ -30,23 +28,21 @@ class Consulta(Base):
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuarios.id", ondelete="CASCADE"))
     texto: Mapped[str] = mapped_column(Text)
 
-    # RR_09: identifica la sesión en la que se hizo, para poder mostrar el
-    # historial de la sesión activa y no todo el histórico del usuario.
+    # Sesión en la que se hizo la consulta.
     sesion_id: Mapped[str | None] = mapped_column(String(64))
 
-    # RR_09 criterio 2: guardar la respuesta permite volver a verla sin
-    # reprocesar la consulta.
+    # Respuesta completa, para volver a verla sin reprocesar la consulta.
     respuesta: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
 
-    # Tabla 012 — RR_09 por conversaciones. Se guardan los tres estados; solo
-    # 'resuelta' descuenta del límite diario (services/uso.py).
+    # Se guardan los cuatro estados; solo 'resuelta' cuenta para el límite
+    # (services/uso.py).
     conversacion_id: Mapped[int] = mapped_column(
         ForeignKey("conversaciones.id", ondelete="CASCADE")
     )
     estado: Mapped[str] = mapped_column(String(20), default=EstadoConsulta.RESUELTA)
     candidatos: Mapped[list[dict[str, Any]] | None] = mapped_column(JSONB)  # solo en 'ambigua'
     mensaje: Mapped[str | None] = mapped_column(Text)  # todos menos 'resuelta'
-    # Tabla 016: por qué se orientó al usuario (MotivoOrientacion); solo en 'orientacion'.
+    # Motivo de la orientación (MotivoOrientacion); solo en 'orientacion'.
     motivo: Mapped[str | None] = mapped_column(String(20))
     # Fecha con la que se cuenta el límite.
     resuelta_en: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

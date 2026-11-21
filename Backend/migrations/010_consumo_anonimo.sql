@@ -1,16 +1,7 @@
--- Módulo 0 (RR_00_11): acceso público sin cuenta.
+-- Contador diario del visitante sin cuenta.
 --
--- El visitante anónimo tiene un límite diario menor que el del usuario
--- registrado (criterio 3), así que hay que contar sus consultas. Pero el
--- criterio 1 dice que el sistema NO almacena sus consultas anteriores.
---
--- Por eso esta tabla guarda únicamente un contador por día: nunca el texto de
--- la consulta ni su respuesta. El historial del visitante vive solo en la
--- memoria del navegador y desaparece al recargar, que es el comportamiento
--- que el requerimiento describe.
---
--- 'anon_id' es un UUID aleatorio que el servidor emite en la primera visita y
--- que viaja firmado dentro del token anónimo. No identifica a una persona.
+-- Guarda solo cuántas consultas lleva por día, nunca el texto ni la respuesta. 'anon_id' es
+-- un UUID aleatorio que viaja firmado en el token anónimo; no identifica a una persona.
 CREATE TABLE IF NOT EXISTS consumo_anonimo (
     anon_id              VARCHAR(64) NOT NULL,
     fecha                DATE        NOT NULL DEFAULT CURRENT_DATE,

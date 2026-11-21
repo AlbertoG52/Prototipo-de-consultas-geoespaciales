@@ -1,8 +1,6 @@
-"""Contador diario del visitante sin cuenta — tabla 010.
+"""Contador diario del visitante sin cuenta.
 
 Guarda cuántas consultas lleva hoy un anon_id, nunca qué consultó.
-Así se cumplen a la vez el criterio 1 (no se almacenan sus consultas) y el
-criterio 3 (tiene un límite diario menor) de RR_00_11.
 """
 
 from datetime import date

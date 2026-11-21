@@ -1,13 +1,11 @@
 /**
- * RR_36 — cuándo una consulta ambigua nombra varias especies distintas.
+ * Cuándo una consulta ambigua nombra varias especies distintas.
  *
- * El servidor responde "ambigua" (RR_17) tanto si la consulta nombra varias
- * especies ("Quercus costaricensis y Quercus oleoides") como si nombra solo un
- * género ("Quercus", RR_28). Son varias especies nombradas cuando cada opción
- * está escrita en la consulta, por su nombre científico o común, sin importar
- * mayúsculas ni tildes, y hay al menos dos nombres distintos ("el cocobolo y
- * Quercus oleoides", DEF-07): entonces se ofrece buscarlas todas. Un solo
- * nombre común de varias especies ("cocobolo") es para elegir una.
+ * El servidor responde "ambigua" tanto si la consulta nombra varias especies ("Quercus
+ * costaricensis y Quercus oleoides") como si nombra solo un género ("Quercus"). Son varias especies
+ * nombradas cuando cada opción está escrita en la consulta, por su nombre científico o común, y hay
+ * al menos dos nombres distintos: entonces se ofrece buscarlas todas. Un solo nombre común de
+ * varias especies ("cocobolo") es para elegir una.
  */
 import { normalizar } from "./sugerencias";
 
@@ -17,7 +15,7 @@ export const MENSAJE_VARIAS_ESPECIES = "Tu consulta menciona varias especies. El
 /** ' Quercus  costaricensis? ' -> ' quercus costaricensis ': para buscar un nombre entero. */
 const palabras = (s: string) => ` ${normalizar(s).replace(/[^\p{L}\p{N}]+/gu, " ").trim()} `;
 
-/** DEF-14: el servidor no encontró el nombre completo, solo un pedazo de él. */
+/** El servidor no encontró el nombre completo, solo una parte de él. */
 export const PREFIJO_NOMBRE_INCOMPLETO = "No encontré «";
 
 export function nombraVariasEspecies(

@@ -1,13 +1,8 @@
 /**
  * Avisos sobre los datos de una respuesta o de una ficha (campo `avisos`).
  *
- * El backend los agrega cuando la respuesta sale incompleta y el usuario debe
- * saberlo, p. ej.:
- *  - RR_43: no hay registros suficientes para generar el mapa.
- *  - RR_58: no se pudo consultar GBIF después de los reintentos.
- *
- * Presentación mínima; el diseño final de la respuesta es de quien lleva
- * TarjetaRespuesta y Mapa.
+ * El backend los agrega cuando la respuesta sale incompleta, p. ej. si no hay registros suficientes
+ * para el mapa o si no se pudo consultar GBIF.
  */
 import { TriangleAlert } from "lucide-react";
 

@@ -1,9 +1,6 @@
 /**
- * RR_45 criterio 3: de dónde sale cada dato de una respuesta o de una ficha
- * (campo `procedencia`).
- *
- * Plegado por defecto para no recargar la tarjeta. Presentación mínima; el
- * diseño final de la respuesta es de quien lleva TarjetaRespuesta.
+ * De dónde sale cada dato de una respuesta o de una ficha (campo `procedencia`). Plegado por
+ * defecto para no recargar la tarjeta.
  */
 import { ETIQUETAS_DATO } from "../config/textos";
 import type { Procedencia } from "../types";

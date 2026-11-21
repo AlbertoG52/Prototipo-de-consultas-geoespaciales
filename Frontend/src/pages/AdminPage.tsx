@@ -1,11 +1,9 @@
 /**
- * Panel de administración
+ * Panel de administración.
  *
- * "Usuarios" (RR_70 a RR_76, en components/admin/), "Respuestas" (RR_80),
- * "Roles y permisos" (tipos de consulta por rol, RR_77, y límites por rol,
- * RR_63 y RR_64), las tarjetas superiores y "Estadísticas" (RR_78) y
- * "Auditoría" (RR_00_09) usan datos reales; la ruta está protegida por rol
- * (RR_00_10). La tabla "Permisos por rol" es descriptiva.
+ * Secciones: Usuarios (components/admin/), Roles y permisos (tipos de consulta y límites por rol),
+ * Respuestas, Estadísticas y Auditoría. La ruta está protegida por rol. La tabla "Permisos por rol"
+ * es descriptiva.
  */
 import { useCallback, useEffect, useState } from "react";
 
@@ -26,8 +24,8 @@ import { IDIOMA_FECHAS } from "../config/textos";
 const ACCIONES: Record<string, string> = {
   cambio_rol: "Cambio de rol",
   cambio_estado: "Cambio de estado",
-  cambio_limite: "Cambio de límite de consultas", // RR_63
-  cambio_permiso: "Cambio de permisos", // RR_77: afecta a un rol, no a una cuenta
+  cambio_limite: "Cambio de límite de consultas",
+  cambio_permiso: "Cambio de permisos", // afecta a un rol, no a una cuenta
 };
 
 export function AdminPage() {
@@ -189,7 +187,10 @@ export function AdminPage() {
                         <span className="text-xs" style={{ color: "var(--color-texto-tenue)" }}>{new Date(log.fecha).toLocaleString(IDIOMA_FECHAS)}</span>
                       </div>
                       <div className="text-xs" style={{ color: "var(--color-texto-secundario)" }}>
-                        {/* Un cambio de límite (RR_63) o de permisos (RR_77) es de un rol, no de una cuenta: el detalle dice cuál. */}
+                        {/*
+                          Un cambio de límite o de permisos es de un rol, no de una cuenta: el
+                          detalle dice cuál.
+                        */}
                         {!["cambio_limite", "cambio_permiso"].includes(log.accion) && (
                           <>Usuario afectado: <strong style={{ color: "var(--color-texto-cuerpo)" }}>{log.afectado ?? "—"}</strong> · </>
                         )}

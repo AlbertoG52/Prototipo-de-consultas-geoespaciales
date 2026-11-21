@@ -1,10 +1,9 @@
-"""Pruebas de RR_29 — clasificación del tipo de consulta (distribución, hábitat o
-descripción) y el texto que elige cada tipo.
+"""Pruebas de la clasificación del tipo de consulta (distribución, hábitat o descripción) y
+del texto que elige cada tipo.
 
-services/intencion.py, services/habitat.py y el texto de ContextoEspecie. No
-necesitan la BD. El registro del tipo (criterio 3) está en
-test_registro_intencion.py. Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Cubren services/intencion.py, services/habitat.py y el texto de ContextoEspecie. No
+necesitan la BD; el registro del tipo está en test_registro_intencion.py. Se ejecutan con:
+docker compose exec backend python -m pytest tests -q
 """
 
 import pytest
@@ -39,7 +38,7 @@ FICHA_QUERCUS = {
 }
 
 
-# --- criterio 1: distribución, hábitat o descripción --------------------------------
+# --- distribución, hábitat o descripción -------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -71,7 +70,7 @@ def test_lo_geografico_gana_si_pregunta_varias_cosas():
 
 
 def test_una_pregunta_de_habitat_sigue_siendo_geoespacial():
-    # RR_41: trae GBIF y el mapa; solo cambia el texto.
+    # Trae GBIF y el mapa; solo cambia el texto.
     assert analizar("¿Cuál es el hábitat de Quercus costaricensis?", ESPECIE).geoespacial
 
 
@@ -87,7 +86,7 @@ def test_del_vocabulario_se_descartan_las_palabras_ambiguas():
     assert tipos_de_bosque(None) == tipos_de_bosque({}) == frozenset()
 
 
-# --- criterio 2: la clasificación decide qué fuente da el texto ---------------------
+# --- la clasificación decide qué fuente da el texto --------------------------------
 
 
 def test_texto_de_habitat_con_los_campos_de_la_ficha():
@@ -134,7 +133,7 @@ def test_cada_tipo_responde_con_su_fuente(tipo, inicio):
 
 
 def test_el_origen_del_texto_dice_que_es_el_habitat():
-    # RR_45: "Origen de los datos" muestra de qué parte del Manual sale el texto.
+    # "Origen de los datos" muestra de qué parte del Manual sale el texto.
     [texto] = [p for p in _contexto(TipoPregunta.HABITAT).procedencia() if p.dato == "texto"]
     assert DETALLE_HABITAT in texto.detalle
 

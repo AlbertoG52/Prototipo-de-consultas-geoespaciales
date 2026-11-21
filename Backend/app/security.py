@@ -1,9 +1,4 @@
-"""Hash de contraseñas, tokens y resolución de la identidad de cada petición.
-
-Aquí viven RR_00_02 (almacenamiento seguro de contraseñas), la mitad de
-RR_00_11 (el visitante sin cuenta también recibe una identidad, anónima) y
-RR_00_10 (control de acceso por rol).
-"""
+"""Hash de contraseñas, tokens, identidad de cada petición y control de acceso por rol."""
 
 from __future__ import annotations
 
@@ -28,8 +23,7 @@ from .dominio import TipoSesion
 from .models import Usuario
 from .tiempo import ahora
 
-# RR_00_02 criterio 3: bcrypt es el estándar reconocido para esto.
-# Nunca se guarda la contraseña en claro; solo el hash que produce este contexto.
+# bcrypt: nunca se guarda la contraseña en claro, solo su hash.
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -48,26 +42,19 @@ def _crear_token(datos: dict, minutos: int) -> str:
 
 
 def minutos_inactividad_de(usuario: Usuario) -> int:
-    """Minutos de inactividad que cierran la sesión de este usuario — RR_00_04.
-
-    Devuelve la preferencia del perfil si la eligió; si no, el valor por
-    defecto del sistema. 0 significa que la sesión no expira por inactividad.
+    """Minutos de inactividad que cierran la sesión del usuario: su preferencia o, si no
+    eligió, la del sistema. 0 = nunca.
     """
     propio = getattr(usuario, "minutos_inactividad", None)
     return MINUTOS_INACTIVIDAD_SESION if propio is None else propio
 
 
 def crear_token_usuario(usuario: Usuario, sesion_id: str | None = None) -> tuple[str, str]:
-    """Token de un usuario registrado. Devuelve (token, sesion_id).
+    """Token de una cuenta registrada. Devuelve (token, sesion_id).
 
-    El sesion_id se genera en cada inicio de sesión y viaja dentro del token.
-    Es lo que hace posible que RR_09 muestre el historial de la sesión activa y
-    no todo el histórico de la cuenta. Al renovar el token (RR_00_04) se pasa
-    el sesion_id existente para que la sesión siga siendo la misma.
-
-    RR_00_04: el token vence cuando se cumple el periodo de inactividad del
-    usuario. El frontend lo renueva mientras haya actividad; si no la hay, el
-    token vence en el servidor y hay que volver a autenticarse.
+    El sesion_id se genera en cada inicio de sesión y se conserva al renovar el token. El
+    token vence al cumplirse el periodo de inactividad; el frontend lo renueva mientras
+    haya actividad.
     """
     sesion_id = sesion_id or uuid.uuid4().hex
     minutos = minutos_inactividad_de(usuario) or MINUTOS_TOKEN_SIN_INACTIVIDAD
@@ -75,9 +62,8 @@ def crear_token_usuario(usuario: Usuario, sesion_id: str | None = None) -> tuple
         {
             "sub": str(usuario.id),
             "tipo": TipoSesion.USUARIO,
-            # Solo informativo. La autorización (RR_00_10) lee el rol desde la
-            # BD en cada petición: un cambio de rol aplica de inmediato y un
-            # token con este campo alterado no concede nada.
+            # Solo informativo: la autorización lee el rol de la BD en cada petición, así
+            # que un cambio de rol aplica de inmediato.
             "rol": usuario.rol.nombre if usuario.rol else None,
             "sid": sesion_id,
         },
@@ -87,10 +73,8 @@ def crear_token_usuario(usuario: Usuario, sesion_id: str | None = None) -> tuple
 
 
 def crear_token_anonimo() -> str:
-    """Token del visitante sin cuenta (RR_00_11).
-
-    El identificador es un UUID aleatorio sin relación con ninguna persona.
-    Solo sirve para llevarle el contador diario de consultas.
+    """Token del visitante sin cuenta. El identificador es un UUID aleatorio que solo sirve
+    para contar sus consultas.
     """
     anon_id = uuid.uuid4().hex
     return _crear_token(
@@ -101,14 +85,13 @@ def crear_token_anonimo() -> str:
 
 @dataclass
 class Identidad:
-    """Quién está haciendo la petición: un usuario registrado o un visitante."""
+    """Quién hace la petición: una cuenta registrada o un visitante."""
 
     tipo: TipoSesion
     sesion_id: str
     usuario: Usuario | None = None
     anon_id: str | None = None
-    # RR_00_04: llegó un token pero ya venció o no es válido. Permite avisar
-    # "tu sesión expiró" en vez de tratar a la persona como visitante sin más.
+    # Llegó un token vencido o inválido; permite avisar que la sesión expiró.
     token_invalido: bool = False
 
     @property
@@ -125,7 +108,7 @@ def _leer_token(request: Request) -> tuple[dict | None, bool]:
     try:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITMO_JWT]), True
     except JWTError:
-        # Incluye el token vencido por inactividad (RR_00_04).
+        # Incluye el token vencido por inactividad.
         return None, True
 
 
@@ -135,9 +118,8 @@ def obtener_identidad(
 ) -> Identidad:
     """Resuelve la identidad de la petición.
 
-    Sin token válido, la petición se trata como visitante anónimo pero sin
-    anon_id: puede leer, no puede consumir consultas. El frontend pide un token
-    anónimo en la primera visita, así que esto es solo la red de seguridad.
+    Sin token válido se trata como visitante sin anon_id: puede leer, pero no consultar. El
+    frontend pide un token anónimo en la primera visita.
     """
     datos, venia_token = _leer_token(request)
     if not datos:
@@ -168,11 +150,8 @@ def obtener_identidad(
 
 
 def exigir_sesion(identidad: Identidad) -> None:
-    """Responde 401 si la petición no trae una sesión válida, de usuario o de visitante.
-
-    Cubre el token vencido por inactividad (RR_00_04), el firmado con otra
-    clave, el de una cuenta que ya no existe y la petición sin token. Ante el
-    401 el frontend avisa que la sesión expiró o pide un token anónimo nuevo.
+    """Responde 401 si la petición no trae una sesión válida, de cuenta o de visitante: token
+    vencido, firmado con otra clave, de una cuenta que ya no existe, o sin token.
     """
     if identidad.token_invalido or (identidad.usuario is None and not identidad.anon_id):
         raise HTTPException(
@@ -184,10 +163,7 @@ def exigir_sesion(identidad: Identidad) -> None:
 def obtener_usuario_actual(
     identidad: Identidad = Depends(obtener_identidad),
 ) -> Usuario:
-    """Igual que obtener_identidad, pero exige una cuenta.
-
-    Se usa en los endpoints que un visitante no debe alcanzar.
-    """
+    """Igual que obtener_identidad, pero exige una cuenta registrada."""
     if identidad.usuario is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -197,18 +173,11 @@ def obtener_usuario_actual(
 
 
 def requiere_rol(*roles_permitidos: str):
-    """Dependencia que deja pasar solo a los roles indicados — RR_00_10.
+    """Dependencia que deja pasar solo a los roles indicados.
 
-    Uso: `Depends(requiere_rol(NombreRol.SUPERMODERADOR))`, en un endpoint o en
-    las `dependencies` de un router completo.
-
-    - Sin cuenta: 401 (lo lanza obtener_usuario_actual); iniciar sesión puede
-      resolverlo.
-    - Con cuenta pero con otro rol: 403; iniciar sesión no lo resuelve.
-
-    Los roles se enumeran explícitamente en vez de usar una jerarquía: el
-    moderador no hereda las funciones de administración del supermoderador.
-    El rol sale de la BD (vía obtener_identidad), nunca del token.
+    Uso: `Depends(requiere_rol(NombreRol.SUPERMODERADOR))`, en un endpoint o en las
+    `dependencies` de un router. Sin cuenta responde 401; con otro rol, 403. Los roles se
+    enumeran explícitamente (no hay jerarquía) y se leen de la BD, nunca del token.
     """
     if not roles_permitidos:
         raise ValueError("requiere_rol necesita al menos un rol.")
@@ -226,5 +195,5 @@ def requiere_rol(*roles_permitidos: str):
 
 
 def _password_bcrypt_compatible(password: str) -> str:
-    """bcrypt solo acepta 72 bytes; truncamos antes de hashear/verificar."""
+    """bcrypt solo acepta 72 bytes; se trunca antes de hashear y de verificar."""
     return password.encode("utf-8")[:72].decode("utf-8", errors="ignore")

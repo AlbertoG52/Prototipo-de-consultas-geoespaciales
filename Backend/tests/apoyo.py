@@ -1,7 +1,5 @@
-"""Piezas comunes de las pruebas que no necesitan preparación ni limpieza.
-
-Las que sí la necesitan (correos de prueba que se borran al terminar, buzón
-falso, sesión de BD que se deshace) son fixtures en conftest.py.
+"""Piezas comunes de las pruebas que no necesitan preparación ni limpieza. Las que sí la
+necesitan son fixtures en conftest.py.
 """
 
 from types import SimpleNamespace
@@ -20,10 +18,10 @@ from app.security import Identidad, hash_password
 # Cliente HTTP contra la API real; las pruebas que lo usan necesitan la BD.
 api = TestClient(app)
 
-# Un visitante con sesión anónima válida (RR_00_11).
+# Un visitante con sesión anónima válida.
 VISITANTE = Identidad(tipo=TipoSesion.ANONIMO, sesion_id="anon-1", anon_id="anon-1")
 
-# Llegó un token, pero venció o no es válido (RR_00_04).
+# Llegó un token, pero venció o no es válido.
 SESION_INVALIDA = Identidad(
     tipo=TipoSesion.ANONIMO, sesion_id="", anon_id=None, token_invalido=True
 )
@@ -40,8 +38,8 @@ def sql(consulta: str, **parametros):
 def crear_cuenta_verificada(correo: str, password: str, rol: str = NombreRol.USUARIO) -> None:
     """Inserta una cuenta activa y verificada, con rol 'usuario' salvo que se pida otro.
 
-    El rol se asigna al insertar, no con un UPDATE: así no deja registros en
-    'auditoria' y la cuenta se puede borrar al terminar la prueba.
+    El rol se asigna al insertar, no con un UPDATE, para no dejar registros en 'auditoria'
+    y poder borrar la cuenta al terminar.
     """
     sql(
         "INSERT INTO usuarios (correo, password_hash, rol_id, correo_verificado) "

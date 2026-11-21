@@ -1,7 +1,5 @@
-"""Esquemas de la página de perfil: nombre, contraseña e inactividad de la sesión.
-
-El nombre y la contraseña usan las mismas reglas que el registro
-(schemas/usuario.py); para la contraseña es lo que pide el criterio 3 de RR_00_03.
+"""Esquemas del perfil: nombre, contraseña e inactividad de la sesión. Usan las mismas reglas
+que el registro (schemas/usuario.py).
 """
 
 from pydantic import BaseModel, Field, field_validator
@@ -20,7 +18,7 @@ class CambioNombreRequest(BaseModel):
 
 
 class CambioPasswordRequest(BaseModel):
-    # La actual no se valida con las reglas: puede ser de antes de que existieran.
+    # La actual no se valida con las reglas: puede ser anterior a ellas.
     password_actual: str = Field(min_length=1)
     password_nueva: str
 
@@ -31,10 +29,7 @@ class CambioPasswordRequest(BaseModel):
 
 
 class CambioInactividadRequest(BaseModel):
-    """RR_00_04 criterio 2 — el periodo de inactividad es configurable.
-
-    Solo se aceptan las opciones que ofrece el perfil; 0 significa "Nunca".
-    """
+    """Periodo de inactividad: solo las opciones del perfil; 0 significa "Nunca"."""
 
     minutos: int
 

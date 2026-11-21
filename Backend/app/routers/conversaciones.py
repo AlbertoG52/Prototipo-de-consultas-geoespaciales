@@ -1,11 +1,7 @@
-"""Historial por conversaciones — RR_09.
+"""Historial por conversaciones.
 
-Cada conversación agrupa las consultas de un mismo chat, en sus cuatro estados
-(ver migraciones 012 y 016). Solo existen para cuentas registradas: un visitante
-recibe 401, porque sus consultas no se guardan (RR_00_11).
-
-Cada persona solo ve sus propias conversaciones: pedir la de otra responde
-404, igual que si no existiera, para no revelar qué ids existen.
+Solo para cuentas registradas (un visitante recibe 401). Cada persona ve solo sus
+conversaciones: pedir la de otra responde 404, igual que si no existiera.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -56,7 +52,7 @@ def _a_guardada(consulta: Consulta) -> ConsultaGuardada:
         else [],
         mensaje=consulta.mensaje,
         motivo=consulta.motivo,
-        # Los ejemplos no se guardan: al reabrir se muestran los actuales (RR_40).
+        # Los ejemplos no se guardan: al reabrir se muestran los actuales.
         ejemplos=list(EJEMPLOS_DE_CONSULTA) if consulta.motivo else [],
         realizada_en=consulta.realizada_en,
     )

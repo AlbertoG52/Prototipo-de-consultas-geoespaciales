@@ -1,9 +1,9 @@
 /**
- * Recuperación de contraseña, paso 2 — RR_00_06 criterio 3.
+ * Recuperación de contraseña, paso 2.
  *
- * Se llega desde el enlace del correo (/reset-password?token=...). El servidor
- * valida el token al guardar: si venció o ya se usó, se ofrece pedir otro.
- * Las reglas de la contraseña son las mismas del registro (RR_00_03).
+ * Se llega desde el enlace del correo (/reset-password?token=...). El servidor valida el token al
+ * guardar: si venció o ya se usó, se ofrece pedir otro. Las reglas de la contraseña son las del
+ * registro.
  */
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";

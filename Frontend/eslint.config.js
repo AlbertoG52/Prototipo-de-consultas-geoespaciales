@@ -31,8 +31,8 @@ export default tseslint.config(
     },
   },
   {
-    // Un contexto exporta su proveedor y su hook (useAuth), y routes.tsx el
-    // router; ninguno se edita con recarga en caliente, así que el aviso no aplica.
+    // Un contexto exporta su proveedor y su hook, y routes.tsx el router; no se editan con recarga
+    // en caliente, así que el aviso no aplica.
     files: ["src/context/**/*.tsx", "src/routes.tsx"],
     rules: { "react-refresh/only-export-components": "off" },
   },

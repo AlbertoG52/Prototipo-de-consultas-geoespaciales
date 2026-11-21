@@ -1,4 +1,4 @@
--- Módulo 0 (RR_00_09): auditoría de acciones administrativas
+-- Auditoría de acciones administrativas.
 CREATE TABLE IF NOT EXISTS auditoria (
     id                  SERIAL PRIMARY KEY,
     usuario_afectado_id INTEGER REFERENCES usuarios(id),
@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS auditoria (
     fecha               TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
--- Trigger 1: mantener actualizado_en al día en cada UPDATE de usuarios
+-- Mantiene actualizado_en al día en cada UPDATE de usuarios.
 CREATE OR REPLACE FUNCTION set_actualizado_en()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -21,7 +21,7 @@ CREATE TRIGGER trg_usuarios_actualizado
     BEFORE UPDATE ON usuarios
     FOR EACH ROW EXECUTE FUNCTION set_actualizado_en();
 
--- Trigger 2: registrar en auditoría los cambios de rol o de estado
+-- Registra en la auditoría los cambios de rol o de estado.
 CREATE OR REPLACE FUNCTION registrar_auditoria_usuario()
 RETURNS TRIGGER AS $$
 BEGIN

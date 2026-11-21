@@ -21,21 +21,16 @@ from apoyo import api, sql
 def catalogo_de_demostracion(monkeypatch):
     """Todas las pruebas usan el catálogo de demostración, diga lo que diga el .env.
 
-    Así no dependen de que CR-BioLM esté levantado ni de sus datos. Las que
-    prueban CR-BioLM (test_catalogo_crbiolm.py) cambian a 'crbiolm' con su
-    propio servidor falso.
+    Así no dependen de CR-BioLM. test_catalogo_crbiolm.py cambia a 'crbiolm' con su propio
+    servidor falso.
     """
     monkeypatch.setattr(config, "CATALOGO", "demo")
 
 
 @pytest.fixture(autouse=True)
 def todos_los_tipos_permitidos(request, monkeypatch):
-    """Todas las pruebas pueden hacer cualquier tipo de consulta (RR_77), diga lo
-    que diga la BD.
-
-    La configuración de permisos_tipo_consulta es de quien usa el sistema: las
-    pruebas no deben depender de ella. Las que prueban esa tabla llevan la marca
-    `permisos_de_la_bd`.
+    """Todas las pruebas pueden hacer cualquier tipo de consulta, diga lo que diga la BD. Las
+    que prueban permisos_tipo_consulta llevan la marca `permisos_de_la_bd`.
     """
     if request.node.get_closest_marker("permisos_de_la_bd"):
         return
@@ -60,8 +55,8 @@ def buzon(monkeypatch):
 def correos_de_prueba():
     """Entrega correos únicos y, al terminar, borra las cuentas creadas con ellos.
 
-    Una cuenta con registros en 'auditoria' no se puede borrar (RR_00_09), así
-    que estas pruebas no deben cambiar el rol ni el estado de esas cuentas.
+    Una cuenta con registros en 'auditoria' no se puede borrar, así que estas pruebas no
+    cambian su rol ni su estado.
     """
     creados = []
 
@@ -88,10 +83,8 @@ def db():
 
 @pytest.fixture
 def sesion(db, monkeypatch):
-    """La sesión `db` sin confirmar nada: commit solo envía los cambios a la BD.
-
-    Para probar servicios que confirman cambios que no se pueden borrar después,
-    como los que dejan registros en 'auditoria' (RR_00_09).
+    """La sesión `db` sin confirmar nada: commit solo envía los cambios a la BD. Para
+    servicios que dejan registros que no se pueden borrar, como los de 'auditoria'.
     """
     monkeypatch.setattr(db, "commit", db.flush)
     return db
@@ -99,7 +92,7 @@ def sesion(db, monkeypatch):
 
 @pytest.fixture
 def visitante():
-    """Cabeceras de un visitante con sesión anónima nueva (RR_00_11)."""
+    """Cabeceras de un visitante con sesión anónima nueva."""
     token = api.post("/auth/anonimo").json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 

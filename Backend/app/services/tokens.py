@@ -1,14 +1,10 @@
-"""Tokens de un solo uso para los enlaces que se envían por correo.
-
-RR_00_07 los usa para verificar el correo y RR_00_06 para recuperar la
+"""Tokens de un solo uso para los enlaces de verificación de correo y recuperación de
 contraseña.
 
-- El token que viaja en el enlace es aleatorio (secrets) e imposible de adivinar.
-- En la BD se guarda solo su hash SHA-256: quien lea la tabla no obtiene
-  enlaces válidos.
-- Vence tras un tiempo limitado y se puede usar una sola vez.
-- Al emitir uno nuevo se anulan los anteriores del mismo tipo: solo sirve el
-  último enlace enviado.
+- El token del enlace es aleatorio (secrets).
+- En la BD se guarda solo su hash SHA-256.
+- Vence tras un tiempo limitado y se usa una sola vez.
+- Al emitir uno nuevo se anulan los anteriores del mismo tipo.
 """
 
 import hashlib
@@ -29,10 +25,7 @@ def _hash(token: str) -> str:
 
 
 def crear_token(db: Session, usuario_id: int, tipo: str, duracion: timedelta) -> str:
-    """Emite un token y devuelve el valor en claro para ponerlo en el enlace.
-
-    No hace commit: lo hace quien llama, junto con el resto de sus cambios.
-    """
+    """Emite un token y devuelve el valor en claro para el enlace. No hace commit."""
     db.query(Token).filter(
         Token.usuario_id == usuario_id,
         Token.tipo == tipo,
@@ -53,10 +46,8 @@ def crear_token(db: Session, usuario_id: int, tipo: str, duracion: timedelta) ->
 
 
 def consumir_token(db: Session, claro: str, tipo: str) -> Token | None:
-    """Valida el token y lo marca como usado.
-
-    Devuelve None si no existe, es de otro tipo, ya se usó o venció. No hace
-    commit.
+    """Valida el token y lo marca como usado. Devuelve None si no existe, es de otro tipo, ya
+    se usó o venció. No hace commit.
     """
     fila = db.query(Token).filter(Token.token == _hash(claro), Token.tipo == tipo).first()
     if fila is None or fila.usado or fila.expira_en <= ahora():

@@ -1,12 +1,8 @@
 """Errores de la lógica de negocio (services/).
 
-Los servicios no saben de HTTP: cuando una regla no se cumple lanzan uno de
-estos errores, y el router lo traduce a la respuesta HTTP con
-`routers.errores.errores_http()`. Así la misma lógica se puede llamar desde un
-script o una prueba sin pasar por FastAPI.
-
-Cada error trae el código HTTP que le corresponde y un `detalle` en español,
-que es el texto que ve la persona.
+Los servicios no conocen HTTP: lanzan estos errores y el router los traduce con
+`routers.errores.errores_http()`. Cada error trae su código HTTP y un `detalle` en español
+para el usuario.
 """
 
 
@@ -49,7 +45,7 @@ class LimiteAlcanzado(ErrorDominio):
 
 
 class TiempoAgotado(ErrorDominio):
-    """RR_38 — la consulta superó el tiempo máximo de procesamiento."""
+    """La consulta superó el tiempo máximo de procesamiento."""
 
     estado_http = 504
 

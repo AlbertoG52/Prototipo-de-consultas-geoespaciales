@@ -1,24 +1,15 @@
-"""Tipos de consulta permitidos por rol — RR_77.
+"""Tipos de consulta permitidos por rol.
 
-- Criterio 1: el supermoderador define, para el visitante sin cuenta, el
-  usuario y el moderador, qué tipos de pregunta (dominio.TipoPregunta:
-  distribución, hábitat, descripción, general) pueden hacer. Se guarda en la
-  tabla permisos_tipo_consulta (019); al inicio todo está permitido. El
-  supermoderador siempre puede todo, para que no pueda bloquearse a sí mismo.
-- Criterio 2: services/consultas.py pide `de(db, identidad)` y no busca ni
-  responde una consulta de un tipo no permitido. El tipo se revisa con el
-  texto antes de buscar especies (no se llama a CR-BioLM) y otra vez con el
-  tipo de la respuesta, que puede precisarse con el vocabulario de CR-BioLM
-  (RR_29).
-- Criterio 3: se responde como orientación, con el motivo TIPO_NO_PERMITIDO y
-  `Permisos.mensaje`, que dice qué tipos sí tiene. No descuenta del límite
-  diario.
+El supermoderador define qué tipos de pregunta (distribución, hábitat, descripción,
+general) pueden hacer el visitante, el usuario y el moderador; se guarda en
+permisos_tipo_consulta y al inicio todo está permitido. El supermoderador siempre puede
+todo.
 
-Cada cambio queda en la auditoría (RR_00_09) por un trigger de la BD (019),
-con quien lo hizo, como los cambios de rol.
+services/consultas.py revisa el tipo antes de buscar especies y otra vez con el tipo de la
+respuesta. Un tipo no permitido se responde como orientación (TIPO_NO_PERMITIDO) con los
+tipos que sí tiene, sin contar para el límite. Cada cambio queda en la auditoría.
 
-Solo aplica al chat (POST /consultas): la ficha de una especie
-(GET /especies/{id}) se sigue viendo completa.
+Solo aplica al chat: la ficha de una especie se ve completa.
 """
 
 from __future__ import annotations
@@ -56,7 +47,7 @@ class Permisos:
         return tipo in self.permitidos
 
     def mensaje(self, tipo: TipoPregunta) -> str:
-        """Criterio 3: qué tipo no está disponible para su rol y cuáles sí."""
+        """Qué tipo no está disponible para su rol y cuáles sí."""
         if self.rol is RolDeConsulta.VISITANTE:
             quien = "Como visitante sin cuenta no tienes habilitadas"
         else:
@@ -77,7 +68,7 @@ def _enumerar(partes: list[str]) -> str:
 
 
 def rol_de(identidad: Identidad) -> RolDeConsulta | None:
-    """El rol que se configura para esta persona; None si es supermoderador."""
+    """Rol que se configura para esta persona; None si es supermoderador."""
     usuario = identidad.usuario
     if usuario is None:
         return RolDeConsulta.VISITANTE
@@ -88,10 +79,8 @@ def rol_de(identidad: Identidad) -> RolDeConsulta | None:
 
 
 def de(db: Session, identidad: Identidad) -> Permisos:
-    """Criterio 2: lo que puede consultar esta persona, leído en cada consulta.
-
-    Un tipo sin fila en la tabla (no debería pasar: la siembra la migración
-    019) se considera permitido, como antes de este requerimiento.
+    """Lo que puede consultar esta persona, leído en cada consulta. Un tipo sin fila en la
+    tabla se considera permitido.
     """
     rol = rol_de(identidad)
     if rol is None:
@@ -106,7 +95,7 @@ def de(db: Session, identidad: Identidad) -> Permisos:
 
 
 def ver(db: Session) -> PermisosTiposConsulta:
-    """Criterio 1: la configuración de cada rol y quién la cambió por última vez."""
+    """Configuración de cada rol y quién la cambió por última vez."""
     filas = db.query(PermisoTipoConsulta).all()
     bloqueados = {(f.rol, f.tipo) for f in filas if not f.permitido}
     roles = [
@@ -126,12 +115,10 @@ def ver(db: Session) -> PermisosTiposConsulta:
 
 
 def cambiar(db: Session, actor: Usuario, datos: CambioPermisos) -> PermisosTiposConsulta:
-    """Criterio 1: deja permitidos solo los tipos que vienen para cada rol enviado.
-
-    Aplica desde la siguiente consulta. Solo se escriben las filas que
-    cambian, así la auditoría registra un cambio real por fila.
+    """Deja permitidos solo los tipos que vienen para cada rol enviado. Solo se escriben las
+    filas que cambian, así la auditoría registra cambios reales.
     """
-    # El trigger de auditoría (019) lee quién actúa, como en services/admin.py.
+    # El trigger de auditoría lee quién actúa, como en services/admin.py.
     db.execute(text("SELECT set_config('app.actor_id', :id, true)"), {"id": str(actor.id)})
     filas = {(f.rol, f.tipo): f for f in db.query(PermisoTipoConsulta).all()}
     momento = ahora()

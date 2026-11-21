@@ -1,9 +1,8 @@
-"""Pruebas de RR_09 por conversaciones y de cómo se cobra cada estado.
+"""Pruebas del historial por conversaciones y de cómo cuenta cada estado para el límite.
 
-Usan la BD del contenedor a través de la API. Cada prueba crea sus propios
-usuarios y los borra al terminar (el borrado arrastra sus conversaciones y
-consultas), así que no dejan datos. Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Usan la BD a través de la API. Cada prueba crea sus usuarios y los borra al terminar, junto
+con sus conversaciones y consultas. Se ejecutan con: docker compose exec backend python -m
+pytest tests -q
 """
 
 from datetime import UTC, datetime, timedelta
@@ -41,7 +40,7 @@ def _restantes(cabeceras) -> int:
     return api.get("/auth/sesion", headers=cabeceras).json()["consultas_restantes"]
 
 
-# --- se guardan los tres estados, pero solo cobra la resuelta ---------------
+# --- se guardan todos los estados, pero solo cuenta la resuelta --------------------
 
 
 def test_los_tres_estados_se_guardan_en_la_misma_conversacion(crear_cuenta):
@@ -59,7 +58,7 @@ def test_los_tres_estados_se_guardan_en_la_misma_conversacion(crear_cuenta):
         "resuelta",
     ]
     assert ambigua["conversacion_id"] == resuelta["conversacion_id"] == conversacion
-    assert _restantes(yo) == inicio - 1  # solo la resuelta descontó
+    assert _restantes(yo) == inicio - 1  # solo la resuelta contó
 
     detalle = api.get(f"/conversaciones/{conversacion}", headers=yo).json()
     assert detalle["titulo"] == SIN_COINCIDENCIAS  # el título es la primera consulta
@@ -82,7 +81,7 @@ def test_sin_conversacion_se_crea_una_nueva(crear_cuenta):
     assert [c["id"] for c in lista] == [b, a]  # la más reciente primero
 
 
-# --- RR_17: la ambigua queda pendiente y se retoma sin cobrar doble ---------
+# --- la ambigua queda pendiente y se retoma sin contar doble -----------------------
 
 
 def test_resolver_una_ambigua_pendiente_cobra_una_sola_vez(crear_cuenta):
@@ -99,7 +98,7 @@ def test_resolver_una_ambigua_pendiente_cobra_una_sola_vez(crear_cuenta):
 
     otra_vez = _consultar(yo, AMBIGUA, consulta_id=pendiente["id"], especie_id=MORADA)
     assert otra_vez.status_code == 409
-    assert _restantes(yo) == inicio - 1  # el segundo clic no cobró
+    assert _restantes(yo) == inicio - 1  # el segundo clic no contó
 
     detalle = api.get(f"/conversaciones/{pendiente['conversacion_id']}", headers=yo).json()
     assert len(detalle["consultas"]) == 1
@@ -185,7 +184,7 @@ def test_el_visitante_no_guarda_conversaciones():
     r = _consultar(visitante, AMBIGUA).json()
     assert r["estado"] == "ambigua" and r["id"] is None and r["conversacion_id"] is None
     assert api.get("/conversaciones", headers=visitante).status_code == 401
-    # RR_17 sin cuenta: sigue funcionando reenviando la especie elegida.
+    # Sin cuenta sigue funcionando reenviando la especie elegida.
     elegida = _consultar(visitante, AMBIGUA, especie_id=MORADA).json()
     assert elegida["estado"] == "resuelta"
 

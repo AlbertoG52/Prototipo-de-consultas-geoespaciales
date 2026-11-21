@@ -1,11 +1,9 @@
 /**
- * RR_63 y RR_64 — límite de consultas de cada rol y cada cuánto se restablece.
+ * Límite de consultas de cada rol y cada cuánto se restablece.
  *
- * Cada rol se guarda por separado (PATCH /admin/roles/{rol}). El servidor
- * valida el número (RR_63 criterio 3) y que el usuario estándar quede con menos
- * consultas que el moderador y con más que un visitante (RR_62 criterio 3);
- * si no, responde el motivo y aquí se muestra. El cambio aplica a las
- * consultas siguientes de las cuentas de ese rol y queda en la auditoría.
+ * Cada rol se guarda por separado (PATCH /admin/roles/{rol}). El servidor valida el número y que el
+ * usuario quede con menos consultas que el moderador y no menos que un visitante; si no, responde
+ * el motivo y aquí se muestra. El cambio aplica a las consultas siguientes y queda en la auditoría.
  */
 import { useState } from "react";
 

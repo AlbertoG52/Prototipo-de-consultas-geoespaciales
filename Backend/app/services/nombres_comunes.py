@@ -1,19 +1,13 @@
-"""Nombres comunes de especies dentro de la consulta — RR_25.
+"""Nombres comunes de especies dentro de la consulta.
 
-CR-BioLM asocia un nombre común con sus especies (resolve_common_name, L0) con
-las fuentes que tiene: el Manual, iNaturalist, GBIF y Tropicos (criterio 3). La
-herramienta recibe UN nombre, no la consulta entera, así que aquí se sacan de la
-consulta las frases que podrían ser uno: de 1 a PALABRAS_MAXIMAS palabras
-seguidas que no empiecen ni terminen con una palabra de la pregunta ("dónde",
-"el", "crece"...). Se prueban de la más larga a la más corta, para que "olla de
-mono" gane a "mono".
+CR-BioLM asocia un nombre común con sus especies (resolve_common_name) usando el Manual,
+iNaturalist, GBIF y Tropicos. La herramienta recibe un solo nombre, así que aquí se extraen
+de la consulta las frases que podrían serlo: de 1 a PALABRAS_MAXIMAS palabras seguidas que
+no empiecen ni terminen con una palabra de la pregunta ("dónde", "el", "crece"...). Se
+prueban de la más larga a la más corta, para que "olla de mono" gane a "mono".
 
-Variaciones menores (criterio 2):
-- tildes y mayúsculas: CR-BioLM compara sin tildes ni mayúsculas ("jicaro" y
-  "Jícaro" dan las mismas especies, DEF-15);
-- plural: si una frase no está tal cual, se prueba en singular ("ceibas" ->
-  "ceiba", `en_singular`). Un nombre que ya termina en "s" ("quiebrapiedras")
-  se encuentra en el primer intento.
+- Tildes y mayúsculas: CR-BioLM compara sin ellas ("jicaro" y "Jícaro" dan lo mismo).
+- Plural: si una frase no está tal cual, se prueba en singular ("ceibas" -> "ceiba").
 """
 
 from __future__ import annotations
@@ -41,16 +35,15 @@ _FUERA_DEL_NOMBRE = (
             "quienes", "crecer", "vive", "viven", "habita", "habitan", "distribucion",
             "mapa", "registros", "ubicacion", "zona", "region", "altitud", "elevacion",
             "habitat", "costa", "rica",
-            # DEF-14: adverbios que rodean un nombre sin ser parte de él
-            # ("¿Dónde crece el pochote normalmente?").
+            # Adverbios que rodean un nombre sin ser parte de él ("¿Dónde crece el pochote
+            # normalmente?").
             "cerca", "lejos", "mejor", "normalmente", "generalmente", "usualmente",
             "actualmente", "hoy", "aqui", "alli", "tambien", "solo", "mas",
         }
     )
 )  # fmt: skip
 
-# DEF-14: palabras que unen las partes de un nombre común ("olla de mono", "flor
-# de un día"). Un nombre puede seguir después de "de"/"del" y de un artículo; sin
+# Palabras que unen las partes de un nombre común ("olla de mono", "flor de un día"). Sin
 # "de" delante, un artículo separa ("normalmente el pochote" no es un nombre).
 _UNEN_NOMBRE = frozenset({"de", "del"})
 _ARTICULOS = frozenset({"el", "la", "los", "las", "un", "una"})
@@ -69,10 +62,8 @@ class Frase:
 
 
 def frases_candidatas(texto: str) -> list[Frase]:
-    """Las frases de `texto` que podrían ser un nombre común, de la más larga a la más corta.
-
-    A lo sumo config.NOMBRES_COMUNES_FRASES_MAXIMAS, porque cada una es una
-    consulta a CR-BioLM.
+    """Frases de `texto` que podrían ser un nombre común, de la más larga a la más corta,
+    hasta config.NOMBRES_COMUNES_FRASES_MAXIMAS (cada una es una consulta a CR-BioLM).
     """
     palabras = list(_PALABRA.finditer(texto))
     sirven = [normalizar(p.group()) not in _FUERA_DEL_NOMBRE for p in palabras]
@@ -86,15 +77,12 @@ def frases_candidatas(texto: str) -> list[Frase]:
 
 
 def frase_completa(texto: str, frase: Frase) -> Frase:
-    """DEF-14: el posible nombre completo que contiene `frase` en `texto`.
+    """El posible nombre completo que contiene `frase` en `texto`.
 
-    Se extiende `frase` a ambos lados, palabra por palabra y solo entre espacios,
-    mientras la vecina sirva para un nombre (no es de la pregunta) o lo una:
-    "de"/"del", con un artículo detrás si hace falta ("flor de un día"). Para
-    "¿Dónde crece el cedro amargo?" y la frase "amargo" es "cedro amargo"; para
-    "¿Dónde crece la olla de mono?" y "olla de mono", la misma frase. Un signo de
-    puntuación corta ("el encino, un Quercus") y un artículo sin "de" también
-    ("normalmente el pochote").
+    Se extiende `frase` palabra por palabra mientras la vecina pueda ser parte de un nombre
+    o lo una ("de", "del", con un artículo detrás). Para "¿Dónde crece el cedro amargo?" y
+    la frase "amargo" devuelve "cedro amargo". Un signo de puntuación o un artículo sin
+    "de" cortan el nombre.
     """
     palabras = list(_PALABRA.finditer(texto))
     i = next(k for k, p in enumerate(palabras) if p.start() == frase.inicio)
@@ -126,7 +114,7 @@ def frase_completa(texto: str, frase: Frase) -> Frase:
             return None
         if not seguidas(v - paso, v) or palabra(v) in _FUERA_DEL_NOMBRE:
             return None
-        # "olla de mono de Guanacaste": después de "de", un lugar es la zona (RR_39).
+        # "olla de mono de Guanacaste": después de "de", un lugar es la zona.
         if palabra(v) in GEOESPACIALES:
             return None
         # En el texto, la unión empieza con "de": "olla de mono", "flor de un día".

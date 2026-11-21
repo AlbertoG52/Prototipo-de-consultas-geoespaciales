@@ -1,9 +1,8 @@
 /**
- * RR_78 — tarjetas del panel de administración (GET /admin/estadisticas/resumen).
+ * Tarjetas del panel de administración (GET /admin/estadisticas/resumen).
  *
- * Cuentas registradas y consultas de hoy y de los últimos 30 días, contadas
- * igual que en "Estadísticas" (visitantes incluidos). Se ven en todas las
- * secciones del panel y se recargan cada 30 s mientras la pestaña está visible.
+ * Cuentas registradas y consultas de hoy y de los últimos 30 días, contadas igual que en
+ * "Estadísticas". Se recargan cada 30 s mientras la pestaña está visible.
  */
 import { useCallback, useState } from "react";
 
@@ -14,7 +13,7 @@ import { useRecargaAutomatica } from "../../hooks/useRecargaAutomatica";
 import * as api from "../../services/api";
 import type { ResumenUso } from "../../types";
 
-const RECARGA_MS = 30_000; // RR_78 criterio 3
+const RECARGA_MS = 30_000;
 
 type Tarjeta = { titulo: string; valor: string; detalle: string; Icono: LucideIcon };
 

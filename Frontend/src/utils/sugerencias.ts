@@ -1,6 +1,4 @@
-/**
- * RR_16 — cómo se incorpora una sugerencia de especie al campo de consulta.
- */
+/** Cómo se incorpora una sugerencia de especie al campo de consulta. */
 import type { EspecieCandidata } from "../types";
 
 /** Minúsculas y sin tildes, igual que la comparación del servidor. */

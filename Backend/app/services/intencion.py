@@ -1,38 +1,23 @@
-"""Qué pide la consulta — RR_41 criterio 1 y RR_29. PROVISIONAL.
+"""Qué pide la consulta.
 
-Clasifica la pregunta por su tipo (`TipoPregunta`) y dice si pregunta algo
-concreto además del nombre de la especie (para RR_44, el fragmento del Manual
-que lo responde).
+Clasifica la pregunta por su tipo (`TipoPregunta`) e indica si pregunta algo concreto
+además del nombre de la especie. Es un clasificador por palabras clave, sin LLM; se puede
+reemplazar sin tocar el resto, porque solo se usa a través de `analizar`.
 
-Es un clasificador por palabras clave, a propósito simple: no usa el LLM ni el
-intérprete de CR-BioLM (L2, con costo). Se puede reemplazar por uno mejor sin
-tocar el resto, porque solo se usa a través de `analizar`.
+Tipos, en orden de prioridad (gana la primera lista que coincide):
 
-Tipos, en orden de prioridad (la primera lista que coincide gana):
+  DISTRIBUCION  algo geográfico: dónde, distribución, altitud, provincia, mapa...
+  HABITAT       en qué ambiente vive: hábitat, tipo de bosque, páramo, epífita... (más los
+  tipos de bosque del vocabulario de CR-BioLM)
+  DISTRIBUCION  "crece" o "se encuentra" sin nada de lo anterior
+  DESCRIPCION   cómo es la planta: hojas, flores, color, familia, usos..., o "¿Cómo es...?"
+  GENERAL       nada de lo anterior, p. ej. solo el nombre de la especie
 
-    DISTRIBUCION  algo geográfico: dónde, distribución, altitud, provincia, mapa...
-    HABITAT       en qué ambiente vive: hábitat, tipo de bosque, páramo, epífita...
-                  (RR_29, lista HABITAT más los tipos de bosque del vocabulario
-                  de CR-BioLM)
-    DISTRIBUCION  "crece" o "se encuentra" sin nada de lo anterior
-    DESCRIPCION   cómo es la planta: hojas, flores, color, familia, usos...,
-                  o "¿Cómo es...?" / "¿Cómo son...?" sin nada de lo anterior
-    GENERAL       nada de lo anterior, p. ej. solo el nombre de la especie
+"¿En qué bosque crece?" pregunta por el hábitat; "¿Dónde crece?", por la distribución.
 
-"Crece" y "se encuentra" (VERBOS_DE_LUGAR) van después de HABITAT: "¿En qué
-bosque crece?" pregunta por el hábitat, "¿Dónde crece?" por la distribución.
-
-Qué decide el tipo:
-- El texto de la respuesta (services/contexto_especie.py): distribución,
-  hábitat (RR_29) o morfología.
-- `geoespacial` (RR_41): si la pregunta pide información geográfica. Solo una
-  pregunta DESCRIPCION no la pide.
-
-Qué NO decide: si se piden los registros de GBIF y el mapa. Se piden siempre
-que existan, porque RR_52 (criterio 3), RR_46 (criterio 1) y RR_59 piden
-mostrar la distribución y la cantidad de registros cuando hay datos.
-
-Las palabras se comparan sin tildes y en minúscula.
+El tipo decide el texto de la respuesta y `geoespacial` (solo DESCRIPCION no pide
+información geográfica). No decide si se piden los registros de GBIF y el mapa: se piden
+siempre que existan. Las palabras se comparan sin tildes y en minúscula.
 """
 
 from __future__ import annotations
@@ -45,8 +30,7 @@ from typing import Any
 
 from ..dominio import TipoPregunta
 
-# Palabras que piden información geográfica. Las de hábitat ("hábitat",
-# "bosque") pasaron a HABITAT con RR_29.
+# Palabras que piden información geográfica.
 GEOESPACIALES = frozenset(
     {
         # dónde está
@@ -70,14 +54,13 @@ GEOESPACIALES = frozenset(
     }
 )  # fmt: skip
 
-# Verbos geográficos que, junto a una palabra de hábitat, preguntan por el
-# hábitat: "¿En qué bosque crece?" (ver la prioridad al inicio del módulo).
+# Verbos geográficos que, junto a una palabra de hábitat, preguntan por el hábitat: "¿En qué
+# bosque crece?".
 VERBOS_DE_LUGAR = frozenset({"crece", "crecen", "encuentra", "encuentran"})
 
-# RR_29: palabras que preguntan en qué ambiente vive la planta. Una pregunta de
-# hábitat sigue trayendo GBIF y mapa; cambia el texto (ContextoEspecie._texto).
-# "Seco" y "húmedo" solos no cuentan ("¿florece en la época seca?"): "bosque
-# seco" ya cuenta por "bosque".
+# Palabras que preguntan en qué ambiente vive la planta. Solo cambian el texto: GBIF y el
+# mapa se piden igual. "Seco" y "húmedo" solos no cuentan ("¿florece en la época seca?");
+# "bosque seco" ya cuenta por "bosque".
 HABITAT = frozenset(
     {
         "habitat", "habitats", "habita", "habitan", "ambiente", "ambientes",
@@ -91,8 +74,8 @@ HABITAT = frozenset(
     }
 )  # fmt: skip
 
-# Tipos de bosque del vocabulario de CR-BioLM que solos son ambiguos: "roble"
-# es parte de nombres comunes ("roble negro"); "seco" y "húmedo", ver HABITAT.
+# Tipos de bosque del vocabulario de CR-BioLM que solos son ambiguos: "roble" es parte de
+# nombres comunes ("roble negro"); "seco" y "húmedo", ver HABITAT.
 _TIPOS_DE_BOSQUE_AMBIGUOS = frozenset({"roble", "seco", "humedo", "muy"})
 
 # Palabras que preguntan cómo es la planta, no dónde está.
@@ -122,13 +105,13 @@ GENERICAS = frozenset(
 )  # fmt: skip
 
 
-# DEF-03: "cómo es", "cómo son", "cómo luce(n)", "cómo se ve(n)" (sin tildes).
+# "cómo es", "cómo son", "cómo luce(n)", "cómo se ve(n)" (sin tildes).
 _COMO_ES = re.compile(r"\bcomo (?:es|son|luce|lucen|se ve|se ven)\b")
 
-# TipoPregunta vive en dominio.py (se guarda en la BD, RR_33); se importa
-# arriba, así que `from .intencion import TipoPregunta` sigue funcionando.
+# TipoPregunta vive en dominio.py; se importa aquí para que `from .intencion import
+# TipoPregunta` siga funcionando.
 
-# La primera lista que coincide decide el tipo (ver el inicio del módulo).
+# La primera lista que coincide decide el tipo.
 _PRIORIDAD = (
     (TipoPregunta.DISTRIBUCION, GEOESPACIALES - VERBOS_DE_LUGAR),
     (TipoPregunta.HABITAT, HABITAT),
@@ -140,22 +123,21 @@ _PRIORIDAD = (
 @dataclass(frozen=True)
 class Intencion:
     tipo: TipoPregunta
-    pregunta_especifica: bool  # pregunta algo además del nombre de la especie (RR_44)
+    pregunta_especifica: bool  # pregunta algo además del nombre de la especie
 
     @property
     def geoespacial(self) -> bool:
-        """RR_41 criterio 1: la pregunta pide información geográfica."""
+        """La pregunta pide información geográfica."""
         return self.tipo is not TipoPregunta.DESCRIPCION
 
 
 def analizar(
     texto: str, especie: str = "", vocabulario: Mapping[str, Any] | None = None
 ) -> Intencion:
-    """Qué pide `texto` sobre `especie` (ver las reglas al inicio del módulo).
+    """Qué pide `texto` sobre `especie`.
 
-    RR_29: `vocabulario` es el de get_vocabulary de CR-BioLM; sus tipos de bosque
-    también cuentan como palabras de hábitat. Sin él (catálogo de demostración,
-    o CR-BioLM no lo dio) se usa solo la lista HABITAT.
+    `vocabulario` es el de get_vocabulary de CR-BioLM; sus tipos de bosque también cuentan
+    como palabras de hábitat. Sin él se usa solo la lista HABITAT.
     """
     propias = set(palabras(especie))
     resto = [p for p in palabras(texto) if p not in propias and p not in GENERICAS]
@@ -168,18 +150,16 @@ def analizar(
         ),
         TipoPregunta.GENERAL,
     )
-    # DEF-03: "¿Cómo es...?" pregunta cómo es la planta aunque sus palabras sean
-    # genéricas. Va al final: "¿Cómo es su distribución?" ya es DISTRIBUCION.
+    # "¿Cómo es...?" pregunta cómo es la planta aunque sus palabras sean genéricas. Va al
+    # final: "¿Cómo es su distribución?" ya es DISTRIBUCION.
     if tipo is TipoPregunta.GENERAL and _COMO_ES.search(" ".join(palabras(texto))):
         return Intencion(tipo=TipoPregunta.DESCRIPCION, pregunta_especifica=True)
     return Intencion(tipo=tipo, pregunta_especifica=bool(resto))
 
 
 def tipos_de_bosque(vocabulario: Mapping[str, Any] | None) -> frozenset[str]:
-    """RR_29: las palabras de los tipos de bosque del Manual ('páramo' -> 'paramo').
-
-    Sin las ambiguas (_TIPOS_DE_BOSQUE_AMBIGUOS) ni las genéricas: de 'muy
-    húmedo' no queda ninguna.
+    """Palabras de los tipos de bosque del Manual ('páramo' -> 'paramo'), sin las ambiguas ni
+    las genéricas.
     """
     tipos = (vocabulario or {}).get("forest_types") or []
     descartadas = GENERICAS | _TIPOS_DE_BOSQUE_AMBIGUOS

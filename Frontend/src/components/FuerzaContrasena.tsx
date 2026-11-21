@@ -1,12 +1,9 @@
 /**
- * Reglas de contraseña e indicador de fuerza — RR_00_03.
+ * Reglas de contraseña e indicador de fuerza.
  *
- * Son las mismas reglas que valida el servidor (Backend/app/schemas/usuario.py);
- * si cambian allá, hay que cambiarlas aquí. En el navegador solo guían a quien
- * escribe: el servidor rechaza igual una contraseña que no las cumpla.
- *
- * Lo usan el registro, el restablecimiento de contraseña (RR_00_06) y el
- * cambio de contraseña del perfil.
+ * Son las mismas reglas que valida el servidor (Backend/app/schemas/usuario.py); si cambian allá,
+ * se cambian aquí. En el navegador solo guían a quien escribe. Lo usan el registro, el
+ * restablecimiento y el cambio de contraseña.
  */
 import { Check, Dot } from "lucide-react";
 

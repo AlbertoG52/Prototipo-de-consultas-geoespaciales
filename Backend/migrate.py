@@ -1,7 +1,5 @@
-"""
-Aplica en orden los archivos .sql de la carpeta migrations/ que aún no se hayan
-aplicado, y lleva el registro en la tabla schema_migrations.
-Es idempotente: correrlo varias veces solo aplica lo que falte.
+"""Aplica en orden las migraciones .sql pendientes de migrations/ y las registra en
+schema_migrations. Correrlo varias veces solo aplica lo que falte.
 """
 
 import glob

@@ -1,11 +1,9 @@
 /**
- * RR_78 — estadísticas de uso del sistema (GET /admin/estadisticas).
+ * Estadísticas de uso del sistema (GET /admin/estadisticas).
  *
- * Criterio 1: el total de consultas del periodo elegido. Criterio 2: por rol
- * (el que cada cuenta tiene hoy) y visitantes. Criterio 3: se recarga sola cada
- * 30 s mientras esta sección y la pestaña del navegador están a la vista, sin
- * mostrar "Cargando…" ni perder el periodo elegido; también con "Actualizar".
- * Incluye las consultas por día (últimos 7) y por tipo de pregunta (RR_29).
+ * Total de consultas del periodo elegido, por rol (el actual de cada cuenta) y visitantes, por día
+ * (últimos 7) y por tipo de pregunta. Se recarga sola cada 30 s mientras la sección y la pestaña
+ * están a la vista, sin perder el periodo elegido; también con "Actualizar".
  */
 import { useCallback, useRef, useState } from "react";
 
@@ -22,7 +20,7 @@ import { useRecargaAutomatica } from "../../hooks/useRecargaAutomatica";
 import * as api from "../../services/api";
 import type { EstadisticasUso, GrupoDeUso, PeriodoEstadisticas, TipoPregunta } from "../../types";
 
-const RECARGA_MS = 30_000; // RR_78 criterio 3
+const RECARGA_MS = 30_000;
 
 const PERIODOS = Object.keys(ETIQUETAS_PERIODO) as PeriodoEstadisticas[];
 
@@ -142,7 +140,7 @@ function SelectorDePeriodo({ periodo, alCambiar }: { periodo: PeriodoEstadistica
   );
 }
 
-/** Criterios 1 y 2: el total del periodo y cuánto aportó cada grupo. */
+/** Total del periodo y cuánto aportó cada grupo. */
 function Totales({ datos }: { datos: EstadisticasUso }) {
   return (
     <>

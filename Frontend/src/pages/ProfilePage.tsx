@@ -2,19 +2,14 @@
  * Perfil del usuario registrado.
  *
  * Pestañas:
- *  - Perfil: nombre (editable) y correo (solo lectura).
- *  - Preferencias: apariencia (modo oscuro y tipo de letra), guardada en el
- *    navegador. Al moderador y al supermoderador también le muestra si sus
- *    respuestas incluyen el mapa y las fuentes (RR_67, RR_68), guardado en su
- *    cuenta para que se conserve entre sesiones (RR_79).
- *  - Seguridad: cambio de contraseña, validado en el servidor con las mismas
- *    reglas del registro (RR_00_03), y tiempo de inactividad que cierra la
- *    sesión (RR_00_04), guardado en la cuenta.
+ * - Perfil: nombre (editable) y correo (solo lectura).
+ * - Preferencias: apariencia (modo oscuro y tipo de letra), guardada en el navegador. Al moderador
+ *   y al supermoderador también le muestra si sus respuestas incluyen el mapa y las fuentes,
+ *   guardado en su cuenta.
+ * - Seguridad: cambio de contraseña y tiempo de inactividad que cierra la sesión.
  *
- * No tiene pestaña de historial: el historial ya está en la barra lateral
- * (RR_09).
- *
- * Un visitante sin cuenta no tiene perfil: se le devuelve al agente.
+ * El historial está en la barra lateral. Un visitante sin cuenta no tiene perfil: se le devuelve al
+ * agente.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { Navigate } from "react-router";
@@ -44,8 +39,8 @@ const PESTANAS: { id: Pestana; label: string }[] = [
   { id: "seguridad", label: "Seguridad" },
 ];
 
-// RR_00_04 — mismas opciones que acepta el servidor (config.OPCIONES_INACTIVIDAD).
-// 0 = la sesión no se cierra por inactividad.
+// Mismas opciones que acepta el servidor (config.OPCIONES_INACTIVIDAD). 0 = la sesión no se cierra
+// por inactividad.
 const OPCIONES_INACTIVIDAD: { label: string; minutos: number }[] = [
   { label: "30 minutos", minutos: 30 },
   { label: "1 hora", minutos: 60 },
@@ -176,7 +171,7 @@ function PestanaPreferencias() {
   const [fuente, setFuente] = useState<Fuente>(leerFuente);
   const fuenteActual = FUENTES.find((f) => f.id === fuente) ?? FUENTES[0];
 
-  // RR_67: la configuración de respuestas es solo del moderador y del supermoderador.
+  // La configuración de respuestas es solo del moderador y del supermoderador.
   const { sesion } = useAuth();
   const rol = sesion?.usuario?.rol;
   const configuraRespuestas = rol === "moderador" || rol === "supermoderador";
@@ -282,7 +277,7 @@ function OpcionDeRespuesta({
         <div className="text-xs mt-0.5" style={{ color: "var(--color-texto-tenue)" }}>
           {descripcion}
         </div>
-        {/* RR_80: si no la ha cambiado, sigue la del sistema. */}
+        {/* Si no la ha cambiado, sigue la del sistema. */}
         <div className="text-xs mt-1" style={{ color: "var(--color-texto-tenue)" }}>
           {propia ? (
             <>
@@ -308,9 +303,8 @@ function OpcionDeRespuesta({
 }
 
 /**
- * RR_67, RR_68, RR_79 — si las respuestas del moderador incluyen el mapa y las
- * fuentes. Se guarda en la cuenta al instante y aplica desde la consulta
- * siguiente; mientras no la cambie, sigue la del sistema (RR_80).
+ * Si las respuestas del moderador incluyen el mapa y las fuentes. Se guarda en la cuenta al
+ * instante y aplica desde la consulta siguiente; mientras no la cambie, sigue la del sistema.
  */
 function ConfiguracionDeRespuestas() {
   const [preferencias, setPreferencias] = useState<PreferenciasModerador | null>(null);
@@ -392,7 +386,7 @@ function PestanaSeguridad() {
   const [exito, setExito] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // RR_00_04 criterio 2: el periodo de inactividad es configurable por cuenta.
+  // El periodo de inactividad es configurable por cuenta.
   const { sesion, refrescarSesion } = useAuth();
   const inactividad = sesion?.minutos_inactividad ?? null;
   const [guardandoInactividad, setGuardandoInactividad] = useState(false);

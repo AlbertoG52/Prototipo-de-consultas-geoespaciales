@@ -1,9 +1,7 @@
--- Módulo 4 (RR_77): tipos de consulta permitidos por rol.
+-- Tipos de consulta permitidos por rol.
 --
--- El supermoderador decide qué tipos de pregunta (dominio.TipoPregunta) puede
--- hacer cada rol. Se configuran el visitante sin cuenta, el usuario y el
--- moderador; el supermoderador siempre puede todo, para que no pueda
--- bloquearse a sí mismo. Al inicio todo está permitido.
+-- Se configuran el visitante, el usuario y el moderador; el supermoderador siempre puede
+-- todo. Al inicio todo está permitido.
 --
 --   rol     visitante | usuario | moderador
 --   tipo    distribucion | habitat | descripcion | general
@@ -25,9 +23,8 @@ FROM (VALUES ('visitante'), ('usuario'), ('moderador')) AS r (rol)
 CROSS JOIN (VALUES ('distribucion'), ('habitat'), ('descripcion'), ('general')) AS t (tipo)
 ON CONFLICT (rol, tipo) DO NOTHING;
 
--- Una consulta de un tipo no permitido se responde orientando al usuario, con
--- el motivo 'tipo_no_permitido' (amplía la restricción de 016). Igual que las
--- demás orientaciones, no descuenta del límite diario.
+-- Una consulta de un tipo no permitido se orienta con el motivo 'tipo_no_permitido' y no
+-- cuenta para el límite.
 ALTER TABLE consultas DROP CONSTRAINT IF EXISTS consultas_motivo_valido;
 ALTER TABLE consultas ADD CONSTRAINT consultas_motivo_valido
     CHECK (
@@ -37,9 +34,8 @@ ALTER TABLE consultas ADD CONSTRAINT consultas_motivo_valido
                            'tipo_no_permitido'))
     );
 
--- RR_00_09: cada cambio de permiso queda en la auditoría, con quién lo hizo
--- (app.actor_id, igual que los cambios de rol y de estado de 011). No hay
--- usuario afectado: el cambio es de un rol completo.
+-- Cada cambio de permiso queda en la auditoría con quién lo hizo. No hay usuario afectado:
+-- el cambio es de un rol.
 CREATE OR REPLACE FUNCTION registrar_auditoria_permiso()
 RETURNS TRIGGER AS $$
 DECLARE

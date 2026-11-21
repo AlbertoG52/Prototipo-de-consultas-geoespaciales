@@ -1,8 +1,7 @@
 /**
  * Rutas de la aplicación.
  *
- * Root va primero y no está protegida: cualquier persona entra directo al
- * agente, tenga cuenta o no (RR_00_11).
+ * Root no está protegida: cualquier persona entra directo al agente, tenga cuenta o no.
  */
 import type { ReactNode } from "react";
 import { createBrowserRouter, Navigate } from "react-router";
@@ -21,15 +20,10 @@ import { SpeciesPage } from "./pages/SpeciesPage";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage";
 
 /**
- * Muestra la vista solo a los roles indicados; al resto lo devuelve al agente
- * — RR_00_10.
+ * Muestra la vista solo a los roles indicados; al resto lo devuelve al agente.
  *
- * Es solo presentación: evita mostrar una pantalla cuyas peticiones igual
- * fallarían. La seguridad real está en el backend (requiere_rol), que responde
- * 403 aunque alguien se salte esta comprobación desde el navegador.
- *
- * Mientras la sesión carga no se decide nada; de lo contrario, quien entra
- * directo a la URL sería redirigido antes de saber quién es.
+ * Es solo presentación: la seguridad está en el backend (requiere_rol), que responde 403. Mientras
+ * la sesión carga no se decide nada, para no redirigir antes de saber quién es.
  */
 function RequiereRol({ roles, children }: { roles: Usuario["rol"][]; children: ReactNode }) {
   const { sesion, cargando } = useAuth();
@@ -62,7 +56,8 @@ export const router = createBrowserRouter([
   { path: "/login", Component: LoginPage },
   { path: "/register", Component: RegisterPage },
 
-  // RR_00_06 y RR_00_07. /verify-email también recibe el enlace del correo (?token=).
+  // Recuperación de contraseña y verificación de correo. /verify-email recibe el enlace del correo
+  // (?token=).
   { path: "/forgot-password", Component: ForgotPasswordPage },
   { path: "/reset-password", Component: ResetPasswordPage },
   { path: "/verify-email", Component: VerifyEmailPage },

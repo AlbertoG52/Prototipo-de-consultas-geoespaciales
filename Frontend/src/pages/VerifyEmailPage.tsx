@@ -1,11 +1,10 @@
 /**
- * Verificación de correo — RR_00_07.
+ * Verificación de correo.
  *
- * Dos formas de llegar:
- *  - Desde el enlace del correo (/verify-email?token=...): se valida el token
- *    y la cuenta queda habilitada (criterio 3).
- *  - Después de registrarse o de un login rechazado por falta de verificación:
- *    se pide revisar el correo y se ofrece reenviar el enlace.
+ * - Desde el enlace del correo (/verify-email?token=...): se valida el token y la cuenta queda
+ *   habilitada.
+ * - Después de registrarse o de un inicio de sesión rechazado por falta de verificación: se pide
+ *   revisar el correo y se ofrece reenviar el enlace.
  */
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router";
@@ -120,7 +119,7 @@ export function VerifyEmailPage() {
             Mientras tanto puedes seguir usando el agente sin cuenta.
           </p>
 
-          {/* RR_00_07 — pedir un enlace nuevo; el anterior deja de servir. */}
+          {/* Pedir un enlace nuevo; el anterior deja de servir. */}
           <form onSubmit={reenviar} className="flex flex-col gap-3">
             <CampoTexto
               etiqueta="¿No te llegó? Te lo reenviamos"
