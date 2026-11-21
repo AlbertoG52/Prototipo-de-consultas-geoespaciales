@@ -1,4 +1,4 @@
-"""Esquemas de las preferencias de respuesta — RR_67, RR_68, RR_79 y RR_80."""
+"""Esquemas de las preferencias de respuesta (mapa y fuentes)."""
 
 from datetime import datetime
 
@@ -15,11 +15,10 @@ class PreferenciasRespuesta(EsquemaSalida):
 
 
 class PreferenciasModerador(PreferenciasRespuesta):
-    """RR_67, RR_68 — las preferencias que aplican a las respuestas del moderador.
+    """Preferencias que aplican a las respuestas del moderador.
 
-    `incluir_mapa` e `incluir_fuentes` son las que se aplican. Los campos
-    `*_propio` dicen si las cambió él (True) o si sigue la del sistema (False,
-    RR_80); `por_defecto` es la del sistema, para mostrarla en el perfil.
+    `incluir_mapa` e `incluir_fuentes` son las vigentes; `*_propio` indica si las cambió él
+    o si sigue la del sistema; `por_defecto` es la del sistema.
     """
 
     mapa_propio: bool
@@ -32,8 +31,8 @@ class CambioPreferencias(BaseModel):
 
     Cada campo es opcional:
     - ausente: no se cambia;
-    - true/false: queda como preferencia propia (RR_67, RR_68);
-    - null: vuelve a usar la del sistema (RR_80).
+    - true/false: queda como preferencia propia;
+    - null: vuelve a la del sistema.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -43,7 +42,7 @@ class CambioPreferencias(BaseModel):
 
 
 class CambioPreferenciasPorDefecto(BaseModel):
-    """RR_80 criterio 3 — el supermoderador fija el comportamiento por defecto."""
+    """El supermoderador fija el comportamiento por defecto."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -52,7 +51,7 @@ class CambioPreferenciasPorDefecto(BaseModel):
 
 
 class PreferenciasPorDefecto(PreferenciasRespuesta):
-    """RR_80 — el comportamiento por defecto del sistema y su último cambio."""
+    """Comportamiento por defecto del sistema y su último cambio."""
 
     actualizado_en: datetime | None = None
     # Correo de quien hizo el último cambio; None = valor inicial.

@@ -1,12 +1,9 @@
-# Configuración de las herramientas de calidad del backend.
-# No es un paquete instalable: las dependencias siguen en requirements.txt.
+# Configuración de las herramientas de calidad del backend. Las dependencias están en
+# requirements.txt.
 #
 #   ruff check .        estilo, imports ordenados y errores comunes
 #   ruff format .       formato del código
 #   mypy                tipos
-#
-# Se ejecutan solas antes de cada commit (pre-commit, ver README) y en GitHub
-# Actions (.github/workflows/ci.yml).
 
 [tool.ruff]
 target-version = "py312"
@@ -31,8 +28,8 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
-# Las pruebas importan su módulo de apoyo como 'apoyo' (tests/apoyo.py).
-known-local-folder = ["apoyo"]
+# Módulos de tests/ que las pruebas importan directamente.
+known-local-folder = ["apoyo", "catalogo_demo"]
 
 
 [tool.mypy]
@@ -49,6 +46,6 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [
-    "permisos_de_la_bd: la prueba lee los permisos de permisos_tipo_consulta (RR_77) en vez de permitir todo",
+    "permisos_de_la_bd: la prueba lee los permisos de permisos_tipo_consulta en vez de permitir todo",
 ]
 pythonpath = [".", "tests"]

@@ -15,7 +15,7 @@ export interface paths {
         put?: never;
         /**
          * Registrar
-         * @description RR_00_01 — crear una cuenta.
+         * @description Crea una cuenta con rol usuario.
          */
         post: operations["registrar_auth_registro_post"];
         delete?: never;
@@ -35,10 +35,8 @@ export interface paths {
         put?: never;
         /**
          * Iniciar Sesion
-         * @description RR_00_01 — iniciar sesión y rechazar credenciales inválidas.
-         *
-         *     Las reglas (bloqueo por intentos fallidos RR_00_05, cuenta desactivada y
-         *     correo sin verificar RR_00_07) están en services/autenticacion.py.
+         * @description Inicia sesión. Las reglas (bloqueo por intentos, cuenta desactivada, correo sin
+         *     verificar) están en services/autenticacion.py.
          */
         post: operations["iniciar_sesion_auth_login_post"];
         delete?: never;
@@ -58,7 +56,7 @@ export interface paths {
         put?: never;
         /**
          * Verificar Correo
-         * @description RR_00_07 criterio 3 — valida el enlace y habilita la cuenta.
+         * @description Valida el enlace y habilita la cuenta.
          */
         post: operations["verificar_correo_auth_verificar_post"];
         delete?: never;
@@ -78,10 +76,8 @@ export interface paths {
         put?: never;
         /**
          * Reenviar Verificacion
-         * @description RR_00_07 — envía un enlace nuevo; el anterior deja de servir.
-         *
-         *     Responde siempre lo mismo, exista o no la cuenta, para no revelar qué
-         *     correos están registrados.
+         * @description Envía un enlace de verificación nuevo; el anterior deja de servir. Responde siempre lo
+         *     mismo, para no revelar qué correos están registrados.
          */
         post: operations["reenviar_verificacion_auth_reenviar_verificacion_post"];
         delete?: never;
@@ -101,11 +97,9 @@ export interface paths {
         put?: never;
         /**
          * Recuperar Password
-         * @description RR_00_06 criterios 1 y 2 — envía al correo registrado un enlace de
-         *     recuperación que vence en MINUTOS_TOKEN_RECUPERACION minutos.
-         *
-         *     Responde siempre lo mismo, exista o no la cuenta, para no revelar qué
-         *     correos están registrados. Una cuenta desactivada no recibe enlace.
+         * @description Envía un enlace de recuperación que vence en MINUTOS_TOKEN_RECUPERACION minutos.
+         *     Responde siempre lo mismo, para no revelar qué correos están registrados. Una cuenta
+         *     desactivada no recibe enlace.
          */
         post: operations["recuperar_password_auth_recuperar_post"];
         delete?: never;
@@ -125,13 +119,8 @@ export interface paths {
         put?: never;
         /**
          * Restablecer Password
-         * @description RR_00_06 criterio 3 — valida el enlace y guarda la contraseña nueva.
-         *
-         *     Además:
-         *     - Se quita el bloqueo por intentos fallidos (RR_00_05): quien olvidó su
-         *       contraseña suele haber fallado varias veces.
-         *     - El correo queda verificado (RR_00_07): abrir el enlace demuestra que la
-         *       persona controla ese correo.
+         * @description Valida el enlace y guarda la contraseña nueva. También quita el bloqueo por intentos
+         *     fallidos y marca el correo como verificado.
          */
         post: operations["restablecer_password_auth_restablecer_post"];
         delete?: never;
@@ -151,10 +140,8 @@ export interface paths {
         put?: never;
         /**
          * Sesion Anonima
-         * @description RR_00_11 — entrar sin cuenta.
-         *
-         *     Emite un identificador anónimo para poder aplicarle el límite diario. No
-         *     crea ninguna fila en 'usuarios' ni guarda nada sobre quién es.
+         * @description Entrar sin cuenta: emite un identificador anónimo para aplicar el límite diario. No
+         *     guarda nada sobre la persona.
          */
         post: operations["sesion_anonima_auth_anonimo_post"];
         delete?: never;
@@ -172,20 +159,11 @@ export interface paths {
         };
         /**
          * Estado Sesion
-         * @description Estado de la sesión actual, sea de un usuario o de un visitante.
+         * @description Estado de la sesión actual, de una cuenta o de un visitante.
          *
-         *     El frontend lo consulta al cargar para saber qué mostrar: un visitante no
-         *     tiene historial ni perfil, y su límite de consultas es menor.
-         *
-         *     Si el token no sirve responde 401 (exigir_sesion), en dos casos:
-         *
-         *     - RR_00_04: el token de un usuario venció por inactividad. El frontend
-         *       avisa que la sesión expiró y pide un nuevo inicio de sesión, en lugar de
-         *       convertir a la persona en visitante sin decirle nada.
-         *     - Cualquier otro token inválido (firmado con otra SECRET_KEY o de una
-         *       cuenta que ya no existe en esta base de datos). El frontend lo descarta y
-         *       pide uno anónimo nuevo; si respondiera 200, el navegador se quedaría con
-         *       un token con el que no puede enviar consultas.
+         *     Responde 401 si el token no sirve (vencido por inactividad, firmado con otra SECRET_KEY
+         *     o de una cuenta que ya no existe); el frontend avisa que la sesión expiró o pide un
+         *     token anónimo nuevo.
          */
         get: operations["estado_sesion_auth_sesion_get"];
         put?: never;
@@ -207,13 +185,8 @@ export interface paths {
         put?: never;
         /**
          * Renovar Sesion
-         * @description RR_00_04 — extiende la sesión porque hubo actividad.
-         *
-         *     El frontend lo llama mientras la persona usa la aplicación. Devuelve un
-         *     token nuevo con el mismo sesion_id y otro periodo de inactividad completo.
-         *     Un token ya vencido no llega hasta aquí (obtener_usuario_actual responde
-         *     401): después de la inactividad no hay renovación posible, solo un nuevo
-         *     inicio de sesión.
+         * @description Extiende la sesión porque hubo actividad: devuelve un token nuevo con el mismo
+         *     sesion_id. Un token ya vencido responde 401 y exige iniciar sesión de nuevo.
          */
         post: operations["renovar_sesion_auth_renovar_post"];
         delete?: never;
@@ -233,12 +206,8 @@ export interface paths {
         put?: never;
         /**
          * Cerrar Sesion
-         * @description RR_00_01  cerrar la sesión activa.
-         *
-         *     El token es sin estado, así que el cierre efectivo lo hace el frontend al
-         *     descartarlo. El endpoint existe para que el cierre sea una acción explícita
-         *     del sistema y para tener dónde invalidar el token cuando se agregue una
-         *     lista de revocación.
+         * @description Cierra la sesión activa. El token no tiene estado, así que el cierre efectivo lo hace
+         *     el frontend al descartarlo.
          */
         post: operations["cerrar_sesion_auth_logout_post"];
         delete?: never;
@@ -260,9 +229,8 @@ export interface paths {
          * Enviar Consulta
          * @description Procesa una consulta en lenguaje natural.
          *
-         *     Responde con uno de tres estados: "resuelta", "ambigua" (con las especies
-         *     candidatas, RR_17) o "sin_coincidencias". Solo "resuelta" consume una
-         *     consulta del límite diario. Ver services/consultas.py.
+         *     Responde "resuelta", "ambigua" (con las especies candidatas), "sin_coincidencias" u
+         *     "orientacion". Solo "resuelta" cuenta para el límite.
          */
         post: operations["enviar_consulta_consultas_post"];
         delete?: never;
@@ -320,7 +288,7 @@ export interface paths {
         };
         /**
          * Listar Usuarios
-         * @description RR_71 — usuarios registrados con su correo, rol y estado.
+         * @description Usuarios registrados con su correo, rol y estado.
          */
         get: operations["listar_usuarios_admin_usuarios_get"];
         put?: never;
@@ -340,10 +308,8 @@ export interface paths {
         };
         /**
          * Historial De Uso
-         * @description RR_76 criterios 1 y 2 — consultas de una cuenta, de la más reciente a la más antigua.
-         *
-         *     El texto de cada consulta viene solo si ADMIN_VE_TEXTO_CONSULTAS está
-         *     encendido (`texto_visible`).
+         * @description Consultas de una cuenta, de la más reciente a la más antigua. El texto se incluye solo
+         *     si ADMIN_VE_TEXTO_CONSULTAS está activo (`texto_visible`).
          */
         get: operations["historial_de_uso_admin_usuarios__usuario_id__consultas_get"];
         put?: never;
@@ -363,7 +329,7 @@ export interface paths {
         };
         /**
          * Uso Por Rol
-         * @description RR_76 criterio 3 — cuentas y consultas guardadas de cada rol.
+         * @description Cuentas y consultas guardadas de cada rol.
          */
         get: operations["uso_por_rol_admin_uso_por_rol_get"];
         put?: never;
@@ -383,7 +349,7 @@ export interface paths {
         };
         /**
          * Estadisticas De Uso
-         * @description RR_78 — total de consultas del periodo, por rol, por día y por tipo de pregunta.
+         * @description Total de consultas del periodo, por rol, por día y por tipo de pregunta.
          */
         get: operations["estadisticas_de_uso_admin_estadisticas_get"];
         put?: never;
@@ -403,7 +369,7 @@ export interface paths {
         };
         /**
          * Resumen De Uso
-         * @description RR_78 — cifras de las tarjetas del panel: cuentas, consultas de hoy, ayer y 30 días.
+         * @description Cifras de las tarjetas del panel: cuentas y consultas de hoy, ayer y 30 días.
          */
         get: operations["resumen_de_uso_admin_estadisticas_resumen_get"];
         put?: never;
@@ -429,7 +395,7 @@ export interface paths {
         head?: never;
         /**
          * Cambiar Estado
-         * @description RR_74 y RR_75 — activa o desactiva una cuenta (no la propia: 409).
+         * @description Activa o desactiva una cuenta (no la propia: 409).
          */
         patch: operations["cambiar_estado_admin_usuarios__usuario_id__estado_patch"];
         trace?: never;
@@ -449,7 +415,7 @@ export interface paths {
         head?: never;
         /**
          * Cambiar Rol
-         * @description RR_70 — cambia el rol de una cuenta (no la propia: 409).
+         * @description Cambia el rol de una cuenta (no la propia: 409).
          */
         patch: operations["cambiar_rol_admin_usuarios__usuario_id__rol_patch"];
         trace?: never;
@@ -463,7 +429,7 @@ export interface paths {
         };
         /**
          * Listar Roles
-         * @description RR_63 — los roles con su límite de consultas y cada cuánto se restablece.
+         * @description Roles con su límite de consultas y su periodo.
          */
         get: operations["listar_roles_admin_roles_get"];
         put?: never;
@@ -489,11 +455,10 @@ export interface paths {
         head?: never;
         /**
          * Configurar Limite
-         * @description RR_63 y RR_64 — define el límite de consultas de un rol y su periodo.
+         * @description Define el límite de consultas de un rol y su periodo.
          *
-         *     Aplica a las consultas siguientes de las cuentas de ese rol. Responde 400 si
-         *     el usuario estándar quedaría con tantas consultas como el moderador o con
-         *     menos que un visitante (RR_62 criterio 3).
+         *     Aplica a las consultas siguientes. Responde 400 si el usuario quedaría con tantas
+         *     consultas como el moderador o con menos que un visitante.
          */
         patch: operations["configurar_limite_admin_roles__rol__patch"];
         trace?: never;
@@ -507,7 +472,7 @@ export interface paths {
         };
         /**
          * Listar Auditoria
-         * @description RR_00_09 — registro de acciones administrativas, del más reciente al más antiguo.
+         * @description Registro de acciones administrativas, del más reciente al más antiguo.
          */
         get: operations["listar_auditoria_admin_auditoria_get"];
         put?: never;
@@ -527,9 +492,7 @@ export interface paths {
         };
         /**
          * Tiempos De Respuesta
-         * @description RR_57 — tiempo de respuesta de las consultas, para el equipo técnico.
-         *
-         *     Resumen de los últimos `dias` días y las consultas más recientes; con
+         * @description Tiempos de respuesta de los últimos `dias` días y las consultas más recientes. Con
          *     `solo_lentas=true`, solo las que superaron SEGUNDOS_RESPUESTA_LENTA.
          */
         get: operations["tiempos_de_respuesta_admin_tiempos_get"];
@@ -550,15 +513,13 @@ export interface paths {
         };
         /**
          * Ver Preferencias Por Defecto
-         * @description RR_80 — si las respuestas incluyen el mapa y las fuentes por defecto.
+         * @description Si las respuestas incluyen el mapa y las fuentes por defecto.
          */
         get: operations["ver_preferencias_por_defecto_admin_preferencias_respuesta_get"];
         /**
          * Cambiar Preferencias Por Defecto
-         * @description RR_80 criterio 3 — ajusta el comportamiento por defecto del sistema.
-         *
-         *     Aplica a todos los que no han cambiado su preferencia (criterio 2): los
-         *     usuarios, los visitantes y los moderadores sin preferencia propia.
+         * @description Cambia el comportamiento por defecto de las respuestas. Aplica a quien no tiene
+         *     preferencia propia.
          */
         put: operations["cambiar_preferencias_por_defecto_admin_preferencias_respuesta_put"];
         post?: never;
@@ -577,14 +538,13 @@ export interface paths {
         };
         /**
          * Ver Permisos De Consulta
-         * @description RR_77 — los tipos de consulta que puede hacer cada rol.
+         * @description Tipos de consulta que puede hacer cada rol.
          */
         get: operations["ver_permisos_de_consulta_admin_permisos_consulta_get"];
         /**
          * Cambiar Permisos De Consulta
-         * @description RR_77 criterio 1 — define los tipos de consulta de los roles enviados.
-         *
-         *     Aplica desde la siguiente consulta y cada cambio queda en la auditoría.
+         * @description Define los tipos de consulta de los roles enviados. Aplica desde la siguiente consulta
+         *     y queda en la auditoría.
          */
         put: operations["cambiar_permisos_de_consulta_admin_permisos_consulta_put"];
         post?: never;
@@ -625,10 +585,8 @@ export interface paths {
         put?: never;
         /**
          * Cambiar Password
-         * @description Cambia la contraseña después de verificar la actual.
-         *
-         *     Pedir la contraseña actual evita que alguien que encuentre una sesión
-         *     abierta pueda quedarse con la cuenta.
+         * @description Cambia la contraseña después de verificar la actual, para que una sesión abierta ajena
+         *     no baste para quedarse con la cuenta.
          */
         post: operations["cambiar_password_perfil_password_post"];
         delete?: never;
@@ -652,10 +610,8 @@ export interface paths {
         head?: never;
         /**
          * Cambiar Inactividad
-         * @description RR_00_04 criterio 2 — cambia cuánto tiempo sin actividad cierra la sesión.
-         *
-         *     Devuelve un token nuevo para que el periodo elegido aplique desde ya, sin
-         *     esperar a la siguiente renovación.
+         * @description Cambia el tiempo sin actividad que cierra la sesión. Devuelve un token nuevo para que
+         *     aplique de inmediato.
          */
         patch: operations["cambiar_inactividad_perfil_inactividad_patch"];
         trace?: never;
@@ -669,9 +625,8 @@ export interface paths {
         };
         /**
          * Ver Preferencias
-         * @description RR_67, RR_68, RR_79 — si las respuestas del moderador incluyen el mapa y las fuentes.
-         *
-         *     Trae también si cada una es propia o sigue la del sistema (RR_80).
+         * @description Si las respuestas del moderador incluyen el mapa y las fuentes, y si cada una es propia
+         *     o sigue la del sistema.
          */
         get: operations["ver_preferencias_perfil_preferencias_get"];
         put?: never;
@@ -681,10 +636,8 @@ export interface paths {
         head?: never;
         /**
          * Cambiar Preferencias
-         * @description RR_67, RR_68 — activa o desactiva el mapa y las fuentes en las respuestas.
-         *
-         *     Se guarda en la cuenta, así que se conserva entre sesiones y aplica desde
-         *     la consulta siguiente (RR_79). Un campo en null vuelve a la del sistema.
+         * @description Activa o desactiva el mapa y las fuentes en las respuestas. Se guarda en la cuenta y
+         *     aplica desde la consulta siguiente; un campo en null vuelve a la del sistema.
          */
         patch: operations["cambiar_preferencias_perfil_preferencias_patch"];
         trace?: never;
@@ -698,13 +651,10 @@ export interface paths {
         };
         /**
          * Sugerir Especies
-         * @description RR_16 — sugerencias de especies mientras el usuario escribe.
+         * @description Sugerencias de especies mientras el usuario escribe.
          *
-         *     Los nombres salen de las respuestas ya guardadas en 'consultas': el agente
-         *     (CR-BioLM) no ofrece una lista de especies, así que solo se sugieren las
-         *     que alguien con cuenta ya consultó. Las de visitantes no se guardan
-         *     (RR_00_11) y por eso no aparecen. Se leen todas las especies distintas en
-         *     cada petición; con muchas consultas convendrá una tabla propia o un índice.
+         *     Salen de las respuestas ya guardadas en 'consultas', porque CR-BioLM no ofrece una
+         *     lista de especies; por eso solo se sugieren las que ya consultó alguna cuenta.
          */
         get: operations["sugerir_especies_especies_get"];
         put?: never;
@@ -724,10 +674,8 @@ export interface paths {
         };
         /**
          * Ficha De Especie
-         * @description RR_20 criterio 2 — la ficha corresponde a la especie pedida.
-         *
-         *     'especie' es el id del catálogo (o el nombre científico). Si no existe se
-         *     responde 404 en lugar de devolver otra especie por defecto.
+         * @description Ficha de la especie pedida, por su id del catálogo o su nombre científico. 404 si no
+         *     existe.
          */
         get: operations["ficha_de_especie_especies__especie__get"];
         put?: never;
@@ -747,11 +695,9 @@ export interface paths {
         };
         /**
          * Mapa De Especie
-         * @description RR_41 — mapa de distribución generado por CR-BioLM, en PNG.
+         * @description Mapa de distribución de CR-BioLM en PNG (la `url` de RespuestaConsulta.mapa).
          *
-         *     Es la `url` de RespuestaConsulta.mapa. Pide sesión como el resto de
-         *     /especies, así que el frontend lo descarga con el token (no sirve un
-         *     <img src> directo). 404 si no hay mapa: en ese caso no se muestra ninguno.
+         *     Pide sesión, así que el frontend lo descarga con el token. 404 si no hay mapa.
          */
         get: operations["mapa_de_especie_especies__especie__mapa_get"];
         put?: never;
@@ -771,7 +717,7 @@ export interface paths {
         };
         /**
          * Health
-         * @description Chequeo simple de que la API está viva.
+         * @description Indica que la API está activa.
          */
         get: operations["health_health_get"];
         put?: never;
@@ -813,8 +759,7 @@ export interface paths {
          * Mcp Check
          * @description Verifica la conexión con CR-BioLM listando las herramientas de su servidor MCP.
          *
-         *     El motivo del fallo queda en el log del backend; aquí solo se informa que
-         *     no hay conexión, para no exponer detalles internos.
+         *     El motivo de un fallo queda en el log; la respuesta no expone detalles internos.
          */
         get: operations["mcp_check_mcp_check_get"];
         put?: never;
@@ -835,9 +780,7 @@ export interface components {
         };
         /**
          * CambioInactividadRequest
-         * @description RR_00_04 criterio 2 — el periodo de inactividad es configurable.
-         *
-         *     Solo se aceptan las opciones que ofrece el perfil; 0 significa "Nunca".
+         * @description Periodo de inactividad: solo las opciones del perfil; 0 significa "Nunca".
          */
         CambioInactividadRequest: {
             /** Minutos */
@@ -845,7 +788,7 @@ export interface components {
         };
         /**
          * CambioLimite
-         * @description PATCH /admin/roles/{rol}: el nuevo límite y su periodo (RR_63, RR_64).
+         * @description PATCH /admin/roles/{rol}: el nuevo límite y su periodo.
          */
         CambioLimite: {
             /** Limite Consultas */
@@ -884,8 +827,8 @@ export interface components {
          *
          *     Cada campo es opcional:
          *     - ausente: no se cambia;
-         *     - true/false: queda como preferencia propia (RR_67, RR_68);
-         *     - null: vuelve a usar la del sistema (RR_80).
+         *     - true/false: queda como preferencia propia;
+         *     - null: vuelve a la del sistema.
          */
         CambioPreferencias: {
             /** Incluir Mapa */
@@ -895,7 +838,7 @@ export interface components {
         };
         /**
          * CambioPreferenciasPorDefecto
-         * @description RR_80 criterio 3 — el supermoderador fija el comportamiento por defecto.
+         * @description El supermoderador fija el comportamiento por defecto.
          */
         CambioPreferenciasPorDefecto: {
             /** Incluir Mapa */
@@ -909,7 +852,7 @@ export interface components {
         };
         /**
          * ConsultaDeUsuario
-         * @description Una consulta del historial de uso de un usuario (criterios 1 y 2).
+         * @description Una consulta del historial de uso de una cuenta.
          */
         ConsultaDeUsuario: {
             /** Id */
@@ -929,9 +872,9 @@ export interface components {
          * ConsultaGuardada
          * @description Una consulta dentro de una conversación, en cualquiera de sus estados.
          *
-         *     Una "ambigua" trae además 'candidatos' y 'mensaje', y se puede resolver
-         *     eligiendo una especie (RR_17); una "sin_coincidencias" trae 'mensaje'; una
-         *     "orientacion" trae 'mensaje', 'motivo' y, según el motivo, 'ejemplos'.
+         *     "ambigua" trae 'candidatos' y 'mensaje' y se puede resolver eligiendo una especie;
+         *     "sin_coincidencias" trae 'mensaje'; "orientacion" trae 'mensaje', 'motivo' y, según el
+         *     motivo, 'ejemplos'.
          */
         ConsultaGuardada: {
             /** Id */
@@ -955,7 +898,7 @@ export interface components {
         };
         /**
          * ConsultaOut
-         * @description Resultado de enviar una consulta (ver los estados al inicio del archivo).
+         * @description Resultado de enviar una consulta.
          */
         ConsultaOut: {
             /** Id */
@@ -994,7 +937,7 @@ export interface components {
         };
         /**
          * ConsultasDeGrupo
-         * @description Criterio 2: las consultas de un grupo (rol de hoy o visitante).
+         * @description Consultas de un grupo (rol actual o visitante).
          */
         ConsultasDeGrupo: {
             grupo: components["schemas"]["GrupoDeUso"];
@@ -1021,7 +964,7 @@ export interface components {
         };
         /**
          * ConteoIntencion
-         * @description RR_33: cuántas consultas del periodo tuvieron una intención.
+         * @description Cuántas consultas del periodo tuvieron una intención.
          */
         ConteoIntencion: {
             intencion: components["schemas"]["IntencionConsulta"] | null;
@@ -1072,8 +1015,7 @@ export interface components {
         };
         /**
          * CorreoRequest
-         * @description Solo el correo: para reenviar la verificación (RR_00_07) y para pedir la
-         *     recuperación de contraseña con el correo registrado (RR_00_06 criterio 1).
+         * @description Solo el correo: para reenviar la verificación o pedir la recuperación de contraseña.
          */
         CorreoRequest: {
             /**
@@ -1084,13 +1026,13 @@ export interface components {
         };
         /**
          * DatoRespuesta
-         * @description Los datos de una respuesta cuyo origen se indica (RR_45, Procedencia.dato).
+         * @description Datos de una respuesta cuyo origen se indica (Procedencia.dato).
          * @enum {string}
          */
         DatoRespuesta: "especie" | "texto" | "elevacion" | "registros" | "mapa";
         /**
          * EspecieCandidata
-         * @description Una de las especies que coinciden con la consulta (RR_17).
+         * @description Una de las especies que coinciden con la consulta.
          */
         EspecieCandidata: {
             /** Id */
@@ -1104,10 +1046,7 @@ export interface components {
         };
         /**
          * EstadisticasUso
-         * @description GET /admin/estadisticas: el uso del sistema en un periodo.
-         *
-         *     Las cifras se calculan en cada petición, así que traen las consultas
-         *     nuevas (criterio 3).
+         * @description GET /admin/estadisticas: uso del sistema en un periodo. Se calcula en cada petición.
          */
         EstadisticasUso: {
             periodo: components["schemas"]["PeriodoEstadisticas"];
@@ -1133,29 +1072,25 @@ export interface components {
         };
         /**
          * EstadoConsulta
-         * @description Columna consultas.estado.
+         * @description Estado de una consulta (consultas.estado).
          *
-         *     - RESUELTA: trae la respuesta; es la única que cuesta del límite diario.
-         *     - AMBIGUA: trae las candidatas (RR_17); queda pendiente hasta que se elige.
+         *     - RESUELTA: trae la respuesta; es la única que cuenta para el límite.
+         *     - AMBIGUA: trae las candidatas y queda pendiente hasta que se elige una.
          *     - SIN_COINCIDENCIAS: no se reconoció ninguna especie.
-         *     - ORIENTACION: no era una consulta que se pudiera procesar (saludo, ayuda,
-         *       otro idioma...); se responde orientando al usuario. El porqué va en
-         *       consultas.motivo (MotivoOrientacion). No cuesta del límite diario.
+         *     - ORIENTACION: no era una consulta procesable (saludo, ayuda, otro idioma...); el
+         *       motivo va en consultas.motivo.
          * @enum {string}
          */
         EstadoConsulta: "resuelta" | "ambigua" | "sin_coincidencias" | "orientacion";
         /**
          * EstadoCuenta
-         * @description Columna usuarios.estado (RR_74, RR_75).
+         * @description Estado de una cuenta (usuarios.estado).
          * @enum {string}
          */
         EstadoCuenta: "activo" | "inactivo";
         /**
          * FichaEspecie
-         * @description RR_20 — ficha completa de una especie.
-         *
-         *     Los campos que el catálogo no tenga llegan como None y la ficha los
-         *     muestra como "Sin dato" en lugar de inventarlos.
+         * @description Ficha completa de una especie. Lo que el catálogo no tenga llega como None.
          */
         FichaEspecie: {
             /** Id */
@@ -1191,10 +1126,7 @@ export interface components {
         };
         /**
          * GrupoDeUso
-         * @description Quién hizo las consultas en las estadísticas de uso (RR_78).
-         *
-         *     Una cuenta cuenta con el rol que tiene hoy, como en RR_76; el visitante
-         *     sin cuenta es un grupo aparte.
+         * @description Grupo de las estadísticas de uso: el rol actual de la cuenta, o visitante.
          * @enum {string}
          */
         GrupoDeUso: "visitante" | "usuario" | "moderador" | "supermoderador";
@@ -1218,12 +1150,11 @@ export interface components {
         };
         /**
          * IntencionConsulta
-         * @description Columna tiempos_respuesta.intencion (RR_33): qué quiso hacer el usuario.
+         * @description Qué quiso hacer el usuario (tiempos_respuesta.intencion).
          *
-         *     Une los dos casos: una consulta sobre una especie (su TipoPregunta) o un
-         *     mensaje que no es una consulta (su MotivoOrientacion). Los valores son los
-         *     mismos de esos dos enums, salvo TIPO_NO_PERMITIDO (RR_77): de esa consulta
-         *     se registra el tipo que se pidió.
+         *     Es el TipoPregunta de una consulta sobre una especie o el MotivoOrientacion de un
+         *     mensaje que no es una consulta. De una consulta no permitida se registra el tipo que se
+         *     pidió.
          * @enum {string}
          */
         IntencionConsulta: "distribucion" | "habitat" | "descripcion" | "general" | "sin_sentido" | "idioma" | "ayuda" | "saludo" | "fuera_de_tema";
@@ -1239,11 +1170,10 @@ export interface components {
         };
         /**
          * MapaEspecie
-         * @description Mapa de distribución generado por CR-BioLM (RR_41).
+         * @description Mapa de distribución generado por CR-BioLM.
          *
-         *     El backend no dibuja mapas: todos vienen de CR-BioLM. Si CR-BioLM no
-         *     genera uno, la respuesta trae `mapa = None` y el frontend no muestra mapa.
-         *     La imagen PNG se pide aparte a `url` (GET /especies/{id}/mapa, con sesión).
+         *     El backend no dibuja mapas. Si CR-BioLM no genera uno, `mapa` es None. El PNG se pide
+         *     aparte a `url` (GET /especies/{id}/mapa).
          */
         MapaEspecie: {
             /** Url */
@@ -1265,11 +1195,10 @@ export interface components {
         };
         /**
          * MotivoOrientacion
-         * @description Columna consultas.motivo: por qué una consulta terminó en ORIENTACION.
+         * @description Por qué una consulta terminó en ORIENTACION (consultas.motivo).
          *
          *     Los detecta services/preprocesamiento.py, salvo TIPO_NO_PERMITIDO
-         *     (services/permisos.py). Todos menos FUERA_DE_TEMA se detectan antes de
-         *     buscar especies.
+         *     (services/permisos.py).
          * @enum {string}
          */
         MotivoOrientacion: "sin_sentido" | "idioma" | "ayuda" | "saludo" | "fuera_de_tema" | "tipo_no_permitido";
@@ -1281,16 +1210,14 @@ export interface components {
         NombreRol: "usuario" | "moderador" | "supermoderador";
         /**
          * PeriodoConsultas
-         * @description Columna roles.periodo_consultas (020): cada cuánto se restablece el
-         *     contador de consultas de un rol (RR_64). Los periodos empiezan a las 00:00
-         *     de Costa Rica; la semana, el lunes; el mes, el día 1.
+         * @description Cada cuánto se restablece el contador de consultas de un rol. Los periodos empiezan a
+         *     las 00:00 de Costa Rica; la semana, el lunes; el mes, el día 1.
          * @enum {string}
          */
         PeriodoConsultas: "dia" | "semana" | "mes";
         /**
          * PeriodoEstadisticas
-         * @description Periodo de las estadísticas de uso (RR_78). Los días son en UTC, como el
-         *     límite diario (services/uso.py).
+         * @description Periodo de las estadísticas de uso. Los días son en UTC.
          * @enum {string}
          */
         PeriodoEstadisticas: "hoy" | "ultimos_7_dias" | "ultimos_30_dias" | "todo";
@@ -1305,9 +1232,8 @@ export interface components {
         };
         /**
          * PermisosTiposConsulta
-         * @description GET /admin/permisos-consulta: la configuración de todos los roles y su último cambio.
-         *
-         *     El supermoderador no aparece: siempre puede hacer todos los tipos.
+         * @description GET /admin/permisos-consulta: configuración de todos los roles y su último cambio. El
+         *     supermoderador no aparece: siempre puede todo.
          */
         PermisosTiposConsulta: {
             /** Roles */
@@ -1319,11 +1245,10 @@ export interface components {
         };
         /**
          * PreferenciasModerador
-         * @description RR_67, RR_68 — las preferencias que aplican a las respuestas del moderador.
+         * @description Preferencias que aplican a las respuestas del moderador.
          *
-         *     `incluir_mapa` e `incluir_fuentes` son las que se aplican. Los campos
-         *     `*_propio` dicen si las cambió él (True) o si sigue la del sistema (False,
-         *     RR_80); `por_defecto` es la del sistema, para mostrarla en el perfil.
+         *     `incluir_mapa` e `incluir_fuentes` son las vigentes; `*_propio` indica si las cambió él
+         *     o si sigue la del sistema; `por_defecto` es la del sistema.
          */
         PreferenciasModerador: {
             /** Incluir Mapa */
@@ -1338,7 +1263,7 @@ export interface components {
         };
         /**
          * PreferenciasPorDefecto
-         * @description RR_80 — el comportamiento por defecto del sistema y su último cambio.
+         * @description Comportamiento por defecto del sistema y su último cambio.
          */
         PreferenciasPorDefecto: {
             /** Incluir Mapa */
@@ -1362,10 +1287,10 @@ export interface components {
         };
         /**
          * Procedencia
-         * @description RR_45 criterio 3: de dónde sale un dato de la respuesta.
+         * @description De dónde sale un dato de la respuesta.
          *
-         *     Ejemplo: dato="texto", fuente="Manual de Plantas de Costa Rica",
-         *     detalle="Tomo V, p. 779 · descripción · fragmento más relacionado con la pregunta".
+         *     Ejemplo: dato="texto", fuente="Manual de Plantas de Costa Rica", detalle="Tomo V, p.
+         *     779 · descripción".
          */
         Procedencia: {
             dato: components["schemas"]["DatoRespuesta"];
@@ -1400,7 +1325,7 @@ export interface components {
         };
         /**
          * RegistroPresencia
-         * @description Un punto de presencia de la especie (RR_18, vista de lista).
+         * @description Un registro de presencia de la especie.
          */
         RegistroPresencia: {
             /** Localidad */
@@ -1418,9 +1343,8 @@ export interface components {
         };
         /**
          * RegistroRequest
-         * @description RR_00_01. RR_61: el rol no se recibe; routers/auth.py asigna siempre 'usuario'.
-         *
-         *     Cualquier campo de más se rechaza (422). Los de rol, con un mensaje propio.
+         * @description Registro de una cuenta. El rol no se recibe: routers/auth.py asigna siempre 'usuario'.
+         *     Cualquier campo de más se rechaza (422).
          */
         RegistroRequest: {
             /** Nombre */
@@ -1435,10 +1359,8 @@ export interface components {
         };
         /**
          * RegistroTiempo
-         * @description El tiempo de una consulta (tabla 015) y su intención (017, RR_33).
-         *
-         *     `id` es el identificador único de la consulta en este registro (RR_33
-         *     criterio 2), también para los visitantes, que no guardan consultas.
+         * @description Tiempo de una consulta y su intención. `id` identifica el registro, también para los
+         *     visitantes.
          */
         RegistroTiempo: {
             /** Id */
@@ -1496,7 +1418,7 @@ export interface components {
         };
         /**
          * RestablecerPasswordRequest
-         * @description RR_00_06 criterio 3 — el token del enlace y la contraseña nueva.
+         * @description Token del enlace y contraseña nueva.
          */
         RestablecerPasswordRequest: {
             /** Token */
@@ -1506,10 +1428,9 @@ export interface components {
         };
         /**
          * ResultadoConsulta
-         * @description Columna tiempos_respuesta.resultado (RR_57): cómo terminó una consulta.
+         * @description Cómo terminó una consulta (tiempos_respuesta.resultado).
          *
-         *     Los cuatro primeros son los de EstadoConsulta; los demás, las consultas que
-         *     terminaron en error.
+         *     Los cuatro primeros son los de EstadoConsulta; los demás, errores.
          * @enum {string}
          */
         ResultadoConsulta: "resuelta" | "ambigua" | "sin_coincidencias" | "orientacion" | "tiempo_agotado" | "limite_alcanzado" | "rechazada" | "error";
@@ -1557,14 +1478,14 @@ export interface components {
         };
         /**
          * RolDeConsulta
-         * @description Columna permisos_tipo_consulta.rol (019, RR_77): a quién se le configuran
-         *     los tipos de consulta. El supermoderador no está: siempre puede todo.
+         * @description Roles a los que se les configuran los tipos de consulta. El supermoderador siempre
+         *     puede todo.
          * @enum {string}
          */
         RolDeConsulta: "visitante" | "usuario" | "moderador";
         /**
          * RolOut
-         * @description Un rol con su límite de consultas y cada cuánto se restablece (RR_62, RR_64).
+         * @description Un rol con su límite de consultas y su periodo.
          */
         RolOut: {
             nombre: components["schemas"]["NombreRol"];
@@ -1576,11 +1497,8 @@ export interface components {
         };
         /**
          * SesionOut
-         * @description Estado de la sesión actual, sea de un usuario o de un visitante.
-         *
-         *     El frontend lo usa para decidir qué mostrar en la barra lateral: un
-         *     visitante no ve historial ni perfil, y su contador de consultas es menor
-         *     (RR_00_11).
+         * @description Estado de la sesión actual, de una cuenta o de un visitante. El frontend lo usa para
+         *     decidir qué mostrar en la barra lateral.
          */
         SesionOut: {
             tipo: components["schemas"]["TipoSesion"];
@@ -1608,17 +1526,16 @@ export interface components {
         };
         /**
          * TipoPregunta
-         * @description Qué pregunta una consulta sobre una especie — RR_41 y RR_29.
+         * @description Qué pregunta una consulta sobre una especie.
          *
-         *     Lo decide services/intencion.py (ver la prioridad allí) y elige el texto de
-         *     la respuesta (services/contexto_especie.py). Se creó en intencion.py y vive
-         *     aquí desde RR_33, porque se guarda en la BD (IntencionConsulta).
+         *     Lo decide services/intencion.py y define qué texto se responde
+         *     (services/contexto_especie.py).
          * @enum {string}
          */
         TipoPregunta: "distribucion" | "habitat" | "descripcion" | "general";
         /**
          * TipoSesion
-         * @description Quién hace la petición: una cuenta registrada o un visitante (RR_00_11).
+         * @description Quién hace la petición: una cuenta registrada o un visitante.
          * @enum {string}
          */
         TipoSesion: "usuario" | "anonimo";
@@ -1638,7 +1555,7 @@ export interface components {
         };
         /**
          * UsoDeRol
-         * @description GET /admin/uso-por-rol: el uso del sistema por las cuentas de un rol (criterio 3).
+         * @description GET /admin/uso-por-rol: cuentas de un rol y sus consultas guardadas.
          */
         UsoDeRol: {
             rol: components["schemas"]["NombreRol"];
@@ -1671,7 +1588,7 @@ export interface components {
         };
         /**
          * VerificarCorreoRequest
-         * @description RR_00_07 — el token que llegó en el enlace del correo.
+         * @description Token que llegó en el enlace del correo.
          */
         VerificarCorreoRequest: {
             /** Token */

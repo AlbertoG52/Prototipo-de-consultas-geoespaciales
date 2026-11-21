@@ -1,38 +1,16 @@
-"""Administración de usuarios por el supermoderador — RR_69 a RR_76 y RR_00_09.
+"""Administración de usuarios, roles y auditoría por el supermoderador.
 
-El router (routers/admin.py) exige el rol de supermoderador para todo /admin
-(RR_69 criterio 1, RR_71 criterio 2, RR_73 criterio 1) y llama a estas
-funciones:
+- `listar_usuarios`: correo, rol y estado de cada cuenta.
+- `cambiar_rol`: aplica en la siguiente petición, porque el rol se lee de la BD.
+- `cambiar_estado`: una cuenta inactiva recibe 403 en su siguiente petición; al reactivarla
+  conserva su rol.
+- `historial_de_uso` y `uso_por_rol`: consultas de una cuenta y de cada rol. El texto solo
+  se entrega si ADMIN_VE_TEXTO_CONSULTAS está activo.
+- `listar_auditoria`: los cambios los registra el trigger de la BD; aquí solo se indica
+  quién actúa.
+- `listar_roles` y `configurar_limite`: límite de consultas de cada rol y su periodo.
 
-- RR_71: `listar_usuarios` — correo, rol y estado de cada cuenta.
-- RR_70: `cambiar_rol` — el rol se lee de la BD en cada petición
-  (security.obtener_identidad), así que el cambio aplica de inmediato y el
-  nuevo rol decide los permisos y el límite diario (services/uso.py).
-- RR_74 / RR_75: `cambiar_estado` — una cuenta inactiva recibe 403 en su
-  siguiente petición, incluida POST /consultas; al reactivarla conserva su rol.
-  La persona puede seguir usando el agente sin cuenta, como cualquier visitante.
-- RR_76: `historial_de_uso` (criterios 1 y 2) — las consultas de una cuenta.
-  El texto de cada consulta solo se entrega si ADMIN_VE_TEXTO_CONSULTAS está
-  encendido (config.py); si no, se ve cuándo consultó, con qué resultado y de
-  qué especie. `uso_por_rol` (criterio 3) — cuántas consultas hicieron las
-  cuentas de cada rol.
-- RR_00_09: `listar_auditoria` — los cambios de rol y de estado los registra
-  el trigger de la BD (003 y 011); aquí solo se indica quién actúa. Los cambios
-  de límite de un rol también (020).
-- RR_63: `listar_roles` y `configurar_limite` — el supermoderador define
-  cuántas consultas tiene cada rol y cada cuánto se restablecen (RR_64). Aplica
-  a la siguiente consulta de cada cuenta, porque el rol y su límite se leen de
-  la BD en cada petición (services/uso.py). No se aceptan límites que dejen al
-  usuario estándar con tantas consultas como el moderador o con menos que un
-  visitante (RR_62 criterio 3 y RR_00_11 criterio 3).
-
-RR_72 (búsqueda por correo y filtro por rol) se resuelve en el panel sobre el
-listado completo.
-
-El supermoderador no puede modificarse a sí mismo (RR_70 criterio 2), para que
-no pueda quedarse sin acceso. No se cubre el caso de dos supermoderadores que
-se degradan mutuamente al mismo tiempo; si llegara a importar, la protección
-debe ir en la BD bloqueando filas.
+El supermoderador no puede modificarse a sí mismo, para no quedarse sin acceso.
 """
 
 from __future__ import annotations
@@ -57,21 +35,17 @@ from .uso import DIAS_DEL_PERIODO, POR_PERIODO
 MENSAJE_SOBRE_SI_MISMO = "No puedes modificar tu propio rol ni tu estado."
 
 
-# --- RR_69 a RR_75: usuarios, roles y estados ------------------------------------
+# --- usuarios, roles y estados ---------------------------------------------------
 
 
 def listar_usuarios(db: Session) -> list[UsuarioOut]:
-    """RR_71 — usuarios registrados, en orden de creación.
-
-    Sin paginación: suficiente para el prototipo. Con muchos usuarios habrá
-    que agregar límite y desplazamiento.
-    """
+    """Usuarios registrados, en orden de creación (sin paginación)."""
     usuarios = db.query(Usuario).options(joinedload(Usuario.rol)).order_by(Usuario.id.asc()).all()
     return [UsuarioOut.de_modelo(u) for u in usuarios]
 
 
 def cambiar_rol(db: Session, actor: Usuario, usuario_id: int, rol: NombreRol) -> UsuarioOut:
-    """RR_70 — cambia el rol de una cuenta. Aplica en su siguiente petición."""
+    """Cambia el rol de una cuenta. Aplica en su siguiente petición."""
     usuario = _usuario_a_modificar(db, actor, usuario_id)
     rol_id = db.query(Rol.id).filter(Rol.nombre == rol).scalar()
     if rol_id is None:
@@ -83,17 +57,13 @@ def cambiar_rol(db: Session, actor: Usuario, usuario_id: int, rol: NombreRol) ->
 def cambiar_estado(
     db: Session, actor: Usuario, usuario_id: int, estado: EstadoCuenta
 ) -> UsuarioOut:
-    """RR_74 y RR_75 — desactiva o reactiva una cuenta.
-
-    La desactivada queda fuera en su siguiente petición; la reactivada vuelve
-    con el rol que tenía, porque el estado no toca el rol.
-    """
+    """Desactiva o reactiva una cuenta. El estado no toca el rol."""
     usuario = _usuario_a_modificar(db, actor, usuario_id)
     usuario.estado = estado
     return _guardar(db, usuario)
 
 
-# --- RR_63: límite de consultas por rol ------------------------------------------
+# --- límite de consultas por rol -------------------------------------------------
 
 
 def listar_roles(db: Session) -> list[RolOut]:
@@ -104,10 +74,10 @@ def listar_roles(db: Session) -> list[RolOut]:
 def configurar_limite(
     db: Session, actor: Usuario, nombre: NombreRol, limite: int, periodo: PeriodoConsultas
 ) -> RolOut:
-    """RR_63 — define el límite de consultas de un rol y su periodo (RR_64).
+    """Define el límite de consultas de un rol y su periodo.
 
-    Los roles se bloquean mientras se valida, para que dos cambios a la vez no
-    dejen límites que juntos no cumplen las reglas.
+    Los roles se bloquean mientras se valida, para que dos cambios simultáneos no dejen
+    límites inválidos.
     """
     roles = {r.nombre: r for r in db.query(Rol).with_for_update().all()}
     rol = roles.get(nombre)
@@ -119,7 +89,7 @@ def configurar_limite(
     limites[nombre] = (limite, periodo)
     _validar_limites(limites, cambiado=nombre)
 
-    # El trigger de auditoría (020) lee quién actúa, igual que en los cambios de usuario.
+    # El trigger de auditoría lee quién actúa.
     db.execute(text("SELECT set_config('app.actor_id', :id, true)"), {"id": str(actor.id)})
     rol.limite_consultas = limite
     rol.periodo_consultas = periodo
@@ -129,14 +99,11 @@ def configurar_limite(
 
 
 def _validar_limites(limites: dict[str, tuple[int, PeriodoConsultas]], cambiado: NombreRol) -> None:
-    """RR_62 criterio 3 y RR_00_11 criterio 3, comparando los límites como consultas por día.
+    """Valida los límites comparándolos como consultas por día.
 
-    Así se pueden comparar periodos distintos: 20 por día son más que 100 por semana.
-    Se compara con enteros (a/b < c/d  ⇔  a·d < c·b) para que no haya redondeos y el
-    mínimo o máximo que sugiere el mensaje sea exactamente el que se acepta.
-
-    El mensaje dice qué valor sí se acepta con el periodo elegido, para el rol que se
-    está cambiando (`cambiado`), así el supermoderador no tiene que calcularlo.
+    El usuario debe tener menos que el moderador y no menos que el visitante. Se compara
+    con enteros (a/b < c/d ⇔ a·d < c·b) para evitar redondeos. El mensaje indica qué valor
+    sí se acepta con el periodo elegido.
     """
     usuario = limites.get(NombreRol.USUARIO)
     if usuario is None:
@@ -193,9 +160,8 @@ def _rol_out(rol: Rol) -> RolOut:
 
 
 def listar_auditoria(db: Session, limite: int) -> list[RegistroAuditoria]:
-    """RR_00_09 — acciones administrativas, de la más reciente a la más antigua.
-
-    Solo lectura: la BD rechaza cualquier modificación de 'auditoria' (011).
+    """Acciones administrativas, de la más reciente a la más antigua. La BD no permite
+    modificar 'auditoria'.
     """
     filas = db.execute(
         text(
@@ -215,10 +181,10 @@ def listar_auditoria(db: Session, limite: int) -> list[RegistroAuditoria]:
 
 
 def _usuario_a_modificar(db: Session, actor: Usuario, usuario_id: int) -> Usuario:
-    """Busca el usuario y deja registrado en la transacción quién actúa.
+    """Busca el usuario y registra en la transacción quién actúa.
 
-    set_config(..., true) vive solo hasta el commit: el trigger de auditoría
-    lo lee para llenar 'actor_id'.
+    set_config(..., true) dura hasta el commit; el trigger de auditoría lo lee para llenar
+    'actor_id'.
     """
     if usuario_id == actor.id:
         raise Conflicto(MENSAJE_SOBRE_SI_MISMO)
@@ -235,16 +201,14 @@ def _guardar(db: Session, usuario: Usuario) -> UsuarioOut:
     return UsuarioOut.de_modelo(usuario)
 
 
-# --- RR_76: historial de uso -------------------------------------------------------
+# --- historial de uso -------------------------------------------------------------
 
 
 def historial_de_uso(
     db: Session, usuario_id: int, limite: int, desplazamiento: int
 ) -> HistorialUso:
-    """RR_76 criterios 1 y 2 — las consultas de una cuenta, de la más reciente a la más antigua.
-
-    Trae `limite` consultas a partir de `desplazamiento`; `total` permite pedir
-    las siguientes.
+    """Consultas de una cuenta, de la más reciente a la más antigua: `limite` consultas a
+    partir de `desplazamiento`; `total` permite paginar.
     """
     usuario = db.query(Usuario).options(joinedload(Usuario.rol)).filter_by(id=usuario_id).first()
     if usuario is None:
@@ -270,12 +234,8 @@ def historial_de_uso(
 
 
 def uso_por_rol(db: Session) -> list[UsoDeRol]:
-    """RR_76 criterio 3 — cuántas cuentas tiene cada rol y cuántas consultas hicieron.
-
-    Cuenta las consultas guardadas (las mismas que muestra el historial), según
-    el rol que la cuenta tiene hoy: si cambió de rol, todas sus consultas
-    cuentan para el rol nuevo. No cuenta las de orientación (saludos, ayuda...,
-    RR_37 y RR_40): se ven en el historial, pero no son uso del agente.
+    """Cuántas cuentas tiene cada rol y cuántas consultas guardadas hicieron, según el rol
+    actual de cada cuenta. No cuenta las orientaciones (saludos, ayuda...).
     """
     cuentas = (
         db.query(Rol.nombre, func.count(Usuario.id))

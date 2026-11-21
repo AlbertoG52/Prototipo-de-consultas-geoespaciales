@@ -1,9 +1,7 @@
-"""Ficha completa de una especie (RR_20) y sugerencias de nombres (RR_16).
+"""Ficha completa de una especie, sugerencias de nombres y mapa de distribución.
 
-Las puede usar quien pueda ver la respuesta del agente: un usuario registrado
-o un visitante con sesión anónima (RR_00_11). Igual que /consultas, exigen una
-sesión válida, y la validación se hace en el servidor (RR_00_10). Ninguna
-consume una consulta del límite diario (no pasan por el agente).
+Exigen una sesión válida, de cuenta o de visitante, y no cuentan para el límite de
+consultas.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response, status
@@ -23,9 +21,9 @@ LIMITE_SUGERENCIAS = 5
 
 
 def coincidencias(especies: list[dict], fragmento: str) -> list[EspecieCandidata]:
-    """Especies con alguna palabra del nombre común o científico que empiece por
-    `fragmento`, sin repetir y en orden alfabético del nombre científico (el que
-    toda especie tiene; el común puede no existir), hasta LIMITE_SUGERENCIAS."""
+    """Especies con alguna palabra del nombre común o científico que empiece por `fragmento`,
+    sin repetir, en orden alfabético del nombre científico y hasta LIMITE_SUGERENCIAS.
+    """
     buscado = normalizar(fragmento)
     vistas: dict[str, EspecieCandidata] = {}
     for e in especies:
@@ -44,13 +42,10 @@ def sugerir_especies(
     identidad: Identidad = Depends(obtener_identidad),
     db: Session = Depends(get_db),
 ):
-    """RR_16 — sugerencias de especies mientras el usuario escribe.
+    """Sugerencias de especies mientras el usuario escribe.
 
-    Los nombres salen de las respuestas ya guardadas en 'consultas': el agente
-    (CR-BioLM) no ofrece una lista de especies, así que solo se sugieren las
-    que alguien con cuenta ya consultó. Las de visitantes no se guardan
-    (RR_00_11) y por eso no aparecen. Se leen todas las especies distintas en
-    cada petición; con muchas consultas convendrá una tabla propia o un índice.
+    Salen de las respuestas ya guardadas en 'consultas', porque CR-BioLM no ofrece una
+    lista de especies; por eso solo se sugieren las que ya consultó alguna cuenta.
     """
     exigir_sesion(identidad)
     fragmento = sanitizar_texto(q)
@@ -72,10 +67,8 @@ def ficha_de_especie(
     identidad: Identidad = Depends(obtener_identidad),
     catalogo: FuenteCatalogo = Depends(obtener_catalogo),
 ) -> FichaEspecie:
-    """RR_20 criterio 2 — la ficha corresponde a la especie pedida.
-
-    'especie' es el id del catálogo (o el nombre científico). Si no existe se
-    responde 404 en lugar de devolver otra especie por defecto.
+    """Ficha de la especie pedida, por su id del catálogo o su nombre científico. 404 si no
+    existe.
     """
     exigir_sesion(identidad)
     ficha = catalogo.obtener_ficha(especie)
@@ -97,11 +90,9 @@ def mapa_de_especie(
     identidad: Identidad = Depends(obtener_identidad),
     catalogo: FuenteCatalogo = Depends(obtener_catalogo),
 ) -> Response:
-    """RR_41 — mapa de distribución generado por CR-BioLM, en PNG.
+    """Mapa de distribución de CR-BioLM en PNG (la `url` de RespuestaConsulta.mapa).
 
-    Es la `url` de RespuestaConsulta.mapa. Pide sesión como el resto de
-    /especies, así que el frontend lo descarga con el token (no sirve un
-    <img src> directo). 404 si no hay mapa: en ese caso no se muestra ninguno.
+    Pide sesión, así que el frontend lo descarga con el token. 404 si no hay mapa.
     """
     exigir_sesion(identidad)
     png = catalogo.obtener_mapa(especie)

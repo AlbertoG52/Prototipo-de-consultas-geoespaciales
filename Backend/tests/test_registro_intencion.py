@@ -1,10 +1,8 @@
-"""Pruebas de RR_33 — registro interno de la intención detectada (y RR_29
-criterio 3: el tipo de consulta queda registrado).
+"""Pruebas del registro interno de la intención detectada en cada consulta.
 
-Pasan por la API con el catálogo de demostración y usan la BD: leen las filas de
-tiempos_respuesta (tablas 015 y 017) que crea cada prueba y las borran al final.
-Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Pasan por la API con el catálogo de prueba y leen las filas de tiempos_respuesta que
+crea cada prueba; al final las borran. Se ejecutan con: docker compose exec backend python
+-m pytest tests -q
 """
 
 import time
@@ -16,15 +14,16 @@ from app.db import SessionLocal
 from app.dominio import IntencionConsulta, MotivoOrientacion, TipoPregunta
 from app.main import app
 from app.services import tiempos
-from app.services.catalogo import CatalogoDemo, obtener_catalogo
+from app.services.catalogo import obtener_catalogo
 
 from apoyo import api, crear_cuenta_verificada, sql
+from catalogo_demo import CatalogoDemo
 
 PASSWORD = "ClaveSegura123"
 
 
 class CatalogoLento(CatalogoDemo):
-    """Tarda más que el tiempo máximo de la consulta (RR_38)."""
+    """Tarda más que el tiempo máximo de la consulta."""
 
     def construir_respuesta(self, especie_id, texto_consulta):
         time.sleep(0.4)
@@ -49,19 +48,19 @@ def _consultar(cabeceras, texto):
 
 
 def test_los_valores_de_intencion_son_los_tipos_y_los_motivos():
-    # RR_77: de una consulta no permitida se registra el tipo que se pidió.
+    # De una consulta no permitida se registra el tipo que se pidió.
     motivos = {m.value for m in MotivoOrientacion} - {MotivoOrientacion.TIPO_NO_PERMITIDO}
     assert {i.value for i in IntencionConsulta} == {t.value for t in TipoPregunta} | motivos
 
 
-# --- criterio 1: se registra la intención de cada consulta --------------------------
+# --- se registra la intención de cada consulta -------------------------------------
 
 
 @pytest.mark.parametrize(
     ("texto", "intencion", "resultado"),
     [
         ("¿Dónde crece el pejibaye?", "distribucion", "resuelta"),
-        ("¿En qué tipo de bosque vive el pejibaye?", "habitat", "resuelta"),  # RR_29
+        ("¿En qué tipo de bosque vive el pejibaye?", "habitat", "resuelta"),
         ("¿Cómo son las hojas del pejibaye?", "descripcion", "resuelta"),
         ("pejibaye", "general", "resuelta"),
         ("¿Dónde crece la guaria?", "distribucion", "ambigua"),
@@ -92,14 +91,14 @@ def test_se_registra_aunque_la_consulta_se_corte_por_tiempo(visitante, nuevas_fi
 
 
 def test_del_visitante_no_se_guarda_el_texto(visitante, nuevas_filas):
-    # RR_00_11: queda qué intentó hacer, no qué escribió.
+    # Queda qué intentó hacer, no qué escribió.
     _consultar(visitante, "¿Dónde crece el pejibaye?")
     [fila] = nuevas_filas()
     assert "texto" not in fila
     assert fila["tipo_sesion"] == "anonimo" and fila["consulta_id"] is None
 
 
-# --- criterio 2: asociado a un identificador único de consulta ----------------------
+# --- asociada a un identificador único de consulta ---------------------------------
 
 
 def test_cada_registro_tiene_su_identificador_y_el_de_la_consulta(correos_de_prueba, nuevas_filas):
@@ -119,7 +118,7 @@ def test_cada_registro_tiene_su_identificador_y_el_de_la_consulta(correos_de_pru
     ]
 
 
-# --- criterio 3: disponible para monitoreo ------------------------------------------
+# --- disponible para monitoreo -----------------------------------------------------
 
 
 def _conteo(intencion: str) -> int:

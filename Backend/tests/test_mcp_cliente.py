@@ -1,9 +1,8 @@
 """Pruebas del adaptador MCP (services/mcp_cliente.py).
 
-No necesitan base de datos ni CR-BioLM: levantan un servidor MCP falso, en este
-mismo proceso, con herramientas que imitan las respuestas de CR-BioLM (el sobre
-de procedencia) y sus fallos. Se ejecutan con:
-    docker compose exec backend python -m pytest tests/test_mcp_cliente.py -q
+No necesitan base de datos ni CR-BioLM: levantan en el mismo proceso un servidor MCP falso
+que imita las respuestas de CR-BioLM y sus fallos. Se ejecutan con: docker compose exec
+backend python -m pytest tests/test_mcp_cliente.py -q
 """
 
 import socket
@@ -26,6 +25,8 @@ from app.services.mcp_cliente import (
     MCPTiempoAgotado,
     Sobre,
 )
+
+from catalogo_demo import CatalogoDemo
 
 # --- servidor falso -------------------------------------------------------------
 
@@ -150,7 +151,7 @@ def test_los_argumentos_en_none_no_se_envian(conectado):
 
 
 def test_datos_insuficientes_llegan_como_sobre_con_advertencia(conectado):
-    """RR_53: no es un error, es un resultado que hay que mostrar con su aviso."""
+    """No es un error: es un resultado que se muestra con su aviso."""
     sobre = mcp_cliente.llamar("get_occurrences", species="Especie inventada")
 
     assert not sobre.es_suficiente
@@ -185,7 +186,7 @@ def test_respuesta_sin_sobre_valido(conectado, herramienta):
 
 
 def test_tiempo_agotado(conectado, monkeypatch):
-    """Base de RR_38: la llamada se corta al pasar el tiempo máximo."""
+    """La llamada se corta al pasar el tiempo máximo."""
     monkeypatch.setattr(config, "MCP_TIMEOUT_SEGUNDOS", 0.5)
     inicio = time.monotonic()
 
@@ -208,9 +209,9 @@ def test_servidor_apagado_reintenta_y_avisa(monkeypatch, caplog):
 
 @pytest.mark.parametrize("ruta", ["/otra-ruta", "/roto"])
 def test_url_equivocada_no_se_reintenta(conectado, monkeypatch, caplog, ruta):
-    """Si el servidor responde con un error HTTP (ruta inexistente o fallo del
-    servidor web), es un problema de configuración: reintentar no lo arregla, y
-    se avisa de inmediato en lugar de esperar al tiempo máximo."""
+    """Un error HTTP (ruta inexistente o fallo del servidor web) es un problema de
+    configuración: no se reintenta y se avisa de inmediato.
+    """
     monkeypatch.setattr(config, "MCP_URL", config.MCP_URL.replace("/mcp", ruta))
     caplog.set_level("WARNING", logger="uvicorn.error")
     inicio = time.monotonic()
@@ -251,7 +252,7 @@ def test_mcp_check_sin_servidor_responde_503_sin_detalles_internos(monkeypatch):
     assert url not in respuesta.text
 
 
-# --- RR_38: la llamada respeta el tiempo que le queda a la consulta -------------
+# --- la llamada respeta el tiempo que le queda a la consulta -----------------------
 
 
 def test_la_llamada_se_corta_con_el_tiempo_restante_de_la_consulta(conectado):
@@ -279,7 +280,7 @@ def test_la_api_corta_la_consulta_si_cr_biolm_tarda(conectado, monkeypatch):
     from fastapi.testclient import TestClient
 
     from app.main import app
-    from app.services.catalogo import CatalogoDemo, obtener_catalogo
+    from app.services.catalogo import obtener_catalogo
 
     class CatalogoQueLlamaACRBioLM(CatalogoDemo):
         def construir_respuesta(self, especie_id, texto_consulta):
@@ -302,7 +303,7 @@ def test_la_api_corta_la_consulta_si_cr_biolm_tarda(conectado, monkeypatch):
     assert time.monotonic() - inicio < 0.9  # antes que MCP_TIMEOUT_SEGUNDOS (1 s)
 
 
-# --- DEF-13: turnos para las herramientas pesadas -----------------------------------
+# --- turnos para las herramientas pesadas ------------------------------------------
 
 
 def test_una_herramienta_pesada_espera_turno(conectado, monkeypatch):
@@ -318,7 +319,7 @@ def test_una_herramienta_pesada_espera_turno(conectado, monkeypatch):
             mcp_cliente.llamar("get_occurrences", species="Quercus costaricensis")
         assert 0.25 < time.monotonic() - inicio < 0.9
         assert "turno" in error.value.detalle
-        # Una consulta a tablas (L0) no espera turno.
+        # Una consulta a tablas no espera turno.
         assert mcp_cliente.llamar("get_species", name="Quercus costaricensis").valor
     finally:
         turnos.release()

@@ -1,10 +1,8 @@
-"""Pruebas de RR_00_06 — recuperación de contraseña.
+"""Pruebas de la recuperación de contraseña.
 
-Usan la BD del contenedor a través de la API. El envío de correo se reemplaza
-por una función que guarda los mensajes, así que no sale ningún correo real.
-Cada prueba borra las cuentas que crea (el borrado arrastra sus tokens). Se
-ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Usan la BD a través de la API. El envío de correo se reemplaza por una función que guarda
+los mensajes. Cada prueba borra las cuentas que crea. Se ejecutan con: docker compose exec
+backend python -m pytest tests -q
 """
 
 import re
@@ -47,14 +45,14 @@ def _token_del_enlace(texto: str) -> str:
 
 
 def test_pedir_envia_el_enlace_al_correo_registrado(buzon, correo):
-    # Criterios 1 y 2: se solicita con el correo y llega un enlace.
+    # Se solicita con el correo y llega un enlace.
     assert _pedir(correo).status_code == 200
     assert len(buzon) == 1 and buzon[0][0] == correo
     assert _token_del_enlace(buzon[0][1])
 
 
 def test_el_enlace_permite_cambiar_la_contrasena(buzon, correo):
-    # Criterio 3: nueva contraseña tras la validación.
+    # Contraseña nueva tras la validación.
     _pedir(correo)
     assert _restablecer(_token_del_enlace(buzon[0][1])).status_code == 200
     assert _login(correo, NUEVA).status_code == 200
@@ -69,7 +67,7 @@ def test_el_enlace_solo_sirve_una_vez(buzon, correo):
 
 
 def test_enlace_vencido_se_rechaza(buzon, correo):
-    # Criterio 2: válido por tiempo limitado.
+    # El enlace vale por tiempo limitado.
     _pedir(correo)
     token = _token_del_enlace(buzon[0][1])
     _sql(
@@ -104,8 +102,8 @@ def test_no_revela_si_el_correo_existe(buzon, correo):
 
 
 def test_cuenta_desactivada_no_recibe_enlace(buzon):
-    # Sin BD: desactivar una cuenta real deja un registro de auditoría que no
-    # se puede borrar (RR_00_09), así que se simula el usuario.
+    # Sin BD: desactivar una cuenta real deja un registro de auditoría que no se puede
+    # borrar, así que se simula el usuario.
     desactivada = SesionFalsa(usuario_falso(activo=False, estado=EstadoCuenta.INACTIVO))
     salida = auth.recuperar_password(CorreoRequest(correo="ana@test.com"), desactivada)
     assert salida.mensaje == _pedir("nadie-xyz@test.com").json()["mensaje"]

@@ -1,11 +1,8 @@
-"""Pruebas de RR_67, RR_68, RR_79 y RR_80 — mapa y fuentes en las respuestas.
+"""Pruebas del mapa y las fuentes en las respuestas.
 
-Las primeras no necesitan base de datos: prueban `preferencias.aplicar` y
-`preferencias.de` con respuestas y usuarios en memoria. Las de la API usan la
-BD del contenedor; cada una crea sus cuentas y las borra al terminar, y las
-que cambian el comportamiento por defecto lo devuelven a como estaba.
-Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Las primeras prueban `preferencias.aplicar` y `preferencias.de` en memoria. Las de la API
+usan la BD; cada una borra sus cuentas al terminar y deja el comportamiento por defecto
+como estaba. Se ejecutan con: docker compose exec backend python -m pytest tests -q
 """
 
 import pytest
@@ -20,7 +17,7 @@ from app.services.preferencias import Preferencias
 from apoyo import api, crear_cuenta_verificada, sql, usuario_falso
 
 PASSWORD = "Clave#2024"
-RESUELTA = "pejibaye"  # el catálogo de demostración la resuelve con fuentes
+RESUELTA = "pejibaye"  # el catálogo de prueba la resuelve con fuentes
 
 
 # --- aplicar: qué se quita de la respuesta ------------------------------------
@@ -51,7 +48,6 @@ def test_con_todo_la_respuesta_no_cambia():
 
 
 def test_sin_mapa_se_quita_el_mapa_y_su_procedencia():
-    # RR_67 criterio 1.
     salida = preferencias.aplicar(_respuesta(), Preferencias(incluir_mapa=False))
     assert salida.mapa is None
     assert [p.dato for p in salida.procedencia] == [DatoRespuesta.TEXTO]
@@ -59,7 +55,6 @@ def test_sin_mapa_se_quita_el_mapa_y_su_procedencia():
 
 
 def test_sin_fuentes_se_quitan_la_lista_la_procedencia_y_las_citas():
-    # RR_68 criterio 1.
     salida = preferencias.aplicar(_respuesta(), Preferencias(incluir_fuentes=False))
     assert salida.fuentes == [] and salida.procedencia == []
     assert salida.texto == "Crece en Talamanca sobre los 2000 m."
@@ -96,12 +91,12 @@ def _moderador(mapa=None, fuentes=None, rol=NombreRol.MODERADOR):
 
 
 def test_moderador_sin_cambios_usa_la_del_sistema():
-    # RR_80 criterio 2.
+    # Sin preferencia propia se usa la del sistema.
     assert preferencias.de(_BD(mapa=False), _moderador()) == Preferencias(False, True)
 
 
 def test_moderador_con_preferencia_propia_la_usa():
-    # RR_67 y RR_68: la propia gana sobre la del sistema, campo por campo.
+    # La propia gana sobre la del sistema, campo por campo.
     bd = _BD(mapa=True, fuentes=False)
     assert preferencias.de(bd, _moderador(mapa=False)) == Preferencias(False, False)
     assert preferencias.de(bd, _moderador(fuentes=True)) == Preferencias(True, True)
@@ -180,7 +175,7 @@ def sistema():
 
 
 def test_el_usuario_normal_no_configura_sus_respuestas(cuenta):
-    # RR_67: solo el moderador.
+    # Solo el moderador.
     yo = cuenta(NombreRol.USUARIO)
     assert api.get("/perfil/preferencias", headers=_h(yo)).status_code == 403
     assert (
@@ -200,7 +195,6 @@ def test_el_visitante_no_tiene_preferencias():
 
 
 def test_el_moderador_desactiva_las_fuentes_y_aplica_a_la_siguiente(cuenta, sistema):
-    # RR_68 criterios 1 y 2.
     yo = cuenta()
     assert _fuentes_de_una_consulta(yo)  # por defecto vienen
 
@@ -213,7 +207,7 @@ def test_el_moderador_desactiva_las_fuentes_y_aplica_a_la_siguiente(cuenta, sist
 
 
 def test_las_preferencias_se_conservan_entre_sesiones(cuenta, sistema):
-    # RR_67 y RR_68 criterio 3, RR_79 criterios 1 y 2.
+    # Se guarda en la cuenta y se conserva entre sesiones.
     yo = cuenta()
     api.patch(
         "/perfil/preferencias",
@@ -229,7 +223,7 @@ def test_las_preferencias_se_conservan_entre_sesiones(cuenta, sistema):
 
 
 def test_cada_moderador_tiene_las_suyas(cuenta, sistema):
-    # RR_79 criterio 3.
+    # Cada moderador tiene la suya.
     uno, otro = cuenta(), cuenta()
     api.patch("/perfil/preferencias", headers=_h(uno), json={"incluir_fuentes": False})
     assert _fuentes_de_una_consulta(uno) == []
@@ -238,8 +232,8 @@ def test_cada_moderador_tiene_las_suyas(cuenta, sistema):
 
 
 def test_el_supermoderador_cambia_el_comportamiento_por_defecto(cuenta, sistema):
-    # RR_80 criterios 1, 2 y 3: aplica a quien no lo ha cambiado, también al
-    # usuario normal y al visitante; el moderador con preferencia propia la conserva.
+    # Aplica a quien no lo ha cambiado, también al usuario y al visitante; el moderador con
+    # preferencia propia la conserva.
     jefe, usuario, sin_cambios, con_cambios = (
         cuenta(NombreRol.SUPERMODERADOR),
         cuenta(NombreRol.USUARIO),

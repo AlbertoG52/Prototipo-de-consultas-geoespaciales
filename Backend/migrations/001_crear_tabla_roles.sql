@@ -1,5 +1,5 @@
--- Módulo 4: roles del sistema (usuario / moderador / supermoderador)
--- Va primero porque la tabla usuarios lo referencia por llave foránea.
+-- Roles del sistema (usuario, moderador, supermoderador). Va primero porque usuarios la
+-- referencia.
 CREATE TABLE IF NOT EXISTS roles (
     id               SERIAL PRIMARY KEY,
     nombre           VARCHAR(50)  NOT NULL UNIQUE,

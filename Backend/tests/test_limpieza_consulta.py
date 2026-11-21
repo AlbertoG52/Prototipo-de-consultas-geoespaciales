@@ -1,9 +1,8 @@
-"""Pruebas de RR_21 (limpieza), RR_34 (límite de longitud) y RR_35 (acentos y
-mayúsculas) del texto de una consulta.
+"""Pruebas de la limpieza, el largo máximo y la comparación sin tildes ni mayúsculas del texto
+de una consulta.
 
-Solo las que pasan por la API (las marcadas con `visitante`) necesitan la BD.
-Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Solo las que usan `visitante` necesitan la BD. Se ejecutan con: docker compose exec backend
+python -m pytest tests -q
 """
 
 import pytest
@@ -12,15 +11,15 @@ from pydantic import ValidationError
 from app import config
 from app.sanitizacion import con_nombre_canonico, limpiar_consulta, normalizar
 from app.schemas.consulta import ConsultaRequest
-from app.services.catalogo import CatalogoDemo
 from app.services.intencion import analizar
 
 from apoyo import api
+from catalogo_demo import CatalogoDemo
 
 catalogo = CatalogoDemo()
 
 
-# --- RR_21 criterio 1: se quitan espacios y caracteres innecesarios -------------
+# --- se quitan espacios y caracteres innecesarios ----------------------------------
 
 
 @pytest.mark.parametrize(
@@ -43,7 +42,7 @@ def test_quita_espacios_y_caracteres_innecesarios(entrada, esperado):
     assert limpiar_consulta(entrada) == esperado
 
 
-# --- RR_21 criterio 2: se conserva el significado --------------------------------
+# --- se conserva el significado ----------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -64,7 +63,7 @@ def test_no_altera_una_consulta_ya_limpia(entrada):
 
 
 def test_no_cambia_mayusculas_ni_tildes():
-    # La comparación sin tildes es aparte (RR_35); el texto guardado no cambia.
+    # La comparación sin tildes es aparte; el texto guardado no cambia.
     assert limpiar_consulta("CEDRO Amargo en LIMÓN") == "CEDRO Amargo en LIMÓN"
 
 
@@ -73,12 +72,12 @@ def test_no_cambia_mayusculas_ni_tildes():
     ["¿¿ dónde  ?? crece", "! ! ¡ ¡hola", "a ,, b ;; c", "🌿 ¿ x ? 🌿", "...... ."],
 )
 def test_limpiar_dos_veces_no_cambia_nada(entrada):
-    # RR_17: al elegir una especie, el frontend reenvía el texto ya limpio.
+    # Al elegir una especie, el frontend reenvía el texto ya limpio.
     una_vez = limpiar_consulta(entrada)
     assert limpiar_consulta(una_vez) == una_vez
 
 
-# --- RR_21 criterio 3: el texto queda listo para procesarse ----------------------
+# --- el texto queda listo para procesarse ------------------------------------------
 
 
 def test_la_consulta_llega_limpia_al_procesamiento():
@@ -97,11 +96,10 @@ def test_una_consulta_vacia_se_rechaza_en_espanol():
         ConsultaRequest(texto="")
 
 
-# --- RR_34: límite máximo de longitud --------------------------------------------
+# --- largo máximo ------------------------------------------------------------------
 
 
 def test_el_limite_esta_definido():
-    # Criterio 3.
     assert config.LONGITUD_MAXIMA_CONSULTA == 500
 
 
@@ -111,7 +109,7 @@ def test_una_consulta_en_el_limite_se_acepta():
 
 
 def test_una_consulta_que_supera_el_limite_se_rechaza_con_el_motivo():
-    # Criterios 1 y 2: se rechaza y el mensaje dice cuánto tiene y cuál es el máximo.
+    # Se rechaza y el mensaje dice cuánto tiene y cuál es el máximo.
     largo = config.LONGITUD_MAXIMA_CONSULTA + 1
     with pytest.raises(ValidationError, match=f"tiene {largo} caracteres y el máximo es 500"):
         ConsultaRequest(texto="a" * largo)
@@ -132,12 +130,12 @@ def test_la_api_rechaza_la_consulta_larga_con_el_mensaje_en_espanol(visitante):
 
 
 def test_la_sesion_informa_el_limite(visitante):
-    # Criterio 3: el frontend usa este valor en lugar de escribirlo a mano.
+    # El frontend usa este valor en lugar de escribirlo a mano.
     sesion = api.get("/auth/sesion", headers=visitante).json()
     assert sesion["longitud_maxima_consulta"] == config.LONGITUD_MAXIMA_CONSULTA
 
 
-# --- RR_35: acentos y mayúsculas no cambian la búsqueda ---------------------------
+# --- tildes y mayúsculas no cambian la búsqueda ------------------------------------
 
 
 def _ids(texto: str) -> set[str]:
@@ -154,7 +152,6 @@ def _ids(texto: str) -> set[str]:
     ],
 )
 def test_tildes_y_mayusculas_no_cambian_las_especies_encontradas(variante):
-    # Criterios 1 y 2.
     assert _ids(variante) == _ids("¿Dónde crece el pejibaye?") == {"bactris-gasipaes"}
 
 
@@ -173,13 +170,13 @@ def test_tildes_y_mayusculas_no_cambian_el_tipo_de_pregunta(variante):
 
 
 def test_la_normalizacion_es_para_comparar():
-    # Criterio 3: se aplica antes de buscar (en el catálogo), sobre una copia.
+    # Se aplica antes de buscar (en el catálogo), sobre una copia.
     assert normalizar("Guaría MORADA") == "guaria morada"
     consulta = ConsultaRequest(texto="Guaría MORADA")
     assert consulta.texto == "Guaría MORADA"
 
 
-# --- RR_35 criterio 3: la pregunta que recibe CR-BioLM ------------------------------
+# --- la pregunta que recibe CR-BioLM -----------------------------------------------
 
 
 @pytest.mark.parametrize(

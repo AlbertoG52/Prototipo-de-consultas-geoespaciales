@@ -1,7 +1,5 @@
-"""Pruebas de RR_00_08 — sanitización de entradas.
-
-No necesitan base de datos. Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+"""Pruebas de la sanitización de entradas. No necesitan base de datos. Se ejecutan con: docker
+compose exec backend python -m pytest tests -q
 """
 
 import pytest
@@ -14,7 +12,7 @@ from app.schemas.usuario import RegistroRequest
 PASSWORD_VALIDA = "Prueba123!"
 
 
-# --- criterio 1 y 2: se limpian y neutralizan los caracteres peligrosos ------
+# --- se limpian y neutralizan los caracteres peligrosos ----------------------------
 
 
 @pytest.mark.parametrize(
@@ -34,7 +32,7 @@ def test_neutraliza_marcado_y_caracteres_de_control(entrada, esperado):
     assert sanitizar_texto(entrada) == esperado
 
 
-# --- criterio 3: el contenido legítimo no cambia ---------------------------
+# --- el contenido legítimo no cambia -----------------------------------------------
 
 
 @pytest.mark.parametrize(

@@ -12,7 +12,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Buenas prácticas de seguridad: correr sin root
+# Corre sin root
 RUN useradd -m appuser
 USER appuser
 

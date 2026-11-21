@@ -1,8 +1,8 @@
-"""Pruebas de RR_00_10 — control de acceso por rol.
+"""Pruebas del control de acceso por rol.
 
-No necesitan base de datos: se prueba la dependencia con usuarios simulados y
-se verifica que el router de administración la tenga. Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+No necesitan base de datos: prueban la dependencia con usuarios simulados y que el router
+de administración la tenga. Se ejecutan con: docker compose exec backend python -m pytest
+tests -q
 """
 
 import pytest
@@ -19,7 +19,7 @@ def _usuario(rol: str | None):
     return usuario_falso(rol=rol)
 
 
-# --- criterio 1 y 2: se valida el rol y se rechaza lo no permitido ---------
+# --- se valida el rol y se rechaza lo no permitido ---------------------------------
 
 
 def test_rol_permitido_pasa():
@@ -60,7 +60,7 @@ def test_visitante_sin_cuenta_recibe_401():
     assert error.value.status_code == 401
 
 
-# --- criterio 3: la validación vive en el servidor, para todo /admin --------
+# --- la validación vive en el servidor, para todo /admin ---------------------------
 
 
 def test_router_admin_exige_rol_en_todos_sus_endpoints():

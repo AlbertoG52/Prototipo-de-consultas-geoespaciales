@@ -8,9 +8,8 @@ export default defineConfig({
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
   },
-  // host: true es necesario para que el contenedor exponga el servidor.
-  // usePolling: en Docker Desktop sobre Windows los cambios hechos en el
-  // anfitrión no generan eventos de archivo dentro del contenedor, así que sin
-  // sondeo Vite sigue sirviendo la versión anterior. Cuesta algo de CPU.
+  // host: true expone el servidor desde el contenedor. usePolling: en Docker Desktop sobre Windows
+  // los cambios del anfitrión no generan eventos de archivo dentro del contenedor; el sondeo los
+  // detecta a cambio de algo de CPU.
   server: { host: true, port: 5173, watch: { usePolling: true, interval: 300 } },
 });

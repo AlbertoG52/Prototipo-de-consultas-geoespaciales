@@ -1,7 +1,6 @@
--- Módulo 0: tokens temporales.
--- 'verificacion' -> confirmar el correo en el registro (RR_00_07)
--- 'recuperacion' -> restablecer la contraseña olvidada (RR_00_06)
--- Una sola tabla con un campo 'tipo' cubre ambos casos.
+-- Tokens temporales:
+-- 'verificacion' -> confirmar el correo al registrarse
+-- 'recuperacion' -> restablecer la contraseña olvidada
 CREATE TABLE IF NOT EXISTS tokens (
     id         SERIAL PRIMARY KEY,
     usuario_id INTEGER      NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,

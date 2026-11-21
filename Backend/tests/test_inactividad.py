@@ -1,8 +1,7 @@
-"""Pruebas de RR_00_04 — expiración de la sesión por inactividad.
+"""Pruebas de la expiración de la sesión por inactividad.
 
-No necesitan base de datos: se usan usuarios y peticiones simulados. Se
-ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+No necesitan base de datos: usan usuarios y peticiones simulados. Se ejecutan con: docker
+compose exec backend python -m pytest tests -q
 """
 
 from datetime import UTC, datetime, timedelta
@@ -49,7 +48,7 @@ def _peticion(token: str | None) -> Request:
     return Request({"type": "http", "headers": cabeceras})
 
 
-# --- criterio 2: el periodo es configurable -------------------------------
+# --- el periodo es configurable ----------------------------------------------------
 
 
 def test_sin_preferencia_usa_el_valor_del_sistema():
@@ -86,11 +85,11 @@ def test_cambiar_inactividad_guarda_y_devuelve_token_con_el_nuevo_periodo():
     )
     assert usuario.minutos_inactividad == 360 and db.commits == 1
     assert 359 < _duracion_minutos(salida.access_token) <= 360
-    # Sigue siendo la misma sesión (RR_09 depende del sesion_id).
+    # Sigue siendo la misma sesión (mismo sesion_id).
     assert jwt.decode(salida.access_token, SECRET_KEY, algorithms=[ALGORITMO_JWT])["sid"] == "abc"
 
 
-# --- criterio 1: la actividad renueva; sin ella, la sesión se cierra ------
+# --- la actividad renueva; sin ella, la sesión se cierra ---------------------------
 
 
 def test_renovar_conserva_la_sesion_y_reinicia_el_periodo():
@@ -122,7 +121,7 @@ def test_sin_token_no_es_una_sesion_expirada():
     assert not identidad.token_invalido
 
 
-# --- criterio 3: después de expirar hay que volver a autenticarse ---------
+# --- después de expirar hay que volver a autenticarse ------------------------------
 
 
 def test_estado_de_sesion_con_token_vencido_responde_401():

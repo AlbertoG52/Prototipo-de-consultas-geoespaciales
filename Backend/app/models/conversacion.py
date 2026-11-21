@@ -1,7 +1,5 @@
-"""Conversación de un usuario registrado — tabla 012.
-
-Agrupa las consultas que se hicieron en un mismo chat (RR_09). Un visitante
-anónimo no tiene conversaciones guardadas (RR_00_11).
+"""Conversación de un usuario registrado: agrupa las consultas de un mismo chat. El visitante
+no tiene conversaciones guardadas.
 """
 
 from __future__ import annotations

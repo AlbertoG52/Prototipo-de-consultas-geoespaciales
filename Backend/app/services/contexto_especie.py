@@ -1,23 +1,16 @@
-"""Contexto único de una especie — RR_45 (combinación de fuentes).
+"""Contexto único de una especie.
 
-`ContextoEspecie` junta, ya validado, todo lo que CR-BioLM sabe de una especie:
+`ContextoEspecie` junta, ya validado, lo que CR-BioLM sabe de una especie:
 
-    fuente estructurada   la ficha del Manual (familia, elevación, regiones...)
-    fuente vectorizada    el fragmento del Manual que responde la pregunta (RR_44)
-    GBIF                  los registros de presencia (RR_42, RR_43, RR_56, RR_58, RR_60)
-    mapa                  el PNG que genera CR-BioLM (RR_41)
-    redacción del LLM     la respuesta en lenguaje natural de answer_question (RR_49)
+  fuente estructurada   la ficha del Manual (familia, elevación, regiones...)
+  fuente vectorizada    el fragmento del Manual que responde la pregunta
+  GBIF                  los registros de presencia
+  mapa                  el PNG que genera CR-BioLM
+  redacción del LLM     la respuesta en lenguaje natural de answer_question
 
-Criterios de RR_45:
-1. Las fuentes corresponden a la misma especie: services/catalogo_crbiolm.py
-   descarta, antes de armar el contexto, todo lo que no sea de la especie pedida
-   (RR_60), incluido el fragmento vectorizado.
-2. Se entrega como un contexto único: este objeto. De él salen la respuesta del
-   chat y la ficha. La respuesta del chat puede llevar además el texto que
-   redacta el LLM de CR-BioLM (RR_49, `redaccion`).
-3. Trazabilidad: `procedencia()` dice de dónde sale cada dato de la respuesta.
-
-No llama a CR-BioLM: solo combina lo que ya se pidió.
+Todo corresponde a la misma especie (services/catalogo_crbiolm.py descarta lo demás). De
+este objeto salen la respuesta del chat y la ficha, y `procedencia()` dice de dónde sale
+cada dato. No llama a CR-BioLM.
 """
 
 from __future__ import annotations
@@ -38,11 +31,11 @@ GBIF = "GBIF"
 CR_BIOLM = "CR-BioLM"
 
 SIN_TEXTO = "El Manual de Plantas de Costa Rica no describe la distribución de esta especie."
-# RR_53 (DEF-09): pregunta cómo es la planta y la ficha no trae su descripción.
+# Pregunta cómo es la planta y la ficha no trae su descripción.
 SIN_DESCRIPCION = "El Manual de Plantas de Costa Rica no trae la descripción de esta especie."
 DE_LA_DISTRIBUCION = "se muestra lo que dice de su distribución"
 
-# RR_49: de dónde sale el texto cuando lo redacta el LLM de CR-BioLM.
+# Origen del texto cuando lo redacta el LLM de CR-BioLM.
 REDACTADO_CON_IA = "respuesta redactada con IA a partir del Manual"
 
 # "Manual de Plantas de Costa Rica, Tomo V, p. 779 (Quercus costaricensis)":
@@ -55,16 +48,16 @@ SECCIONES = {
     "description": "descripción",
 }
 
-# RR_45: cómo se describe el origen de cada dato. Son textos para el usuario: las
-# citas técnicas de CR-BioLM (filtros de GBIF, archivos del mapa) no se muestran.
+# Cómo se describe el origen de cada dato. Son textos para el usuario: las citas técnicas de
+# CR-BioLM no se muestran.
 FICHA = "ficha de la especie"
-DE_LA_PREGUNTA = "fragmento más relacionado con la pregunta"  # RR_44
-DETALLE_HABITAT = "hábitat: forma de crecimiento, tipo de bosque, vertiente y elevación"  # RR_29
-# RR_56: CR-BioLM guarda los registros de GBIF y los actualiza cada cierto
-# tiempo, así que el detalle dice de cuándo son (ver `_detalle_registros`).
+DE_LA_PREGUNTA = "fragmento más relacionado con la pregunta"
+DETALLE_HABITAT = "hábitat: forma de crecimiento, tipo de bosque, vertiente y elevación"
+# CR-BioLM guarda los registros de GBIF y los actualiza cada cierto tiempo; el detalle dice
+# de cuándo son.
 DETALLE_REGISTROS = "registros de presencia en Costa Rica"
-# Las mismas fuentes que acredita el pie del mapa de CR-BioLM (render_species_map).
-# Si José cambia las capas del mapa, hay que actualizar este texto.
+# Las mismas fuentes que acredita el pie del mapa de CR-BioLM (render_species_map). Si
+# cambian las capas del mapa, se actualiza este texto.
 DETALLE_MAPA = (
     "elaborado con las regiones botánicas de M. V. Castro (Manual de Plantas de "
     "Costa Rica), las áreas silvestres protegidas del SINAC, la altitud de SRTM e "
@@ -84,23 +77,23 @@ class MapaGenerado:
 
 @dataclass(frozen=True)
 class Ocurrencias:
-    """Los registros de GBIF de una especie, ya validados (RR_60)."""
+    """Registros de GBIF de una especie, ya validados."""
 
-    sobre: Sobre | None  # None: GBIF no respondió en ningún intento (RR_58)
+    sobre: Sobre | None  # None: GBIF no respondió en ningún intento
     registros: list[RegistroPresencia]
     # Registros válidos en total. Puede ser mayor que len(registros): CR-BioLM
     # cuenta todos pero entrega como máximo 500 puntos.
     total: int
     intentos: int
-    # RR_56: cuándo descargó CR-BioLM estos registros de GBIF (None si no lo dice)
-    # y si son los anteriores porque no pudo actualizarlos.
+    # Cuándo descargó CR-BioLM estos registros (None si no lo indica) y si son los
+    # anteriores porque no pudo actualizarlos.
     actualizado_en: datetime | None = None
     desactualizado: bool = False
 
 
 @dataclass(frozen=True)
 class Fragmento:
-    """RR_44: el fragmento del Manual que mejor responde la pregunta."""
+    """Fragmento del Manual que mejor responde la pregunta."""
 
     texto: str
     seccion: str  # "distribution" o "description"
@@ -108,10 +101,10 @@ class Fragmento:
 
 @dataclass(frozen=True)
 class RedaccionIA:
-    """RR_49: la respuesta que redacta el LLM de CR-BioLM (answer_question), ya validada.
+    """Respuesta que redacta el LLM de CR-BioLM (answer_question), ya validada.
 
-    `texto` trae las citas del Manual dentro, p. ej. "【Quercus costaricensis
-    (Tomo V, p.779)】"; `citas` son las mismas referencias, completas.
+    `texto` trae las citas del Manual, p. ej. "【Quercus costaricensis (Tomo V, p.779)】";
+    `citas` son las mismas referencias completas.
     """
 
     texto: str
@@ -120,15 +113,15 @@ class RedaccionIA:
 
 @dataclass(frozen=True)
 class ContextoEspecie:
-    """Toda la información validada de una especie, combinada (ver el módulo)."""
+    """Información validada de una especie, combinada."""
 
     manual: Sobre  # ficha estructurada del Manual (get_species)
     ocurrencias: Ocurrencias
     mapa: MapaGenerado | None
     fragmento: Fragmento | None  # None: no hubo pregunta concreta o no se encontró
     avisos: list[str]
-    tipo: TipoPregunta = TipoPregunta.GENERAL  # RR_41: qué pregunta la consulta
-    # RR_49: solo en la respuesta del chat, y solo si el LLM respondió bien.
+    tipo: TipoPregunta = TipoPregunta.GENERAL  # qué pregunta la consulta
+    # Solo en la respuesta del chat, y solo si el LLM respondió bien.
     redaccion: RedaccionIA | None = None
 
     @property
@@ -141,7 +134,7 @@ class ContextoEspecie:
 
     @property
     def geoespacial(self) -> bool:
-        """RR_41: la pregunta pide información geográfica (no cambia lo que se pide)."""
+        """La pregunta pide información geográfica."""
         return self.tipo is not TipoPregunta.DESCRIPCION
 
     @property
@@ -154,12 +147,12 @@ class ContextoEspecie:
 
     @property
     def gbif(self) -> Sobre | None:
-        """El sobre de GBIF, o None si GBIF no respondió (RR_58)."""
+        """El sobre de GBIF, o None si GBIF no respondió."""
         return self.ocurrencias.sobre
 
     @property
     def registros_actualizados_en(self) -> datetime | None:
-        """RR_56: cuándo se descargaron de GBIF los registros; None sin registros de GBIF."""
+        """Cuándo se descargaron de GBIF los registros; None sin registros."""
         return self.ocurrencias.actualizado_en if self.gbif is not None else None
 
     def texto(self) -> str:
@@ -168,20 +161,18 @@ class ContextoEspecie:
 
     @property
     def gbif_aporto_registros(self) -> bool:
-        """RR_50 (DEF-10): GBIF respondió y trajo al menos un registro válido."""
+        """GBIF respondió y trajo al menos un registro válido."""
         return self.gbif is not None and self.total_registros > 0
 
     def fuentes(self) -> list[str]:
-        """Las fuentes usadas, sin repetir (RR_51): la cita del Manual y "GBIF".
-
-        RR_50 (DEF-10): GBIF solo si aportó registros; si respondió sin ninguno,
-        la respuesta no usó nada suyo.
+        """Fuentes usadas, sin repetir: la cita del Manual y "GBIF" (solo si aportó
+        registros).
         """
         citas = [self.manual.cita or MANUAL]
         if self.gbif_aporto_registros:
             citas.append(GBIF)
         if self.redaccion is not None:
-            # RR_50: las páginas del Manual que citó el LLM también son fuentes.
+            # Las páginas del Manual que citó el LLM también son fuentes.
             citas.extend(sin_especie(c) for c in self.redaccion.citas)
         return list(dict.fromkeys(c for c in citas if c))
 
@@ -197,9 +188,8 @@ class ContextoEspecie:
         )
 
     def procedencia(self, *, con_texto: bool = True) -> list[Procedencia]:
-        """RR_45 criterio 3: el origen de cada dato que trae la respuesta.
-
-        `con_texto=False` para la ficha, que no muestra el texto del chat.
+        """Origen de cada dato de la respuesta. `con_texto=False` para la ficha, que no
+        muestra el texto del chat.
         """
         ubicacion = _ubicacion_en_el_manual(self.manual.cita)
         ficha = ubicacion or FICHA
@@ -221,16 +211,12 @@ class ContextoEspecie:
         return origen
 
     def avisos_del_texto(self) -> list[str]:
-        """RR_53 (DEF-09): si pregunta cómo es la planta y el Manual no la describe, decirlo.
-
-        Sin la descripción, el texto sale de otra sección (casi siempre la
-        distribución) o lo redacta el LLM con lo que hay; el aviso evita que
-        parezca una descripción.
+        """Si pregunta cómo es la planta y el Manual no la describe, lo indica, para que el
+        texto no parezca una descripción.
         """
         if self.tipo is not TipoPregunta.DESCRIPCION or self.ficha.get("morphology"):
             return []
-        # El texto vectorizado del Manual (RR_44) puede traer la descripción aunque
-        # la ficha estructurada no la tenga.
+        # El fragmento del Manual puede traer la descripción aunque la ficha no la tenga.
         if self.fragmento is not None and self.fragmento.seccion == "description":
             return []
         if SECCIONES["distribution"] in self._texto()[1]:
@@ -238,13 +224,12 @@ class ContextoEspecie:
         return [SIN_DESCRIPCION]
 
     def _texto(self) -> tuple[str, str]:
-        """(texto, de dónde sale). Orden de preferencia:
+        """(texto, origen). Orden de preferencia:
 
-        1. La respuesta redactada por el LLM de CR-BioLM (RR_49).
-        2. El fragmento que responde la pregunta (RR_44).
-        3. Según el tipo de pregunta (RR_41, RR_29): el hábitat de la ficha si
-           pregunta dónde vive (services/habitat.py), la morfología si pregunta
-           cómo es la planta.
+        1. La respuesta redactada por el LLM de CR-BioLM.
+        2. El fragmento del Manual que responde la pregunta.
+        3. Según el tipo de pregunta: el hábitat de la ficha (services/habitat.py) o la
+           morfología.
         4. El párrafo de distribución.
         """
         if self.redaccion is not None:
@@ -262,7 +247,7 @@ class ContextoEspecie:
 
 
 def _detalle_registros(actualizado_en: datetime | None) -> str:
-    """RR_45 y RR_56: 'registros de presencia en Costa Rica, actualizados el 19/10/2026'."""
+    """'registros de presencia en Costa Rica, actualizados el 19/10/2026'."""
     if actualizado_en is None:
         return DETALLE_REGISTROS
     return f"{DETALLE_REGISTROS}, actualizados el {fecha_para_mostrar(actualizado_en)}"

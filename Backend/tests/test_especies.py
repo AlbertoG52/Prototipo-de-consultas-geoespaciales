@@ -1,28 +1,28 @@
-"""Pruebas de RR_20 (ficha completa) y RR_16 (sugerencias de nombres).
+"""Pruebas de la ficha completa y de las sugerencias de nombres.
 
-No necesitan base de datos: el catálogo es provisional y vive en memoria, y la
-coincidencia de RR_16 se prueba sobre listas de especies. Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+No necesitan base de datos: el catálogo de prueba vive en memoria y las sugerencias
+se prueban sobre listas de especies. Se ejecutan con: docker compose exec backend python -m
+pytest tests -q
 """
 
 import pytest
 from fastapi import HTTPException
 
 from app.routers import especies
-from app.services.catalogo import CatalogoDemo
 
 from apoyo import SESION_INVALIDA, VISITANTE
+from catalogo_demo import CatalogoDemo
 
 # El de demostración, no el que elija el .env: estas pruebas usan sus especies.
 catalogo = CatalogoDemo()
 
 
 def _ficha(especie: str):
-    # Un visitante con sesión anónima válida puede ver la ficha (RR_00_11).
+    # Un visitante con sesión anónima válida puede ver la ficha.
     return especies.ficha_de_especie(especie, VISITANTE, catalogo)
 
 
-# --- criterio 1: la ficha trae nombre, familia, hábitat y elevación --------
+# --- la ficha trae nombre, familia, hábitat y elevación ----------------------------
 
 
 def test_la_ficha_trae_los_datos_de_la_especie():
@@ -34,7 +34,7 @@ def test_la_ficha_trae_los_datos_de_la_especie():
     assert ficha.total_registros == len(ficha.registros) > 0
 
 
-# --- criterio 2: corresponde a la especie consultada ----------------------
+# --- corresponde a la especie consultada -------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -59,7 +59,7 @@ def test_cada_especie_tiene_su_propia_ficha(especie_id):
 
 
 def test_especie_sin_datos_geoespaciales_no_trae_registros():
-    # RR_06 criterio 5: sin registros el frontend omite el mapa.
+    # Sin registros el frontend omite el mapa.
     respuesta = catalogo.construir_respuesta("hylocereus-costaricensis", "")
     assert respuesta.registros == []
     assert respuesta.total_registros == 0
@@ -82,13 +82,13 @@ def test_especie_inexistente_responde_404():
 
 
 def test_sin_sesion_valida_responde_401():
-    # RR_00_10: la validación se hace en el servidor.
+    # La validación se hace en el servidor.
     with pytest.raises(HTTPException) as error:
         especies.ficha_de_especie("cedrela-odorata", SESION_INVALIDA, catalogo)
     assert error.value.status_code == 401
 
 
-# --- RR_16: sugerencias de nombres -----------------------------------------
+# --- sugerencias de nombres --------------------------------------------------------
 
 
 def _guardadas():

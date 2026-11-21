@@ -1,9 +1,7 @@
 """Escribe el contrato OpenAPI del backend en un archivo JSON.
 
-El frontend genera sus tipos de TypeScript a partir de este contrato
-(Frontend/src/types/api.ts, con `npm run tipos`), así un cambio en un esquema
-de Pydantic se refleja en el frontend sin copiarlo a mano. No necesita la base
-de datos: solo importa la aplicación.
+El frontend genera sus tipos a partir de él (src/types/api.ts, con `npm run tipos`). No
+necesita la base de datos.
 
     python exportar_openapi.py ../Frontend/openapi.json
 """

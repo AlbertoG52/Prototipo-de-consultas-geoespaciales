@@ -1,19 +1,13 @@
-"""Conteo de consultas y límite por periodo — RR_62, RR_64, RR_65, RR_66 y RR_00_11.
+"""Conteo de consultas y límite por periodo.
 
-Cada rol tiene un límite de consultas (`roles.limite_consultas`) y un periodo
-(`roles.periodo_consultas`: día, semana o mes) que el supermoderador configura
-(RR_63, services/admin.py). El visitante sin cuenta tiene
-LIMITE_CONSULTAS_ANONIMO por día (RR_00_11).
+Cada rol tiene un límite (`roles.limite_consultas`) y un periodo
+(`roles.periodo_consultas`: día, semana o mes). El visitante tiene LIMITE_CONSULTAS_ANONIMO
+por día.
 
-RR_64 — restablecimiento periódico. El contador no se guarda ni se reinicia con
-un proceso: se cuentan las consultas resueltas desde que empezó el periodo
-actual. Al empezar el siguiente, la cuenta vuelve a 0 sola y la persona puede
-seguir consultando. Los periodos empiezan a las 00:00 de Costa Rica (el lunes,
-para la semana; el día 1, para el mes), no a la medianoche UTC, que en Costa
-Rica son las 6 de la tarde.
-
-La columna `usuarios.consultas_realizadas` (002) no se usa: contar las filas es
-siempre correcto, aunque cambie el periodo o el límite a mitad de uno.
+El contador no se guarda ni se reinicia: se cuentan las consultas resueltas desde que
+empezó el periodo actual. Los periodos empiezan a las 00:00 de Costa Rica (el lunes para la
+semana, el día 1 para el mes), no a la medianoche UTC. Contar las filas siempre es correcto,
+aunque cambie el periodo o el límite.
 """
 
 from __future__ import annotations
@@ -30,8 +24,8 @@ from ..models import Consulta, ConsumoAnonimo
 from ..security import Identidad
 from ..tiempo import HORA_COSTA_RICA, ahora
 
-# RR_62 criterio 3: para comparar límites con periodos distintos (20 por día
-# contra 100 por semana) se llevan a consultas por día. El mes cuenta como 30.
+# Para comparar límites con periodos distintos se llevan a consultas por día. El mes cuenta
+# como 30.
 DIAS_DEL_PERIODO = {
     PeriodoConsultas.DIA: 1,
     PeriodoConsultas.SEMANA: 7,
@@ -53,7 +47,7 @@ class Cupo:
     limite: int
     periodo: PeriodoConsultas
     usadas: int
-    se_restablece_en: datetime  # inicio del siguiente periodo (RR_65 criterio 2)
+    se_restablece_en: datetime  # inicio del siguiente periodo
 
     @property
     def restantes(self) -> int:
@@ -64,25 +58,20 @@ class Cupo:
 
 
 def limite_de(identidad: Identidad) -> int:
-    """Cuántas consultas por periodo le corresponden a esta identidad (RR_62)."""
+    """Consultas por periodo que le corresponden a esta identidad."""
     if identidad.usuario is not None and identidad.usuario.rol is not None:
         return identidad.usuario.rol.limite_consultas
     return LIMITE_CONSULTAS_ANONIMO
 
 
 def periodo_de(identidad: Identidad) -> PeriodoConsultas:
-    """Cada cuánto se restablece su contador (RR_64). El visitante, cada día."""
+    """Cada cuánto se restablece su contador. El visitante, cada día."""
     if identidad.usuario is not None and identidad.usuario.rol is not None:
         return PeriodoConsultas(identidad.usuario.rol.periodo_consultas)
     return PeriodoConsultas.DIA
 
 
-def consultas_por_dia(limite: int, periodo: PeriodoConsultas) -> float:
-    """RR_62 criterio 3: el límite llevado a consultas por día, para compararlo."""
-    return limite / DIAS_DEL_PERIODO[periodo]
-
-
-# --- periodos (RR_64) ------------------------------------------------------------------
+# --- periodos ---------------------------------------------------------------------
 
 
 def inicio_del_periodo(periodo: PeriodoConsultas, momento: datetime | None = None) -> datetime:
@@ -117,12 +106,10 @@ def _hoy_en_costa_rica(momento: datetime | None = None) -> date:
 def consultas_del_periodo(
     db: Session, identidad: Identidad, momento: datetime | None = None
 ) -> int:
-    """Cuántas consultas lleva esta identidad en el periodo actual.
+    """Consultas que lleva esta identidad en el periodo actual.
 
-    Del usuario registrado se cuentan solo las consultas resueltas, por el
-    momento en que se resolvieron: las ambiguas y las sin coincidencias también
-    se guardan (tabla 012) pero no cuestan, y una ambigua de un periodo
-    anterior que se resuelve hoy cuenta en este.
+    De una cuenta se cuentan solo las resueltas, por el momento en que se resolvieron: una
+    ambigua de un periodo anterior que se resuelve hoy cuenta en este.
     """
     if identidad.usuario is not None:
         inicio = inicio_del_periodo(periodo_de(identidad), momento)
@@ -152,7 +139,7 @@ def consultas_del_periodo(
 
 
 def cupo_de(db: Session, identidad: Identidad, momento: datetime | None = None) -> Cupo:
-    """Límite, periodo, consultas usadas y cuándo se restablecen (RR_65, RR_66)."""
+    """Límite, periodo, consultas usadas y cuándo se restablecen."""
     periodo = periodo_de(identidad)
     return Cupo(
         limite=limite_de(identidad),
@@ -163,10 +150,8 @@ def cupo_de(db: Session, identidad: Identidad, momento: datetime | None = None) 
 
 
 def registrar_consumo_anonimo(db: Session, anon_id: str) -> None:
-    """Suma una consulta al contador diario del visitante.
-
-    Guarda solo el número, nunca el texto de la consulta (RR_00_11 criterio 1).
-    El día es el de Costa Rica, igual que el de los usuarios registrados.
+    """Suma una consulta al contador diario del visitante. Guarda solo el número; el día es el
+    de Costa Rica.
     """
     hoy = _hoy_en_costa_rica()
     fila = (

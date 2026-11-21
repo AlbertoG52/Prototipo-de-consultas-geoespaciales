@@ -1,11 +1,11 @@
 /**
  * Usuarios registrados del panel de administración.
  *
- * - RR_71: correo, rol y estado de cada cuenta.
- * - RR_72: búsqueda por nombre o correo y filtro por rol, sobre el listado completo.
- * - RR_70: el rol se cambia desde su etiqueta.
- * - RR_74 / RR_75: desactivar y reactivar.
- * - RR_76: "Ver uso" abre el historial de consultas de la cuenta.
+ * - Correo, rol y estado de cada cuenta.
+ * - Búsqueda por nombre o correo y filtro por rol.
+ * - El rol se cambia desde su etiqueta.
+ * - Desactivar y reactivar.
+ * - "Ver uso" abre el historial de consultas de la cuenta.
  *
  * La propia fila no tiene acciones; el servidor también lo rechaza (409).
  */

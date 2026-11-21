@@ -1,17 +1,12 @@
 /**
- * Ficha completa de la especie — RR_20.
+ * Ficha completa de la especie.
  *
- *  - Criterio 1: muestra los datos disponibles de la especie (nombre, familia,
- *    hábitat, elevación), además de la descripción y sus registros.
- *  - Criterio 2: los datos se piden al backend con el id de la URL
- *    (/species/:name), así que corresponden a la especie consultada. Antes la
- *    ficha mostraba siempre la guaria morada con datos fijos.
- *  - Criterio 3: se llega desde el botón "Ficha completa" de cada respuesta
- *    (ChatPage).
+ * Muestra nombre, familia, hábitat, elevación, descripción y registros. Los datos se piden al
+ * backend con el id de la URL (/species/:name). Se llega desde el botón "Ficha completa" de cada
+ * respuesta.
  *
- * RR_46 / RR_53 / RR_54: si CR-BioLM generó el mapa de la especie
- * (`ficha.mapa`) y corresponde a esta especie, se muestra; si no, no aparece
- * ningún panel de mapa.
+ * Si CR-BioLM generó el mapa de esta especie (`ficha.mapa`), se muestra; si no, no aparece ningún
+ * panel de mapa.
  */
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -130,11 +125,11 @@ export function SpeciesPage() {
 }
 
 function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => void }) {
-  // RR_54: el mapa solo se muestra si es el de esta especie.
+  // El mapa solo se muestra si es el de esta especie.
   const mapa = mapaDeLaEspecie(ficha.mapa, ficha.id) ? ficha.mapa : null;
   const etiquetas = [
-    textoRegistros(ficha.total_registros), // RR_59
-    // RR_56: de cuándo son los registros de GBIF.
+    textoRegistros(ficha.total_registros),
+    // De cuándo son los registros de GBIF.
     ficha.registros_actualizados_en ? textoActualizacionGbif(ficha.registros_actualizados_en) : null,
     ficha.elevacion,
   ].filter((e): e is string => Boolean(e));
@@ -146,7 +141,7 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
     ...(ficha.nombre_comun ? [["Nombre común", ficha.nombre_comun] as [string, string]] : []),
     ["Familia", ficha.familia],
     ["Hábitat", ficha.habitat ?? SIN_DATO],
-    // RR_55 criterio 3: sin datos de elevación en el Manual, el rango se omite.
+    // Sin datos de elevación en el Manual, el rango se omite.
     ...(ficha.elevacion ? [[ETIQUETAS_REGISTRO.elevacion, ficha.elevacion] as [string, string]] : []),
   ];
 
@@ -184,7 +179,7 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
       </div>
 
       <div className="px-4 md:px-8 py-6 max-w-[60rem] mx-auto">
-        {/* RR_43 y RR_58: por qué falta el mapa o los registros. */}
+        {/* Por qué falta el mapa o los registros. */}
         <Avisos avisos={ficha.avisos} className="mb-6" />
         <div className="grid gap-6 grid-cols-1 md:grid-cols-[1fr_280px]">
           <div className="flex flex-col gap-5 min-w-0">
@@ -221,7 +216,7 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
                 </p>
               ) : (
                 <>
-                {/* RR_59: CR-BioLM entrega como máximo 500 puntos; si hay más, se aclara. */}
+                {/* CR-BioLM entrega como máximo 500 puntos; si hay más, se aclara. */}
                 {ficha.registros.length < ficha.total_registros && (
                   <p className="mb-2 text-xs" style={{ color: "var(--color-texto-secundario)" }}>
                     Se muestran {textoRegistros(ficha.registros.length)} de {ficha.total_registros.toLocaleString(IDIOMA_FECHAS)}.
@@ -273,7 +268,7 @@ function Ficha({ ficha, onExportar }: { ficha: FichaEspecie; onExportar: () => v
                   </span>
                 ))}
               </div>
-              {/* RR_45: de dónde sale cada dato. */}
+              {/* De dónde sale cada dato. */}
               <OrigenDeLosDatos procedencia={ficha.procedencia} className="mt-4" />
             </div>
           </div>

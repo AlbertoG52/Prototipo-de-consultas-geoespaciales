@@ -1,7 +1,7 @@
-"""Pruebas de RR_39 — región o zona mencionada (services/regiones.py).
+"""Pruebas de services/regiones.py: región o zona mencionada.
 
-No necesitan CR-BioLM ni la BD: usan un vocabulario fijo con nombres reales del
-Manual. Las que filtran los registros están en test_catalogo_crbiolm.py.
+No necesitan CR-BioLM ni la BD: usan un vocabulario fijo con nombres reales del Manual. Las
+que filtran los registros están en test_catalogo_crbiolm.py.
 """
 
 import pytest
@@ -31,7 +31,7 @@ def _regiones(texto: str) -> set[str] | None:
     return set(zona.regiones) if zona else None
 
 
-# --- criterio 1: identifica la región o zona ----------------------------------------
+# --- identifica la región o zona ---------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -67,7 +67,7 @@ def test_reconoce_la_vertiente(texto, vertiente):
     assert (set(zona.regiones), zona.vertiente) == (set(), vertiente)
 
 
-# --- criterio 3: sin zona, sin filtro ----------------------------------------------
+# --- sin zona, sin filtro ----------------------------------------------------------
 
 
 @pytest.mark.parametrize(

@@ -43,18 +43,14 @@ export const COLUMNAS_TABLA_REGISTROS = [
   ETIQUETAS_REGISTRO.elevacion,
 ] as const;
 
-/**
- * RR_59 — cantidad de registros de presencia, en singular o plural:
- * "Sin registros", "1 registro", "150 registros".
- */
+/** Cantidad de registros de presencia: "Sin registros", "1 registro", "150 registros". */
 export function textoRegistros(cantidad: number): string {
   if (cantidad === 0) return "Sin registros";
   return `${cantidad.toLocaleString(IDIOMA_FECHAS)} ${cantidad === 1 ? "registro" : "registros"}`;
 }
 
 /**
- * RR_56 — de cuándo son los registros de GBIF: "GBIF al 18/10/2026". CR-BioLM
- * los guarda y los vuelve a descargar cada cierto tiempo; la fecha llega en
+ * De cuándo son los registros de GBIF: "GBIF al 18/10/2026". La fecha llega en
  * `registros_actualizados_en` (ISO, UTC) y se muestra en la hora del navegador.
  */
 export function textoActualizacionGbif(iso: string): string {
@@ -66,12 +62,12 @@ export const AYUDA_ACTUALIZACION_GBIF =
   "Fecha en que se descargaron de GBIF los registros de presencia. Se actualizan periódicamente.";
 
 /**
- * RR_34 — largo de una consulta como lo cuenta el servidor: por caracteres, no
- * por unidades UTF-16 (un emoji cuenta 1, no 2).
+ * Largo de una consulta como lo cuenta el servidor: por caracteres, no por unidades UTF-16 (un
+ * emoji cuenta 1, no 2).
  */
 export const largoConsulta = (texto: string) => [...texto].length;
 
-/** RR_34 criterio 2 — aviso cuando la consulta pasa el límite. */
+/** Aviso cuando la consulta pasa el límite. */
 export const textoConsultaLarga = (limite: number) =>
   `La consulta supera el límite de ${limite.toLocaleString(IDIOMA_FECHAS)} caracteres. Acórtala para enviarla.`;
 
@@ -81,14 +77,13 @@ export function formatearCoordenadas(registro: Pick<RegistroPresencia, "latitud"
 }
 
 /**
- * RR_51 — nombres de las fuentes tal como los manda el backend en
- * `procedencia.fuente` (constantes MANUAL y GBIF de
- * Backend/app/services/contexto_especie.py). Si cambian allá, cambiarlos aquí.
+ * Nombres de las fuentes como los envía el backend en `procedencia.fuente` (MANUAL y GBIF de
+ * Backend/app/services/contexto_especie.py). Si cambian allá, se cambian aquí.
  */
 export const FUENTE_MANUAL = "Manual de Plantas de Costa Rica";
 export const FUENTE_GBIF = "GBIF";
 
-/** RR_45 — nombre de cada dato en "Origen de los datos" (campo `procedencia`). */
+/** Nombre de cada dato en "Origen de los datos" (campo `procedencia`). */
 export const ETIQUETAS_DATO: Record<DatoRespuesta, string> = {
   especie: "Especie",
   texto: "Texto",
@@ -100,21 +95,21 @@ export const ETIQUETAS_DATO: Record<DatoRespuesta, string> = {
 /** Un número con separador de miles: 2841 → "2 841". */
 export const formatearNumero = (numero: number) => numero.toLocaleString(IDIOMA_FECHAS);
 
-/** RR_63 y RR_64 — cada cuánto se restablece el contador, junto a un límite: "20 por día". */
+/** Cada cuánto se restablece el contador, junto a un límite: "20 por día". */
 export const ETIQUETAS_PERIODO_CONSULTAS: Record<PeriodoConsultas, string> = {
   dia: "por día",
   semana: "por semana",
   mes: "por mes",
 };
 
-/** RR_66 — el periodo actual, en el contador: "5/20 consultas esta semana". */
+/** El periodo actual, en el contador: "5/20 consultas esta semana". */
 export const PERIODO_ACTUAL: Record<PeriodoConsultas, string> = {
   dia: "hoy",
   semana: "esta semana",
   mes: "este mes",
 };
 
-/** RR_65 — cuándo se restablece el contador, en la hora del navegador: "20/10/2026, 00:00". */
+/** Cuándo se restablece el contador, en la hora del navegador: "20/10/2026, 00:00". */
 export const formatearReinicio = (iso: string) =>
   new Date(iso).toLocaleString(IDIOMA_FECHAS, {
     day: "2-digit",
@@ -132,20 +127,20 @@ export const ETIQUETAS_ROL: Record<NombreRol, string> = {
   supermoderador: "Supermoderador",
 };
 
-/** RR_77 — los roles a los que se les configuran los tipos de consulta, más el visitante. */
+/** Roles a los que se les configuran los tipos de consulta, más el visitante. */
 export const ETIQUETAS_ROL_DE_CONSULTA: Record<RolDeConsulta, string> = {
   visitante: "Visitante",
   usuario: ETIQUETAS_ROL.usuario,
   moderador: ETIQUETAS_ROL.moderador,
 };
 
-/** RR_78 — quién hizo las consultas: el rol de la cuenta hoy, o visitante. */
+/** Quién hizo las consultas: el rol actual de la cuenta, o visitante. */
 export const ETIQUETAS_GRUPO_DE_USO: Record<GrupoDeUso, string> = {
   visitante: ETIQUETAS_ROL_DE_CONSULTA.visitante,
   ...ETIQUETAS_ROL,
 };
 
-/** RR_78 — periodos de las estadísticas de uso. */
+/** Periodos de las estadísticas de uso. */
 export const ETIQUETAS_PERIODO: Record<PeriodoEstadisticas, string> = {
   hoy: "Hoy",
   ultimos_7_dias: "Últimos 7 días",
@@ -157,7 +152,7 @@ export const ETIQUETAS_PERIODO: Record<PeriodoEstadisticas, string> = {
 export const formatearPorcentaje = (fraccion: number) =>
   fraccion.toLocaleString(IDIOMA_FECHAS, { style: "percent", maximumFractionDigits: 1 });
 
-/** RR_77 — nombre de cada tipo de pregunta que detecta el backend (TipoPregunta). */
+/** Nombre de cada tipo de pregunta que detecta el backend (TipoPregunta). */
 export const ETIQUETAS_TIPO_PREGUNTA: Record<TipoPregunta, string> = {
   distribucion: "Distribución",
   habitat: "Hábitat",

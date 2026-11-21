@@ -1,4 +1,4 @@
-"""Registro del tiempo de respuesta de cada consulta — RR_57.
+"""Registro del tiempo de respuesta de cada consulta.
 
 El servicio de consultas envuelve todo el procesamiento:
 
@@ -6,27 +6,16 @@ El servicio de consultas envuelve todo el procesamiento:
         salida = ...
         medicion.terminar(salida)
 
-Al salir del bloque, termine bien o con error, se guarda una fila en
-'tiempos_respuesta' (015) con la duración y el resultado, y se escribe en el
-log. Las que pasan de SEGUNDOS_RESPUESTA_LENTA quedan como WARNING en el log y
-se pueden filtrar en GET /admin/tiempos (criterios 2 y 3).
+Al salir del bloque, termine bien o con error, se guarda una fila en 'tiempos_respuesta'
+con la duración, el resultado y la intención, y se escribe en el log. Las que pasan de
+SEGUNDOS_RESPUESTA_LENTA quedan como WARNING y se pueden filtrar en GET /admin/tiempos. El
+tiempo va desde que la consulta llega al backend hasta que la respuesta está lista.
 
-El tiempo va desde que la consulta llega al backend hasta que la respuesta
-está lista para enviarse (criterio 1); no incluye la red entre el navegador y
-el servidor. Cada llamada a CR-BioLM tiene además su propio tiempo en el log
-(services/mcp_cliente.py), para saber qué parte de una consulta lenta tardó.
+Se guarda con una sesión de BD propia, para que quede aunque la consulta falle. Si guardar
+falla, se anota en el log y la consulta sigue.
 
-Se guarda con una sesión de BD propia: así queda registrada aunque la
-consulta haya fallado y su transacción se haya descartado. Si guardar falla,
-se anota en el log y la consulta sigue: medir nunca debe romper una respuesta.
-
-RR_33 — la misma fila guarda la intención de la consulta (tabla 017,
-IntencionConsulta), con su id único (criterio 2). El servicio de consultas la
-fija antes de procesar, a partir del texto, para que quede aunque la consulta
-falle; `terminar` la precisa con lo que se respondió (el motivo de una
-orientación o el tipo de pregunta con que se armó la respuesta). GET
-/admin/tiempos la muestra por fila y cuenta cuántas hubo de cada una
-(criterio 3).
+La intención se fija antes de procesar, a partir del texto, y `terminar` la precisa con lo
+que se respondió.
 """
 
 from __future__ import annotations
@@ -61,14 +50,14 @@ class Medicion:
     resultado: ResultadoConsulta = ResultadoConsulta.ERROR
     especie_id: str | None = None
     consulta_id: int | None = None
-    intencion: IntencionConsulta | None = None  # RR_33
+    intencion: IntencionConsulta | None = None
 
     def terminar(self, salida: ConsultaOut) -> None:
         self.resultado = ResultadoConsulta(salida.estado)
         self.especie_id = salida.respuesta.especie.id if salida.respuesta else None
         self.consulta_id = salida.id
-        # RR_33: lo que se respondió manda sobre lo que se dedujo del texto.
-        # RR_77: de una consulta no permitida queda el tipo que se pidió.
+        # Lo que se respondió manda sobre lo que se dedujo del texto. De una consulta no
+        # permitida queda el tipo que se pidió.
         if salida.motivo is MotivoOrientacion.TIPO_NO_PERMITIDO:
             return
         if salida.motivo is not None:
@@ -79,7 +68,7 @@ class Medicion:
 
 @contextmanager
 def medir_consulta(identidad: Identidad) -> Iterator[Medicion]:
-    """Mide lo que corre dentro del bloque y lo registra al salir (ver el módulo)."""
+    """Mide lo que corre dentro del bloque y lo registra al salir."""
     medicion = Medicion()
     inicio = time.perf_counter()
     try:
@@ -93,15 +82,13 @@ def medir_consulta(identidad: Identidad) -> Iterator[Medicion]:
 
 
 def umbral_lenta_ms() -> int:
-    """Criterio 3: desde cuántos milisegundos una consulta es lenta."""
+    """Milisegundos a partir de los cuales una consulta es lenta."""
     return round(config.SEGUNDOS_RESPUESTA_LENTA * 1000)
 
 
 def resumen(db: Session, dias: int, solo_lentas: bool, limite: int) -> ResumenTiempos:
-    """Criterios 2 y 3: los tiempos de los últimos `dias` días para el equipo técnico.
-
-    Las cifras resumen todo el periodo; `registros` trae las `limite` más
-    recientes (solo las lentas si `solo_lentas`).
+    """Tiempos de los últimos `dias` días. Las cifras resumen todo el periodo; `registros`
+    trae las `limite` más recientes (solo las lentas si `solo_lentas`).
     """
     umbral_ms = umbral_lenta_ms()
     desde = ahora() - timedelta(days=dias)
@@ -152,9 +139,8 @@ def resumen(db: Session, dias: int, solo_lentas: bool, limite: int) -> ResumenTi
 
 
 def _por_intencion(db: Session, en_periodo: ColumnElement[bool]) -> list[ConteoIntencion]:
-    """RR_33 criterio 3: cuántas consultas hubo de cada intención, la más común primero.
-
-    Las registradas antes de la tabla 017 cuentan como intención None.
+    """Cuántas consultas hubo de cada intención, la más común primero. Las registradas antes
+    de guardar la intención cuentan como None.
     """
     conteos = (
         db.query(TiempoRespuesta.intencion, func.count())

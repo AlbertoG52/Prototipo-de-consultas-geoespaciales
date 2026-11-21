@@ -1,13 +1,9 @@
 /**
- * RR_48 — qué significa cada símbolo del mapa de CR-BioLM.
+ * Qué significa cada símbolo del mapa de CR-BioLM.
  *
- * El PNG trae su propia leyenda, pero al hacer zoom se agranda con todo el
- * mapa y queda cortada. Esta leyenda se dibuja aparte, encima del mapa, para
- * que se vea siempre (criterio 3).
- *
- * Los colores y la forma de cada símbolo copian la leyenda que trae el PNG de
- * CR-BioLM (revisada con el mapa real de Quercus costaricensis). Si José cambia
- * los colores o las capas del mapa, hay que actualizar esta lista.
+ * El PNG trae su propia leyenda, pero con el zoom queda cortada; esta se dibuja aparte, encima del
+ * mapa. Los colores y formas copian los del PNG de CR-BioLM; si cambian los colores o las capas del
+ * mapa, se actualiza esta lista.
  */
 
 export type SimboloLeyenda = {

@@ -1,12 +1,9 @@
 /**
- * Recarga periódica de datos que cambian solos (RR_78 criterio 3).
+ * Recarga periódica de datos que cambian solos.
  *
- * Llama a `cargar` al montar el componente, cada `milisegundos` mientras la
- * pestaña del navegador está visible, y al volver a ella. Con la pestaña en
- * segundo plano no pide nada. Se detiene al desmontar el componente, así que
- * solo corre mientras se ve la sección que lo usa.
- *
- * `cargar` debe ser estable (useCallback): si cambia, el ciclo vuelve a empezar.
+ * Llama a `cargar` al montar el componente, cada `milisegundos` mientras la pestaña está visible y
+ * al volver a ella. Se detiene al desmontar el componente. `cargar` debe ser estable (useCallback):
+ * si cambia, el ciclo vuelve a empezar.
  */
 import { useEffect } from "react";
 

@@ -1,4 +1,4 @@
-"""Pruebas de RR_41 criterio 1 (services/intencion.py). No usan la BD."""
+"""Pruebas de services/intencion.py. No usan la BD."""
 
 import pytest
 
@@ -60,7 +60,7 @@ def test_solo_el_nombre_es_geoespacial_y_sin_pregunta_concreta(texto):
     ],
 )
 def test_como_es_pregunta_por_la_descripcion(texto):
-    """DEF-03: sus palabras son genéricas, pero piden cómo es la planta (RR_29)."""
+    """Sus palabras son genéricas, pero piden cómo es la planta."""
     intencion = analizar(texto, ESPECIE)
     assert intencion.tipo is TipoPregunta.DESCRIPCION
     assert intencion.pregunta_especifica
@@ -101,8 +101,7 @@ def test_tipo_de_pregunta(texto, tipo):
 
 
 def test_las_palabras_de_habitat_dan_el_tipo_habitat(monkeypatch):
-    # RR_29: la lista HABITAT la llena Cristopher; una pregunta de hábitat sigue
-    # siendo geoespacial (trae GBIF y mapa).
+    # Una pregunta de hábitat sigue siendo geoespacial (trae GBIF y mapa).
     habitat = frozenset({"ambiente"})
     monkeypatch.setattr(intencion, "HABITAT", habitat)
     monkeypatch.setattr(

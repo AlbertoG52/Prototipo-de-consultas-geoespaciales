@@ -1,9 +1,8 @@
-"""Pruebas de RR_38 — tiempo máximo de procesamiento de una consulta.
+"""Pruebas del tiempo máximo de procesamiento de una consulta.
 
-Usan un catálogo falso y lento en lugar del de demostración, y un tiempo
-máximo de fracciones de segundo. Las que pasan por la API necesitan la BD.
-Se ejecutan con:
-    docker compose exec backend python -m pytest tests/test_tiempo_maximo.py -q
+Usan un catálogo falso y lento y un tiempo máximo de fracciones de segundo. Las que pasan
+por la API necesitan la BD. Se ejecutan con: docker compose exec backend python -m pytest
+tests/test_tiempo_maximo.py -q
 """
 
 import time
@@ -13,13 +12,14 @@ import pytest
 from app import config
 from app.errores import TiempoAgotado
 from app.main import app
-from app.services.catalogo import CatalogoDemo, obtener_catalogo
+from app.services.catalogo import obtener_catalogo
 from app.services.mcp_cliente import MCPTiempoAgotado
 from app.tiempo import plazo, segundos_restantes, verificar_plazo
 
 from apoyo import api
+from catalogo_demo import CatalogoDemo
 
-PEJIBAYE = "pejibaye"  # el catálogo de demostración lo resuelve con una sola especie
+PEJIBAYE = "pejibaye"  # el catálogo de prueba lo resuelve con una sola especie
 
 
 class CatalogoLento(CatalogoDemo):
@@ -77,7 +77,7 @@ def test_el_plazo_vence_y_se_cierra_al_salir():
     assert segundos_restantes() is None
 
 
-# --- criterio 3: el tiempo máximo está definido -------------------------------
+# --- el tiempo máximo está definido ------------------------------------------------
 
 
 def test_el_tiempo_maximo_esta_definido_y_se_informa(visitante):
@@ -86,7 +86,7 @@ def test_el_tiempo_maximo_esta_definido_y_se_informa(visitante):
     assert sesion["segundos_maximos_consulta"] == config.SEGUNDOS_MAXIMOS_CONSULTA
 
 
-# --- criterio 1: mensaje de error al superarlo ----------------------------------
+# --- mensaje de error al superarlo -------------------------------------------------
 
 
 def test_consulta_lenta_se_cancela_con_mensaje(visitante, con_catalogo, monkeypatch):
@@ -110,7 +110,7 @@ def test_si_cr_biolm_no_responde_a_tiempo_es_el_mismo_error(visitante, con_catal
     assert "tiempo máximo" in respuesta.json()["detail"]
 
 
-# --- criterio 2: se puede reintentar, y el intento fallido no cuesta -----------
+# --- se puede reintentar y el intento fallido no cuenta ----------------------------
 
 
 def test_la_consulta_cancelada_no_se_cobra_y_se_puede_reintentar(

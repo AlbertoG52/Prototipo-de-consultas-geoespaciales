@@ -1,11 +1,8 @@
 /**
- * Creación de cuenta — RR_00_01 criterio 1.
+ * Creación de cuenta.
  *
- * Las reglas de contraseña que se muestran mientras el usuario escribe son las
- * mismas que valida el servidor (app/schemas/usuario.py). La comprobación del
- * navegador es una ayuda para quien escribe, el servidor
- * rechaza igual una contraseña débil aunque alguien salte esta pantalla.
- *
+ * Las reglas de contraseña que se muestran mientras se escribe son las mismas que valida el
+ * servidor (app/schemas/usuario.py); el servidor rechaza igual una contraseña débil.
  */
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
@@ -28,7 +25,7 @@ export function RegisterPage() {
     if (!form.nombre.trim()) e.nombre = "El nombre es requerido.";
     if (!form.correo.includes("@")) e.correo = "Ingresa un correo válido.";
     const faltantes = REGLAS_PASSWORD.filter((r) => !r.cumple(form.password));
-    // RR_00_03 criterio 2: se indica el motivo concreto, no solo que falla.
+    // Se indica el motivo concreto, no solo que falla.
     if (faltantes.length)
       e.password = `La contraseña no cumple: ${faltantes.map((r) => r.etiqueta.toLowerCase()).join(", ")}.`;
     if (form.password !== form.confirmar) e.confirmar = "Las contraseñas no coinciden.";
@@ -45,7 +42,7 @@ export function RegisterPage() {
     setCargando(true);
     try {
       const mensaje = await registrarse(form.nombre, form.correo, form.password);
-      // RR_00_07: la cuenta nace sin verificar; se pide revisar el correo.
+      // La cuenta se crea sin verificar; se pide revisar el correo.
       navigate("/verify-email", { state: { correo: form.correo, mensaje } });
     } catch (err) {
       setErrorGeneral(err instanceof Error ? err.message : "No se pudo crear la cuenta.");

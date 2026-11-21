@@ -1,12 +1,8 @@
 /**
- * RR_76 criterios 1 y 2 — historial de uso de una cuenta
- * (GET /admin/usuarios/{id}/consultas): sus consultas, de la más reciente a la
- * más antigua, por páginas.
+ * Historial de uso de una cuenta (GET /admin/usuarios/{id}/consultas): sus consultas, de la más
+ * reciente a la más antigua, por páginas.
  *
- * El texto de cada consulta lo manda el servidor solo si ADMIN_VE_TEXTO_CONSULTAS
- * está encendido (`texto_visible`); si no, se ve cuándo consultó, con qué
- * resultado y de qué especie.
- *
+ * El texto de cada consulta llega solo si ADMIN_VE_TEXTO_CONSULTAS está activo (`texto_visible`).
  * Quien lo usa le pone `key={usuario.id}`, así cada cuenta empieza de cero.
  */
 import { useCallback, useEffect, useState } from "react";
@@ -22,7 +18,7 @@ const COLORES_ESTADO: Record<ConsultaDeUsuario["estado"], { fondo: string; texto
   resuelta: { fondo: "var(--color-superficie-marca)", texto: "var(--color-texto-marca)" },
   ambigua: { fondo: "var(--color-aviso-fondo)", texto: "var(--color-aviso-texto)" },
   sin_coincidencias: { fondo: "var(--color-neutro-fondo)", texto: "var(--color-neutro)" },
-  // RR_37 y RR_40: saludos, ayuda… se ven, pero no cuentan como uso por rol.
+  // Saludos, ayuda… se ven, pero no cuentan como uso por rol.
   orientacion: { fondo: "var(--color-superficie-suave)", texto: "var(--color-texto-secundario)" },
 };
 

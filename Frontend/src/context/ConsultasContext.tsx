@@ -1,22 +1,17 @@
 /**
  * Conversación con el agente e historial de conversaciones.
  *
- * Acá se maneja:
+ * - Historial por conversaciones, como en un chat: cada una guarda sus consultas en todos los
+ *   estados y se puede reabrir.
+ * - Un saludo, un pedido de ayuda o un mensaje que no es una consulta recibe una orientación con
+ *   ejemplos.
+ * - Cuando la consulta coincide con varias especies, el usuario elige una. Con cuenta, la consulta
+ *   ambigua queda pendiente y se puede resolver al reabrir la conversación.
+ * - Si nombra varias especies, se pueden buscar todas (buscarTodas).
+ * - Los errores se explican en lenguaje sencillo y la consulta se puede reintentar.
  *
- *  - RR_09  historial por conversaciones, como en un chat: cada conversación
- *           guarda sus consultas en los cuatro estados y se puede reabrir.
- *  - RR_22, RR_32, RR_37, RR_40  un saludo, un pedido de ayuda o un mensaje que
- *           no es una consulta recibe una orientación con ejemplos.
- *  - RR_17  selección de especie cuando la consulta coincide con varias. Con
- *           cuenta, la consulta ambigua queda guardada y pendiente: se puede
- *           elegir la especie incluso al reabrir la conversación otro día.
- *  - RR_36  si nombra varias especies, se pueden buscar todas (buscarTodas).
- *  - RR_00_11 al visitante sin cuenta no se le guarda nada
- *  - RR_05  el error de una consulta se explica en lenguaje sencillo
- *  - RR_38  si la consulta supera el tiempo máximo, se avisa y se puede reintentar
- *
- * Las conversaciones del usuario registrado se cargan del servidor. La del
- * visitante vive solo aquí, en memoria, y desaparece al recargar la página.
+ * Las conversaciones del usuario registrado se cargan del servidor. La del visitante vive solo en
+ * memoria y desaparece al recargar la página.
  */
 import {
   createContext,
@@ -42,7 +37,7 @@ import { useAuth } from "./AuthContext";
 export type Mensaje =
   | { clase: "consulta"; id: string; texto: string }
   | { clase: "cargando"; id: string }
-  /** `consulta` es el texto que produjo la respuesta; lo usa la descarga (RR_15). */
+  /** `consulta` es el texto que produjo la respuesta; lo usa la descarga. */
   | { clase: "respuesta"; id: string; consulta: string; respuesta: RespuestaConsulta }
   | {
       clase: "opciones";
@@ -54,11 +49,11 @@ export type Mensaje =
       consultaId: number | null;
       /** true cuando ya se eligió una especie: las opciones dejan de poder elegirse. */
       resuelta: boolean;
-      /** RR_36: por qué no se buscaron todas (consultas insuficientes). */
+      /** Por qué no se buscaron todas (consultas insuficientes). */
       aviso?: string;
     }
   | { clase: "aviso"; id: string; mensaje: string }
-  /** RR_22, RR_32, RR_37, RR_40: no era una consulta; se orienta con un mensaje y ejemplos. */
+  /** No era una consulta; se orienta con un mensaje y ejemplos. */
   | { clase: "orientacion"; id: string; mensaje: string; ejemplos: string[] }
   | { clase: "error"; id: string; mensaje: string; textoOriginal: string };
 
@@ -68,23 +63,22 @@ interface EstadoConsultas {
   mensajes: Mensaje[];
   enviando: boolean;
 
-  /** RR_09: conversaciones de la cuenta, la de actividad más reciente primero. */
+  /** Conversaciones de la cuenta, la de actividad más reciente primero. */
   conversaciones: ConversacionResumen[];
   /** La conversación abierta; null si es una nueva que todavía no se guardó. */
   conversacionActual: number | null;
 
   /**
    * Envía una consulta.
-   * - `especieId` resuelve una ambigüedad previa (RR_17).
-   * - `consultaId` es la consulta ambigua guardada que se resuelve, para que
-   *   el servidor no la cobre dos veces.
+   * - `especieId` resuelve una ambigüedad previa.
+   * - `consultaId` es la consulta ambigua guardada que se resuelve, para que no cuente dos veces.
    */
   enviar: (texto: string, especieId?: string, consultaId?: number | null) => Promise<void>;
 
-  /** RR_36: busca todas las especies de unas opciones, una consulta por especie. */
+  /** Busca todas las especies de unas opciones, una consulta por especie. */
   buscarTodas: (opciones: Opciones) => Promise<void>;
 
-  /** Reabre una conversación guardada sin reprocesar sus consultas (RR_09). */
+  /** Reabre una conversación guardada sin reprocesar sus consultas. */
   abrirConversacion: (id: number) => Promise<void>;
 
   /** Empieza una conversación nueva. Las anteriores siguen en el historial. */
@@ -115,18 +109,15 @@ const MENSAJE_FALLO_SERVIDOR =
   "Ocurrió un problema al procesar tu consulta. Intenta de nuevo en un momento.";
 
 /**
- * RR_38 — segundos que el navegador espera DESPUÉS del tiempo máximo del
- * servidor (Sesion.segundos_maximos_consulta). El servidor corta primero y
- * responde con su propio mensaje; el navegador solo deja de esperar si esa
- * respuesta nunca llega.
+ * Segundos que el navegador espera después del tiempo máximo del servidor
+ * (Sesion.segundos_maximos_consulta). El servidor corta primero con su propio mensaje; el navegador
+ * solo deja de esperar si esa respuesta nunca llega.
  */
 const MARGEN_ESPERA_SEGUNDOS = 10;
 
 /**
- * RR_38 (DEF-12) — lo mínimo que espera el navegador. El tiempo máximo de la
- * sesión se leyó al abrir la página: si el servidor lo cambió después (.env y
- * reinicio), el valor guardado es viejo y no debe cortar antes que el servidor,
- * que siempre tiene el actual y es quien corta con su propio mensaje.
+ * Lo mínimo que espera el navegador. El tiempo máximo se leyó al abrir la página; si el servidor lo
+ * cambió después, el valor guardado no debe cortar antes que el servidor.
  */
 const ESPERA_MINIMA_SEGUNDOS = 180;
 
@@ -136,26 +127,24 @@ function esperaMaximaMs(segundosMaximos?: number): number {
 }
 
 /**
- * RR_36 — cuántas especies busca "Buscar todas" a la vez; las demás esperan su
- * turno. Una: el LLM de CR-BioLM (RR_49) falla si recibe dos preguntas juntas.
+ * Cuántas especies busca "Buscar todas" a la vez; las demás esperan su turno. Una sola, porque el
+ * LLM de CR-BioLM falla con dos preguntas juntas.
  */
 const BUSQUEDAS_SIMULTANEAS = 1;
 
 /**
- * Sin los segundos: los de la sesión pueden ser viejos (DEF-12). Cuando el
- * servidor corta, su 504 trae el mensaje con el tiempo máximo actual.
+ * Sin los segundos: los de la sesión pueden estar desactualizados. Cuando el servidor corta, su 504
+ * trae el mensaje con el tiempo máximo actual.
  */
 const MENSAJE_TIEMPO_AGOTADO = "La consulta superó el tiempo máximo. Puedes reintentarla.";
 
 /**
- * RR_05 criterio 1 — el error de una consulta explicado en lenguaje sencillo.
+ * El error de una consulta explicado en lenguaje sencillo.
  *
  * - Sin respuesta del servidor, fetch lanza un TypeError ("Failed to fetch").
- * - RR_38: el servidor cortó la consulta por tiempo (504, con su propio
- *   mensaje) o el navegador dejó de esperar (TiempoAgotado).
+ * - El servidor cortó la consulta por tiempo (504) o el navegador dejó de esperar (TiempoAgotado).
  * - Un 5xx o un error sin detalle solo trae "Error 500" y similares.
- * - Los demás (límite de consultas, validaciones) ya vienen del backend
- *   redactados para el usuario y se muestran tal cual.
+ * - Los demás (límite de consultas, validaciones) ya vienen redactados por el backend.
  */
 function mensajeDeError(err: unknown): string {
   if (err instanceof api.TiempoAgotado) return MENSAJE_TIEMPO_AGOTADO;
@@ -174,8 +163,8 @@ function aMensajes(c: ConsultaGuardada): Mensaje[] {
   if (c.estado === "resuelta" && c.respuesta) {
     return [
       pregunta,
-      // Mismo campo `consulta` que una respuesta nueva, para que la descarga
-      // (RR_15) funcione igual en una conversación reabierta.
+      // Mismo campo `consulta` que una respuesta nueva, para que la descarga funcione igual en una
+      // conversación reabierta.
       { clase: "respuesta", id: nuevoId(), consulta: c.texto, respuesta: c.respuesta },
     ];
   }
@@ -220,8 +209,8 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
     setConversacionActual(id);
   }, []);
 
-  // Al cambiar de cuenta (iniciar o cerrar sesión) se empieza de cero y se
-  // cargan las conversaciones de la nueva cuenta. El visitante no tiene.
+  // Al cambiar de cuenta (iniciar o cerrar sesión) se empieza de cero y se cargan las
+  // conversaciones de la nueva cuenta. El visitante no tiene.
   const guardaHistorial = sesion?.guarda_historial ?? false;
   const segundosMaximos = sesion?.segundos_maximos_consulta;
   useEffect(() => {
@@ -266,7 +255,7 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
       const idCarga = nuevoId();
       const idConsulta = nuevoId();
 
-      // Cuando el usuario elige una especie, la consulta ya está en pantalla (RR_17).
+      // Cuando el usuario elige una especie, la consulta ya está en pantalla.
       setMensajes((prev) => [
         ...prev,
         ...(especieId ? [] : [{ clase: "consulta", id: idConsulta, texto: limpio } as Mensaje]),
@@ -281,15 +270,15 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
           esperaMaximaMs: esperaMaximaMs(segundosMaximos),
         });
 
-        // RR_09: la consulta quedó guardada en una conversación (solo con cuenta).
+        // La consulta quedó guardada en una conversación (solo con cuenta).
         if (salida.conversacion_id !== null) {
           if (conversacionRef.current === null) cambiarConversacion(salida.conversacion_id);
           tocarConversacion(salida.conversacion_id, limpio);
         }
 
         setMensajes((prev) => {
-          // RR_21: la burbuja muestra la consulta como la limpió el servidor (sin
-          // emojis ni espacios de más), igual que al reabrir la conversación.
+          // La burbuja muestra la consulta como la limpió el servidor (sin emojis ni espacios de
+          // más), igual que al reabrir la conversación.
           let sinCarga = prev
             .filter((m) => m.id !== idCarga)
             .map((m) => (m.id === idConsulta && m.clase === "consulta" ? { ...m, texto: salida.texto } : m));
@@ -351,13 +340,13 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
 
           return [
             ...sinCarga.slice(0, posicion),
-            // salida.texto es la consulta ya sanitizada por el servidor (RR_00_08).
+            // salida.texto es la consulta ya sanitizada por el servidor.
             { clase: "respuesta", id: nuevoId(), consulta: salida.texto, respuesta: salida.respuesta! },
             ...sinCarga.slice(posicion),
           ];
         });
 
-        // Solo una consulta resuelta consume del límite.
+        // Solo una consulta resuelta cuenta para el límite.
         if (salida.estado === "resuelta") await refrescarSesion();
       } catch (err) {
         const mensaje = mensajeDeError(err);
@@ -374,11 +363,10 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
   );
 
   /**
-   * RR_36 — "Buscar todas": cada especie de las opciones se busca como si se
-   * eligiera (RR_17), BUSQUEDAS_SIMULTANEAS a la vez y las demás en cola. Cada
-   * una consume una consulta, así que solo se busca si alcanzan para todas; si
-   * no, se avisa y las opciones siguen disponibles. Las respuestas quedan debajo
-   * de las opciones, en el orden de la lista aunque terminen en otro.
+   * "Buscar todas": cada especie de las opciones se busca como si se eligiera,
+   * BUSQUEDAS_SIMULTANEAS a la vez y las demás en cola. Cada una cuenta para el límite, así que
+   * solo se busca si alcanzan para todas; si no, se avisa. Las respuestas quedan debajo de las
+   * opciones, en el orden de la lista.
    */
   const buscarTodas = useCallback(
     async (opciones: Opciones) => {
@@ -441,10 +429,9 @@ export function ConsultasProvider({ children }: { children: ReactNode }) {
   );
 
   /**
-   * RR_09 — reabrir una conversación guardada. Las respuestas vienen del
-   * servidor ya armadas, así que no se reprocesa nada ni se consume ninguna
-   * consulta. Las ambiguas que quedaron pendientes vuelven a mostrar sus
-   * opciones y se pueden elegir.
+   * Reabre una conversación guardada. Las respuestas vienen del servidor ya armadas, así que no se
+   * reprocesa nada ni se cuenta ninguna consulta. Las ambiguas pendientes vuelven a mostrar sus
+   * opciones.
    */
   const abrirConversacion = useCallback(
     async (id: number) => {

@@ -1,20 +1,18 @@
-"""Texto de hábitat de una especie — RR_29 criterio 2.
+"""Texto de hábitat de una especie.
 
-Una pregunta de hábitat ("¿En qué tipo de bosque vive...?") se responde con los
-campos de hábitat de la ficha del Manual (get_species de CR-BioLM), no con el
-párrafo de distribución:
+Una pregunta de hábitat ("¿En qué tipo de bosque vive...?") se responde con los campos de
+hábitat de la ficha del Manual, no con el párrafo de distribución:
 
-    habits         forma de crecimiento y dónde se apoya: "árbol", "epífita"...
-    forest_types   tipos de bosque: "muy húmedo", "nuboso", "páramo", "roble"...
-    vertientes     "Caribe", "Pacífico"
-    elev_min/max   elevación en metros
+  habits         forma de crecimiento: "árbol", "epífita"...
+  forest_types   tipos de bosque: "muy húmedo", "nuboso", "páramo"...
+  vertientes     "Caribe", "Pacífico"
+  elev_min/max   elevación en metros
 
-    -> "Árbol o arbusto. Crece en bosque pluvial, robledal y páramo, en las
-        vertientes del Caribe y del Pacífico, entre 2300 y 3600 m de elevación."
+-> "Árbol o arbusto. Crece en bosque pluvial, robledal y páramo, en las vertientes del
+Caribe y del Pacífico, entre 2300 y 3600 m de elevación."
 
-Solo junta lo que trae la ficha: no agrega nada que el Manual no diga. Sin tipo
-de bosque, vertiente ni elevación devuelve None, y la respuesta usa el párrafo
-de distribución como antes (services/contexto_especie.py).
+Solo usa lo que trae la ficha. Sin tipo de bosque, vertiente ni elevación devuelve None y
+la respuesta usa el párrafo de distribución.
 """
 
 from __future__ import annotations

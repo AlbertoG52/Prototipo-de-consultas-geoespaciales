@@ -1,6 +1,4 @@
-"""Pruebas de services/nombres_comunes.py — RR_25.
-
-Qué frases de la consulta se le preguntan a CR-BioLM como posibles nombres
+"""Pruebas de services/nombres_comunes.py: qué frases de la consulta se prueban como nombres
 comunes. Que el catálogo las resuelve está en test_catalogo_crbiolm.py.
 """
 
@@ -66,7 +64,7 @@ def test_dos_frases_se_cruzan_si_comparten_una_parte():
     assert not roble_negro.se_cruza_con(Frase("Talamanca", 31, 40))
 
 
-# --- DEF-14: el nombre completo que contiene una frase ---------------------------------
+# --- el nombre completo que contiene una frase -------------------------------------
 
 
 def _completa(texto: str, frase: str) -> str:
@@ -77,7 +75,7 @@ def _completa(texto: str, frase: str) -> str:
 @pytest.mark.parametrize(
     ("texto", "frase", "completa"),
     [
-        # un pedazo: el nombre que escribió el usuario es más largo
+        # una parte: el nombre que escribió el usuario es más largo
         ("¿Dónde crece el cedro amargo?", "amargo", "cedro amargo"),
         ("¿Dónde crece el cedro amargo?", "cedro", "cedro amargo"),
         ("¿Dónde crece el pochote rojo?", "pochote", "pochote rojo"),

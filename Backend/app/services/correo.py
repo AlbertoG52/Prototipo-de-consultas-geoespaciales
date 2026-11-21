@@ -1,11 +1,7 @@
-"""Envío de correos por SMTP — RR_00_07.
+"""Envío de correos por SMTP.
 
-Usa smtplib de la biblioteca estándar, sin dependencias nuevas. La cuenta y su
-contraseña de aplicación salen del .env (config.py).
-
-Sin SMTP configurado no se envía nada: el correo se escribe en el log del
-backend (docker compose logs backend), así se puede seguir el enlace mientras
-se desarrolla.
+La cuenta y su contraseña de aplicación salen del .env. Sin SMTP configurado no se envía
+nada: el correo se escribe en el log del backend (docker compose logs backend).
 """
 
 import logging
@@ -14,7 +10,7 @@ from email.message import EmailMessage
 
 from ..config import SMTP_HOST, SMTP_PASSWORD, SMTP_PORT, SMTP_USUARIO
 
-# El logger de uvicorn es el que ya aparece en los logs del contenedor.
+# El logger de uvicorn es el que aparece en los logs del contenedor.
 logger = logging.getLogger("uvicorn.error")
 
 NOMBRE_REMITENTE = "FloraBot CR"

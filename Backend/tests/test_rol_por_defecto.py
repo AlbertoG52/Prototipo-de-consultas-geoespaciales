@@ -1,8 +1,8 @@
-"""Pruebas de RR_61 — asignación del rol por defecto al registrarse.
+"""Pruebas del rol por defecto al registrarse.
 
-Usan la BD del contenedor a través de la API; el envío de correo se reemplaza
-(fixture `buzon`) y cada prueba borra las cuentas que crea. Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Usan la BD a través de la API; el envío de correo se reemplaza (fixture `buzon`) y cada
+prueba borra las cuentas que crea. Se ejecutan con: docker compose exec backend python -m
+pytest tests -q
 """
 
 import pytest
@@ -28,7 +28,7 @@ def _rol_guardado(correo) -> str | None:
 
 
 def test_la_cuenta_nueva_es_de_usuario_estandar(buzon, correos_de_prueba):
-    # Criterio 1: toda cuenta creada recibe el rol de usuario estándar.
+    # Toda cuenta nueva recibe el rol usuario.
     correo = correos_de_prueba("rol")
     salida = _registrar(correo)
     assert salida.status_code == 201
@@ -36,7 +36,7 @@ def test_la_cuenta_nueva_es_de_usuario_estandar(buzon, correos_de_prueba):
 
 
 def test_el_rol_queda_guardado_con_la_cuenta(buzon, correos_de_prueba):
-    # Criterio 2: el rol asignado queda registrado junto con la cuenta.
+    # El rol queda registrado con la cuenta.
     correo = correos_de_prueba("rol")
     _registrar(correo)
     assert _rol_guardado(correo) == NombreRol.USUARIO
@@ -52,7 +52,7 @@ def test_el_rol_queda_guardado_con_la_cuenta(buzon, correos_de_prueba):
     ],
 )
 def test_no_se_puede_elegir_el_rol_al_registrarse(buzon, correos_de_prueba, campo):
-    # Criterio 3: se rechaza la petición y no se crea la cuenta.
+    # Se rechaza la petición y no se crea la cuenta.
     correo = correos_de_prueba("rol")
     salida = _registrar(correo, **campo)
     assert salida.status_code == 422

@@ -1,11 +1,9 @@
 /**
- * Descarga de resultados — RR_15.
+ * Descarga de resultados.
  *
- * Todo se genera en el navegador a partir de la respuesta ya recibida: no hay
- * petición al backend ni se consume una consulta del límite diario.
- *
- * El mapa no se genera aquí: "Descargar mapa" (components/Mapa.tsx) baja el
- * mismo PNG de CR-BioLM que ya se descargó para mostrarlo.
+ * Todo se genera en el navegador a partir de la respuesta ya recibida: no hay petición al backend
+ * ni cuenta para el límite. "Descargar mapa" (components/Mapa.tsx) baja el mismo PNG que ya se
+ * mostró.
  */
 import { NOMBRE_APP, PREFIJO_ARCHIVOS } from "../config/marca";
 import type { FichaEspecie, Procedencia, RespuestaConsulta } from "../types";
@@ -40,11 +38,8 @@ export function descargarArchivo(nombre: string, contenido: string, tipo: string
 }
 
 /**
- * Convierte la respuesta en texto plano legible.
- *
- * Incluye la consulta original para que el archivo quede asociado a la
- * pregunta que lo generó (criterio 3), además del texto, los registros de
- * presencia y las fuentes que se mostraron en pantalla.
+ * Convierte la respuesta en texto plano legible: la consulta original, el texto, los registros de
+ * presencia y las fuentes que se mostraron.
  */
 export function respuestaATexto(
   consulta: string,
@@ -64,7 +59,7 @@ export function respuestaATexto(
   if (respuesta.elevacion) lineas.push(`Elevación: ${respuesta.elevacion}`);
 
   lineas.push("", respuesta.texto, "");
-  // RR_43 y RR_58: el archivo también dice por qué falta el mapa o los registros.
+  // El archivo también dice por qué falta el mapa o los registros.
   for (const aviso of respuesta.avisos) lineas.push(`Aviso: ${aviso}`);
   if (respuesta.avisos.length > 0) lineas.push("");
 
@@ -86,7 +81,7 @@ export function respuestaATexto(
   return lineas.join("\r\n");
 }
 
-/** RR_20 — la ficha completa de la especie como texto plano ("Exportar ficha"). */
+/** Ficha completa de la especie como texto plano ("Exportar ficha"). */
 export function fichaATexto(ficha: FichaEspecie, fecha = new Date()): string {
   const dato = (v: string | null) => v ?? SIN_DATO;
   const lineas: string[] = [
@@ -97,7 +92,7 @@ export function fichaATexto(ficha: FichaEspecie, fecha = new Date()): string {
     ...(ficha.nombre_comun ? [`Nombre común: ${ficha.nombre_comun}`] : []),
     `Familia: ${ficha.familia}`,
     `Hábitat: ${dato(ficha.habitat)}`,
-    // RR_55 criterio 3: sin datos de elevación, el rango se omite.
+    // Sin datos de elevación, el rango se omite.
     ...(ficha.elevacion ? [`Elevación: ${ficha.elevacion}`] : []),
     "",
   ];
@@ -116,7 +111,7 @@ export function fichaATexto(ficha: FichaEspecie, fecha = new Date()): string {
   return lineas.join("\n");
 }
 
-/** RR_45: "Origen de los datos" en el archivo descargado. */
+/** "Origen de los datos" en el archivo descargado. */
 function lineasDeProcedencia(procedencia: Procedencia[]): string[] {
   if (procedencia.length === 0) return [];
   return [

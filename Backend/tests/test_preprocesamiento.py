@@ -1,10 +1,8 @@
-"""Pruebas de RR_22 (idioma), RR_30 (fuera de alcance), RR_32 (sin sentido), RR_37
-(saludos y fuera de tema) y RR_40 (ayuda): services/preprocesamiento.py y su uso
-en POST /consultas.
+"""Pruebas de services/preprocesamiento.py (idioma, fuera de alcance, sin sentido, saludos,
+fuera de tema y ayuda) y de su uso en POST /consultas.
 
-Las de la primera parte no necesitan la BD; las que pasan por la API, sí, y
-borran lo que crean. Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Las de la primera parte no necesitan la BD; las de la API sí, y borran lo que crean. Se
+ejecutan con: docker compose exec backend python -m pytest tests -q
 """
 
 import pytest
@@ -14,7 +12,7 @@ from app.dominio import EstadoConsulta, MotivoOrientacion
 from app.main import app
 from app.schemas.consulta import EspecieCandidata
 from app.services import consultas, intencion
-from app.services.catalogo import CatalogoDemo, obtener_catalogo
+from app.services.catalogo import obtener_catalogo
 from app.services.contexto_especie import MANUAL
 from app.services.preprocesamiento import (
     EJEMPLOS_DE_CONSULTA,
@@ -25,11 +23,12 @@ from app.services.preprocesamiento import (
 )
 
 from apoyo import CatalogoQueNoSeUsa, api, crear_cuenta_verificada, sql
+from catalogo_demo import CatalogoDemo
 
 PASSWORD = "Clave#2024"
 
 
-# --- RR_32: consultas sin sentido ---------------------------------------------------
+# --- consultas sin sentido ---------------------------------------------------------
 
 
 @pytest.mark.parametrize("texto", ["asdfgh", "123", "???", "msnm", "qwrtzp lkjhg"])
@@ -45,7 +44,7 @@ def test_basta_una_palabra_con_sentido(texto):
     assert interpretar(texto) != MotivoOrientacion.SIN_SENTIDO
 
 
-# --- RR_22: idioma ------------------------------------------------------------------
+# --- idioma ------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -78,7 +77,7 @@ def test_el_mensaje_de_idioma_lo_explica_tambien_en_ingles():
     assert "only Spanish" in mensaje_de(MotivoOrientacion.IDIOMA, "")
 
 
-# --- RR_40: solicitudes de ayuda ----------------------------------------------------
+# --- solicitudes de ayuda ----------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -122,7 +121,7 @@ def test_si_sobra_una_planta_es_una_consulta(texto):
 
 
 def test_la_ayuda_explica_lo_que_admite():
-    # Criterio 2: los tipos de consulta, el idioma, el largo y las fuentes.
+    # Los tipos de consulta, el idioma, el largo y las fuentes.
     mensaje = mensaje_de(MotivoOrientacion.AYUDA, "ayuda")
     for parte in ("Distribución", "Hábitat", "Descripción", "español", MANUAL):
         assert parte in mensaje
@@ -131,12 +130,12 @@ def test_la_ayuda_explica_lo_que_admite():
 
 @pytest.mark.parametrize("ejemplo", EJEMPLOS_DE_CONSULTA)
 def test_los_ejemplos_son_consultas_validas(ejemplo):
-    # Criterio 3: cada ejemplo pasa el preprocesamiento y reconoce una sola especie.
+    # Cada ejemplo pasa el preprocesamiento y reconoce una sola especie.
     assert interpretar(ejemplo) is None
     assert len(CatalogoDemo().buscar_especies(ejemplo)) == 1
 
 
-# --- RR_37: saludos -----------------------------------------------------------------
+# --- saludos -----------------------------------------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -175,7 +174,7 @@ def test_un_saludo_con_una_pregunta_es_una_consulta(texto):
 def test_el_saludo_responde_segun_lo_que_se_escribio(texto, inicio):
     mensaje = mensaje_de(MotivoOrientacion.SALUDO, texto)
     assert mensaje.startswith(inicio)
-    assert "nombre común o científico" in mensaje  # criterio 2: orienta
+    assert "nombre común o científico" in mensaje  # orienta
 
 
 @pytest.mark.parametrize(
@@ -192,7 +191,7 @@ def test_las_consultas_normales_siguen(texto):
     assert interpretar(texto) is None
 
 
-# --- RR_37: fuera de tema -----------------------------------------------------------
+# --- fuera de tema -----------------------------------------------------------------
 
 
 @pytest.mark.parametrize("texto", ["¿Quién ganó el mundial?", "información", "guaria morada"])
@@ -210,7 +209,7 @@ def test_con_algo_sobre_plantas_no_esta_fuera_de_tema(texto):
 
 
 def test_fuera_de_tema_incluye_las_palabras_de_habitat(monkeypatch):
-    # RR_29 llena intencion.HABITAT: esas palabras también son sobre plantas.
+    # Las palabras de intencion.HABITAT también son sobre plantas.
     monkeypatch.setattr(intencion, "HABITAT", frozenset({"paramo"}))
     assert not fuera_de_tema("¿Qué hay en el páramo?")
 
@@ -219,7 +218,7 @@ def test_el_mensaje_fuera_de_tema_sugiere_el_nombre_cientifico():
     assert "nombre científico" in mensaje_de(MotivoOrientacion.FUERA_DE_TEMA, "")
 
 
-# --- RR_30: fuera de alcance (flora de otro lugar) ------------------------------------
+# --- fuera de alcance (flora de otro lugar) ----------------------------------------
 
 
 @pytest.mark.parametrize(
@@ -261,7 +260,7 @@ def sin_catalogo():
 
 @pytest.fixture
 def nuevos_tiempos():
-    """Las filas de tiempos_respuesta (RR_57) creadas durante la prueba; luego las borra."""
+    """Filas de tiempos_respuesta creadas durante la prueba; luego las borra."""
     desde = sql("SELECT COALESCE(MAX(id), 0) FROM tiempos_respuesta").scalar()
     yield lambda: sql(
         "SELECT resultado FROM tiempos_respuesta WHERE id > :d ORDER BY id", d=desde
@@ -308,7 +307,7 @@ class CatalogoSinEspecies(CatalogoQueNoSeUsa):
 @pytest.mark.parametrize("catalogo", [CatalogoSinEspecies], indirect=True)
 @pytest.mark.parametrize("texto", ["¿Dónde crece el baobab en África?", "¿Quién ganó el mundial?"])
 def test_fuera_de_alcance_por_la_api(visitante, catalogo, texto):
-    # RR_30: se identifica (1), se informa (2), no se genera respuesta (3) ni se cobra.
+    # Se identifica, se informa, no se genera respuesta ni cuenta para el límite.
     datos = _consultar(visitante, texto).json()
     assert (datos["estado"], datos["motivo"]) == (
         EstadoConsulta.ORIENTACION,
@@ -321,7 +320,7 @@ def test_fuera_de_alcance_por_la_api(visitante, catalogo, texto):
 
 @pytest.mark.parametrize("catalogo", [CatalogoDemo], indirect=True)
 def test_con_una_especie_reconocida_otro_pais_no_la_deja_fuera(visitante, catalogo):
-    # RR_30: la respuesta sale del Manual de Costa Rica aunque se nombre otro país.
+    # La respuesta sale del Manual de Costa Rica aunque se nombre otro país.
     datos = _consultar(visitante, "¿Crece Quercus costaricensis en Panamá?").json()
     assert datos["estado"] == EstadoConsulta.RESUELTA
 

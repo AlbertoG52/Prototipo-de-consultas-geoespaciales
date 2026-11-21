@@ -1,10 +1,9 @@
 /**
- * RR_54 — coherencia entre el mapa y la especie.
+ * Coherencia entre el mapa y la especie.
  *
- * El backend arma la `url` del mapa con el id de la especie
- * (GET /especies/{id}/mapa). Antes de mostrar un mapa se comprueba que esa
- * url sea la de la especie de la respuesta o de la ficha: si no coincide, no
- * se muestra ningún mapa en lugar de mostrar el de otra especie.
+ * El backend arma la `url` del mapa con el id de la especie (GET /especies/{id}/mapa). Antes de
+ * mostrar un mapa se comprueba que sea el de la especie de la respuesta o de la ficha; si no
+ * coincide, no se muestra ninguno.
  */
 import type { MapaEspecie } from "../types";
 
@@ -14,8 +13,8 @@ export function rutaDelMapa(especieId: string): string {
 }
 
 /**
- * RR_54 criterios 1 a 3: true si `mapa` existe y es el de `especieId`.
- * Se llama en cada respuesta y en cada ficha, antes de mostrar el mapa.
+ * true si `mapa` existe y es el de `especieId`. Se llama en cada respuesta y en cada ficha, antes
+ * de mostrar el mapa.
  */
 export function mapaDeLaEspecie(mapa: MapaEspecie | null, especieId: string): mapa is MapaEspecie {
   return mapa !== null && mapa.url === rutaDelMapa(especieId);

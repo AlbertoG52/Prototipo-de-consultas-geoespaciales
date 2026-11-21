@@ -1,12 +1,11 @@
--- RR_00_09: la auditoría registra quién hizo el cambio y no se puede alterar.
+-- La auditoría registra quién hizo el cambio y no se puede alterar.
 
 -- Quién hizo el cambio. NULL = desde el servidor (p. ej. cambiar_rol.py).
 ALTER TABLE auditoria
     ADD COLUMN IF NOT EXISTS actor_id INTEGER REFERENCES usuarios(id);
 
--- Reemplaza la función de 003. El actor lo define la API en la misma
--- transacción con set_config('app.actor_id', ...). El detalle usa el nombre
--- del rol en vez de su id.
+-- Reemplaza la función de 003. La API define el actor en la misma transacción con
+-- set_config('app.actor_id', ...). El detalle usa el nombre del rol.
 CREATE OR REPLACE FUNCTION registrar_auditoria_usuario()
 RETURNS TRIGGER AS $$
 DECLARE
@@ -26,9 +25,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- El registro no se puede editar ni borrar. Excepción: el dueño de la BD aún
--- podría eliminar este trigger; impedirlo requiere que la app use un usuario
--- de BD sin privilegios de dueño.
+-- El registro no se puede editar ni borrar. El dueño de la BD aún podría eliminar este
+-- trigger; impedirlo requiere que la app use un usuario de BD sin privilegios de dueño.
 CREATE OR REPLACE FUNCTION bloquear_cambios_auditoria()
 RETURNS TRIGGER AS $$
 BEGIN

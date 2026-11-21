@@ -1,10 +1,8 @@
-"""Pruebas de RR_00_07 — verificación de correo electrónico.
+"""Pruebas de la verificación de correo.
 
-Usan la BD del contenedor a través de la API. El envío de correo se reemplaza
-por una función que guarda los mensajes, así que no sale ningún correo real.
-Cada prueba borra las cuentas que crea (el borrado arrastra sus tokens). Se
-ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Usan la BD a través de la API. El envío de correo se reemplaza por una función que guarda
+los mensajes. Cada prueba borra las cuentas que crea. Se ejecutan con: docker compose exec
+backend python -m pytest tests -q
 """
 
 import re
@@ -40,7 +38,7 @@ def _token_del_enlace(texto: str) -> str:
 
 
 def test_el_registro_envia_el_enlace_y_la_cuenta_nace_sin_verificar(buzon, correo):
-    # Criterio 1: se envía un enlace al correo durante el registro.
+    # Se envía un enlace al correo durante el registro.
     salida = _registrar(correo)
     assert salida.status_code == 201
     assert salida.json()["usuario"]["correo_verificado"] is False
@@ -49,7 +47,7 @@ def test_el_registro_envia_el_enlace_y_la_cuenta_nace_sin_verificar(buzon, corre
 
 
 def test_sin_verificar_no_puede_iniciar_sesion(buzon, correo):
-    # Criterio 2: acceso limitado hasta completar la verificación.
+    # Acceso limitado hasta verificar el correo.
     _registrar(correo)
     salida = _login(correo)
     assert salida.status_code == 403
@@ -57,7 +55,7 @@ def test_sin_verificar_no_puede_iniciar_sesion(buzon, correo):
 
 
 def test_el_enlace_verifica_y_habilita_la_cuenta(buzon, correo):
-    # Criterio 3: se valida el correo antes de habilitar la cuenta.
+    # Se valida el correo antes de habilitar la cuenta.
     _registrar(correo)
     token = _token_del_enlace(buzon[0][1])
 

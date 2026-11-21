@@ -1,8 +1,7 @@
-"""Pruebas de RR_00_09 — auditoría de acciones administrativas.
+"""Pruebas de la auditoría de acciones administrativas.
 
-Las de registro e inmutabilidad usan la BD del contenedor y deshacen todo al
-terminar, así que no dejan datos. Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Usan la BD y deshacen todo al terminar. Se ejecutan con: docker compose exec backend python
+-m pytest tests -q
 """
 
 import pytest

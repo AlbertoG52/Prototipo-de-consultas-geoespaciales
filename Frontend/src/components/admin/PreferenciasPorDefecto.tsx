@@ -1,11 +1,8 @@
 /**
- * RR_80 — comportamiento por defecto de las respuestas (GET/PUT
- * /admin/preferencias-respuesta).
+ * Comportamiento por defecto de las respuestas (GET/PUT /admin/preferencias-respuesta).
  *
- * Define si las respuestas incluyen el mapa y las fuentes para todos los que
- * no han cambiado su preferencia: usuarios, visitantes y moderadores sin
- * preferencia propia (criterio 2). Cada cambio se guarda al instante y aplica
- * desde la consulta siguiente.
+ * Define si las respuestas incluyen el mapa y las fuentes para quien no tiene preferencia propia.
+ * Cada cambio se guarda al instante y aplica desde la consulta siguiente.
  */
 import { useEffect, useState } from "react";
 

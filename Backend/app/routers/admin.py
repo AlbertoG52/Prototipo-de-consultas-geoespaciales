@@ -1,13 +1,9 @@
-"""Endpoints de administración — RR_63, RR_69 a RR_78, RR_80, RR_00_10, RR_00_09 y RR_57.
+"""Endpoints de administración: usuarios, roles, límites, permisos, estadísticas, auditoría,
+tiempos y respuestas.
 
-La dependencia de rol está en el router, no en cada endpoint: todo lo que se
-agregue bajo /admin queda restringido al supermoderador sin tener que
-repetirla (RR_69 criterio 1, RR_71 criterio 2). tests/test_roles.py falla si
-alguien la quita.
-
-La lógica vive en services/admin.py (usuarios, roles, estados y auditoría) y
-services/tiempos.py (RR_57), services/preferencias.py (RR_80),
-services/permisos.py (RR_77) y services/estadisticas.py (RR_78).
+La dependencia de rol está en el router: todo lo que se agregue bajo /admin queda
+restringido al supermoderador. tests/test_roles.py falla si se quita. La lógica está en
+services/admin.py, tiempos.py, preferencias.py, permisos.py y estadisticas.py.
 """
 
 from fastapi import APIRouter, Depends, Query
@@ -43,7 +39,7 @@ router = APIRouter(
 
 @router.get("/usuarios", response_model=list[UsuarioOut])
 def listar_usuarios(db: Session = Depends(get_db)) -> list[UsuarioOut]:
-    """RR_71 — usuarios registrados con su correo, rol y estado."""
+    """Usuarios registrados con su correo, rol y estado."""
     return admin.listar_usuarios(db)
 
 
@@ -54,10 +50,8 @@ def historial_de_uso(
     desplazamiento: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ) -> HistorialUso:
-    """RR_76 criterios 1 y 2 — consultas de una cuenta, de la más reciente a la más antigua.
-
-    El texto de cada consulta viene solo si ADMIN_VE_TEXTO_CONSULTAS está
-    encendido (`texto_visible`).
+    """Consultas de una cuenta, de la más reciente a la más antigua. El texto se incluye solo
+    si ADMIN_VE_TEXTO_CONSULTAS está activo (`texto_visible`).
     """
     with errores_http():
         return admin.historial_de_uso(db, usuario_id, limite, desplazamiento)
@@ -65,7 +59,7 @@ def historial_de_uso(
 
 @router.get("/uso-por-rol", response_model=list[UsoDeRol])
 def uso_por_rol(db: Session = Depends(get_db)) -> list[UsoDeRol]:
-    """RR_76 criterio 3 — cuentas y consultas guardadas de cada rol."""
+    """Cuentas y consultas guardadas de cada rol."""
     return admin.uso_por_rol(db)
 
 
@@ -74,13 +68,13 @@ def estadisticas_de_uso(
     periodo: PeriodoEstadisticas = Query(PeriodoEstadisticas.TODO),
     db: Session = Depends(get_db),
 ) -> EstadisticasUso:
-    """RR_78 — total de consultas del periodo, por rol, por día y por tipo de pregunta."""
+    """Total de consultas del periodo, por rol, por día y por tipo de pregunta."""
     return estadisticas.estadisticas(db, periodo)
 
 
 @router.get("/estadisticas/resumen", response_model=ResumenUso)
 def resumen_de_uso(db: Session = Depends(get_db)) -> ResumenUso:
-    """RR_78 — cifras de las tarjetas del panel: cuentas, consultas de hoy, ayer y 30 días."""
+    """Cifras de las tarjetas del panel: cuentas y consultas de hoy, ayer y 30 días."""
     return estadisticas.resumen(db)
 
 
@@ -91,7 +85,7 @@ def cambiar_estado(
     actual: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ) -> UsuarioOut:
-    """RR_74 y RR_75 — activa o desactiva una cuenta (no la propia: 409)."""
+    """Activa o desactiva una cuenta (no la propia: 409)."""
     with errores_http():
         return admin.cambiar_estado(db, actual, usuario_id, datos.estado)
 
@@ -103,14 +97,14 @@ def cambiar_rol(
     actual: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ) -> UsuarioOut:
-    """RR_70 — cambia el rol de una cuenta (no la propia: 409)."""
+    """Cambia el rol de una cuenta (no la propia: 409)."""
     with errores_http():
         return admin.cambiar_rol(db, actual, usuario_id, datos.rol)
 
 
 @router.get("/roles", response_model=list[RolOut])
 def listar_roles(db: Session = Depends(get_db)) -> list[RolOut]:
-    """RR_63 — los roles con su límite de consultas y cada cuánto se restablece."""
+    """Roles con su límite de consultas y su periodo."""
     return admin.listar_roles(db)
 
 
@@ -121,11 +115,10 @@ def configurar_limite(
     actual: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ) -> RolOut:
-    """RR_63 y RR_64 — define el límite de consultas de un rol y su periodo.
+    """Define el límite de consultas de un rol y su periodo.
 
-    Aplica a las consultas siguientes de las cuentas de ese rol. Responde 400 si
-    el usuario estándar quedaría con tantas consultas como el moderador o con
-    menos que un visitante (RR_62 criterio 3).
+    Aplica a las consultas siguientes. Responde 400 si el usuario quedaría con tantas
+    consultas como el moderador o con menos que un visitante.
     """
     with errores_http():
         return admin.configurar_limite(
@@ -137,7 +130,7 @@ def configurar_limite(
 def listar_auditoria(
     limite: int = Query(100, ge=1, le=500), db: Session = Depends(get_db)
 ) -> list[RegistroAuditoria]:
-    """RR_00_09 — registro de acciones administrativas, del más reciente al más antiguo."""
+    """Registro de acciones administrativas, del más reciente al más antiguo."""
     return admin.listar_auditoria(db, limite)
 
 
@@ -148,9 +141,7 @@ def tiempos_de_respuesta(
     limite: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
 ) -> ResumenTiempos:
-    """RR_57 — tiempo de respuesta de las consultas, para el equipo técnico.
-
-    Resumen de los últimos `dias` días y las consultas más recientes; con
+    """Tiempos de respuesta de los últimos `dias` días y las consultas más recientes. Con
     `solo_lentas=true`, solo las que superaron SEGUNDOS_RESPUESTA_LENTA.
     """
     return tiempos.resumen(db, dias, solo_lentas, limite)
@@ -158,7 +149,7 @@ def tiempos_de_respuesta(
 
 @router.get("/preferencias-respuesta", response_model=PreferenciasPorDefecto)
 def ver_preferencias_por_defecto(db: Session = Depends(get_db)) -> PreferenciasPorDefecto:
-    """RR_80 — si las respuestas incluyen el mapa y las fuentes por defecto."""
+    """Si las respuestas incluyen el mapa y las fuentes por defecto."""
     return preferencias.ver_por_defecto(db)
 
 
@@ -168,17 +159,15 @@ def cambiar_preferencias_por_defecto(
     actual: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ) -> PreferenciasPorDefecto:
-    """RR_80 criterio 3 — ajusta el comportamiento por defecto del sistema.
-
-    Aplica a todos los que no han cambiado su preferencia (criterio 2): los
-    usuarios, los visitantes y los moderadores sin preferencia propia.
+    """Cambia el comportamiento por defecto de las respuestas. Aplica a quien no tiene
+    preferencia propia.
     """
     return preferencias.cambiar_por_defecto(db, actual, datos)
 
 
 @router.get("/permisos-consulta", response_model=PermisosTiposConsulta)
 def ver_permisos_de_consulta(db: Session = Depends(get_db)) -> PermisosTiposConsulta:
-    """RR_77 — los tipos de consulta que puede hacer cada rol."""
+    """Tipos de consulta que puede hacer cada rol."""
     return permisos.ver(db)
 
 
@@ -188,8 +177,7 @@ def cambiar_permisos_de_consulta(
     actual: Usuario = Depends(obtener_usuario_actual),
     db: Session = Depends(get_db),
 ) -> PermisosTiposConsulta:
-    """RR_77 criterio 1 — define los tipos de consulta de los roles enviados.
-
-    Aplica desde la siguiente consulta y cada cambio queda en la auditoría.
+    """Define los tipos de consulta de los roles enviados. Aplica desde la siguiente consulta
+    y queda en la auditoría.
     """
     return permisos.cambiar(db, actual, datos)

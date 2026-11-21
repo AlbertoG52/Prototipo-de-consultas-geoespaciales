@@ -1,7 +1,5 @@
-"""Modelos ORM del backend.
-
-Este paquete necesita exportar explícitamente las clases para que otros módulos
-puedan importar patrones como "from ..models import Rol, Usuario".
+"""Modelos ORM del backend. Se exportan aquí para importarlos como "from ..models import Rol,
+Usuario".
 """
 
 from .configuracion_respuestas import ConfiguracionRespuestas

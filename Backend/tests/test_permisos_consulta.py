@@ -1,18 +1,13 @@
-"""Pruebas de RR_77 — tipos de consulta permitidos por rol (services/permisos.py).
+"""Pruebas de los tipos de consulta permitidos por rol (services/permisos.py).
 
-Tres grupos:
+- Sin BD: el rol de cada persona, el mensaje y los ejemplos sugeridos.
+- El servicio sobre la BD: los cambios dejan registros en 'auditoria', así que corren en la
+  sesión `sesion`, que se deshace al final.
+- Por la API: `permisos.de` se reemplaza por una versión que bloquea lo que pide cada
+  prueba. Las demás pruebas del proyecto permiten todo (`todos_los_tipos_permitidos`); las
+  que leen la tabla llevan la marca `permisos_de_la_bd`.
 
-- Sin BD: el rol de cada persona, el mensaje y los ejemplos que se sugieren.
-- El servicio sobre la BD: cambiar los permisos deja registros en 'auditoria',
-  que no se pueden borrar (RR_00_09), así que corren en la sesión `sesion` de
-  conftest.py, que se deshace al final.
-- Por la API: para no cambiar la configuración real, `permisos.de` se
-  reemplaza por una que bloquea lo que pide cada prueba. Las demás pruebas del
-  proyecto permiten todo (fixture `todos_los_tipos_permitidos` de conftest.py);
-  las que leen la tabla de verdad llevan la marca `permisos_de_la_bd`.
-
-Se ejecutan con:
-    docker compose exec backend python -m pytest tests -q
+Se ejecutan con: docker compose exec backend python -m pytest tests -q
 """
 
 import pytest
@@ -34,7 +29,6 @@ from app.schemas.consulta import RespuestaConsulta
 from app.schemas.permisos import CambioPermisos
 from app.security import Identidad
 from app.services import permisos
-from app.services.catalogo import CatalogoDemo
 from app.services.consultas import _Resultado
 from app.services.preprocesamiento import EJEMPLOS_DE_CONSULTA
 
@@ -48,11 +42,12 @@ from apoyo import (
     sql,
     usuario_falso,
 )
+from catalogo_demo import CatalogoDemo
 
 PASSWORD = "Clave#2024"
 DESCRIPCION = "¿Cómo son las hojas de Quercus costaricensis?"
 DISTRIBUCION = "¿Dónde crece Quercus costaricensis?"
-AMBIGUA = "guaria"  # Guaria morada y Guaria naranja (catálogo de demostración)
+AMBIGUA = "guaria"  # Guaria morada y Guaria naranja (catálogo de prueba)
 NARANJA = "guarianthe-aurantiaca"
 
 
@@ -91,7 +86,6 @@ def test_el_supermoderador_puede_todo_sin_leer_la_bd():
 
 
 def test_el_mensaje_dice_que_tipo_falta_y_cuales_tiene():
-    # Criterio 3.
     mensaje = _sin(TipoPregunta.DESCRIPCION, rol=RolDeConsulta.USUARIO).mensaje(
         TipoPregunta.DESCRIPCION
     )
@@ -130,7 +124,7 @@ def _solo(rol: RolDeConsulta, *permitidos: TipoPregunta) -> CambioPermisos:
 
 @pytest.mark.permisos_de_la_bd
 def test_el_supermoderador_define_los_tipos_de_un_rol(sesion):
-    # Criterio 1, y aplica desde la siguiente consulta (criterio 2).
+    # Aplica desde la siguiente consulta.
     actor = crear_usuario(sesion, "actor.permisos@example.com", NombreRol.SUPERMODERADOR)
     moderador = crear_usuario(sesion, "moderador.permisos@example.com", NombreRol.MODERADOR)
 
@@ -208,7 +202,6 @@ def _consultar(cabeceras: dict[str, str], texto: str, **extra: object) -> Respon
 
 @pytest.mark.parametrize("catalogo", [CatalogoQueNoSeUsa], indirect=True)
 def test_un_tipo_no_permitido_no_se_busca_ni_se_cobra(visitante, bloquear, catalogo):
-    # Criterios 2 y 3.
     bloquear(TipoPregunta.DESCRIPCION)
     datos = _consultar(visitante, DESCRIPCION).json()
     assert (datos["estado"], datos["motivo"]) == NO_PERMITIDA
@@ -224,8 +217,9 @@ def test_los_tipos_permitidos_se_responden(visitante, bloquear):
 
 
 class CatalogoQueResponde:
-    """El catálogo de demostración, pero su respuesta trae otro tipo, como cuando
-    CR-BioLM lo precisa con su vocabulario (RR_29)."""
+    """El catálogo de prueba, pero su respuesta trae otro tipo, como cuando CR-BioLM lo
+    precisa con su vocabulario.
+    """
 
     def __init__(self, tipo: TipoPregunta):
         self.demo, self.tipo = CatalogoDemo(), tipo
@@ -288,7 +282,7 @@ def test_una_ambigua_pendiente_no_se_resuelve_si_ya_no_esta_permitida(cuenta, bl
 
 
 def test_se_registra_el_tipo_que_se_pidio(visitante, bloquear):
-    # RR_33: la intención es el tipo pedido, no el motivo.
+    # La intención es el tipo pedido, no el motivo.
     desde = sql("SELECT COALESCE(MAX(id), 0) FROM tiempos_respuesta").scalar()
     try:
         bloquear(TipoPregunta.DESCRIPCION)

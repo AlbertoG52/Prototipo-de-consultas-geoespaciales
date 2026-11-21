@@ -1,4 +1,4 @@
-"""Usuario — mapea la tabla creada en 002, 006, 007, 008 y 018."""
+"""Cuenta registrada (tabla usuarios)."""
 
 from __future__ import annotations
 
@@ -24,23 +24,20 @@ class Usuario(Base):
     nombre: Mapped[str | None] = mapped_column(String(120))
     correo: Mapped[str] = mapped_column(String(255), unique=True)
 
-    # RR_00_02: solo el hash bcrypt.
+    # Solo el hash bcrypt.
     password_hash: Mapped[str] = mapped_column(String(255))
 
     rol_id: Mapped[int] = mapped_column(ForeignKey("roles.id"))
     estado: Mapped[str] = mapped_column(String(20), default=EstadoCuenta.ACTIVO)
     correo_verificado: Mapped[bool] = mapped_column(default=False)
-    consultas_realizadas: Mapped[int] = mapped_column(default=0)
 
-    # RR_00_05 / RR_00_04
+    # Bloqueo por intentos fallidos.
     intentos_fallidos: Mapped[int] = mapped_column(default=0)
     bloqueado_hasta: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    ultimo_acceso: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # RR_00_04 (migración 012): NULL = valor por defecto, 0 = nunca.
+    # Minutos de inactividad: NULL = valor por defecto, 0 = nunca.
     minutos_inactividad: Mapped[int | None]
 
-    # RR_67 / RR_68 / RR_79 (migración 018): preferencia propia del moderador.
-    # NULL = no la ha modificado, usa la del sistema (RR_80).
+    # Preferencias de respuesta del moderador. NULL = usa la del sistema.
     incluir_mapa: Mapped[bool | None]
     incluir_fuentes: Mapped[bool | None]
 
