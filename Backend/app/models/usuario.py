@@ -30,12 +30,10 @@ class Usuario(Base):
     rol_id: Mapped[int] = mapped_column(ForeignKey("roles.id"))
     estado: Mapped[str] = mapped_column(String(20), default=EstadoCuenta.ACTIVO)
     correo_verificado: Mapped[bool] = mapped_column(default=False)
-    consultas_realizadas: Mapped[int] = mapped_column(default=0)
 
-    # Bloqueo por intentos fallidos y último acceso.
+    # Bloqueo por intentos fallidos.
     intentos_fallidos: Mapped[int] = mapped_column(default=0)
     bloqueado_hasta: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    ultimo_acceso: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     # Minutos de inactividad: NULL = valor por defecto, 0 = nunca.
     minutos_inactividad: Mapped[int | None]
 
