@@ -37,7 +37,6 @@
   --color-marca:                #2d5a3d;  /* Color principal: botones, encabezados, burbujas */
   --color-marca-fuerte:         #1e3d2a;  /* Variante oscura de la marca */
   --color-marca-deshabilitada:  #a8d4b0;  /* Botón principal deshabilitado */
-  --color-hoja:                 #4a8c5c;  /* Verde secundario (gráficos) */
   --color-sobre-marca:          #ffffff;  /* Texto sobre fondos de marca */
   --color-sobre-marca-suave:    #a8d4b0;  /* Texto secundario sobre fondos de marca */
   --color-sobre-marca-tenue:    #c5e8cc;  /* Nombre científico sobre fondos de marca */
@@ -65,12 +64,7 @@
   --color-grafico-5:            #dde8df;  /* Gráficos: serie 5 */
 
   /* Mapa */
-  --color-mapa-fondo:           #e8f0e8;  /* Fondo del mapa (mar) */
-  --color-mapa-tierra:          #c8dfc0;  /* Territorio de Costa Rica */
-  --color-mapa-contorno:        #9ab89a;  /* Contorno del territorio */
-  --color-mapa-punto:           #5b4fcf;  /* Registros de presencia */
   --color-mapa-activo:          #e0552b;  /* Registro seleccionado */
-  --color-mapa-texto:           #555555;  /* Leyenda y escala del mapa */
 
   /* Tipografía */
   --font-sans: 'Inter', sans-serif;
@@ -115,7 +109,6 @@
   --color-marca:                #34704a;
   --color-marca-fuerte:         #2d5a3d;
   --color-marca-deshabilitada:  #2b4233;
-  --color-hoja:                 #5fae78;
   --color-sobre-marca:          #ffffff;
   --color-sobre-marca-suave:    #c2e3c8;
   --color-sobre-marca-tenue:    #d9f1df;
@@ -143,12 +136,7 @@
   --color-grafico-5:            #2f4436;
 
   /* Mapa */
-  --color-mapa-fondo:           #122019;
-  --color-mapa-tierra:          #2a4632;
-  --color-mapa-contorno:        #5d8468;
-  --color-mapa-punto:           #a59cff;
   --color-mapa-activo:          #ff8a5c;
-  --color-mapa-texto:           #b3c2b7;
 
   --sombra-tarjeta: 0 4px 24px rgba(0, 0, 0, 0.45);
   --sombra-interruptor: 0 1px 3px rgba(0, 0, 0, 0.5);

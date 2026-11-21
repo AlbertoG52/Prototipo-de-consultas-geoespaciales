@@ -6,9 +6,7 @@ por día.
 
 El contador no se guarda ni se reinicia: se cuentan las consultas resueltas desde que
 empezó el periodo actual. Los periodos empiezan a las 00:00 de Costa Rica (el lunes para la
-semana, el día 1 para el mes), no a la medianoche UTC.
-
-La columna `usuarios.consultas_realizadas` no se usa: contar las filas siempre es correcto,
+semana, el día 1 para el mes), no a la medianoche UTC. Contar las filas siempre es correcto,
 aunque cambie el periodo o el límite.
 """
 
@@ -71,11 +69,6 @@ def periodo_de(identidad: Identidad) -> PeriodoConsultas:
     if identidad.usuario is not None and identidad.usuario.rol is not None:
         return PeriodoConsultas(identidad.usuario.rol.periodo_consultas)
     return PeriodoConsultas.DIA
-
-
-def consultas_por_dia(limite: int, periodo: PeriodoConsultas) -> float:
-    """El límite llevado a consultas por día, para compararlo."""
-    return limite / DIAS_DEL_PERIODO[periodo]
 
 
 # --- periodos ---------------------------------------------------------------------

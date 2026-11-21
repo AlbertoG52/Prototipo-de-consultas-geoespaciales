@@ -26,7 +26,6 @@ from app.security import Identidad, crear_token_usuario
 from app.services import admin, consultas
 from app.services.uso import (
     consultas_del_periodo,
-    consultas_por_dia,
     cupo_de,
     fin_del_periodo,
     inicio_del_periodo,
@@ -87,12 +86,6 @@ def test_un_periodo_termina_donde_empieza_el_siguiente():
     for periodo in PeriodoConsultas:
         fin = fin_del_periodo(periodo, LUNES_NOCHE)
         assert inicio_del_periodo(periodo, fin) == fin
-
-
-def test_consultas_por_dia_para_comparar_periodos():
-    assert consultas_por_dia(20, DIA) == 20
-    assert consultas_por_dia(140, SEMANA) == 20
-    assert consultas_por_dia(300, MES) == 10
 
 
 # --- el límite debe ser un número válido -------------------------------------------
