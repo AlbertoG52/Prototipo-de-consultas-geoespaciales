@@ -29,7 +29,6 @@ from app.schemas.consulta import RespuestaConsulta
 from app.schemas.permisos import CambioPermisos
 from app.security import Identidad
 from app.services import permisos
-from app.services.catalogo import CatalogoDemo
 from app.services.consultas import _Resultado
 from app.services.preprocesamiento import EJEMPLOS_DE_CONSULTA
 
@@ -43,11 +42,12 @@ from apoyo import (
     sql,
     usuario_falso,
 )
+from catalogo_demo import CatalogoDemo
 
 PASSWORD = "Clave#2024"
 DESCRIPCION = "¿Cómo son las hojas de Quercus costaricensis?"
 DISTRIBUCION = "¿Dónde crece Quercus costaricensis?"
-AMBIGUA = "guaria"  # Guaria morada y Guaria naranja (catálogo de demostración)
+AMBIGUA = "guaria"  # Guaria morada y Guaria naranja (catálogo de prueba)
 NARANJA = "guarianthe-aurantiaca"
 
 
@@ -217,7 +217,7 @@ def test_los_tipos_permitidos_se_responden(visitante, bloquear):
 
 
 class CatalogoQueResponde:
-    """El catálogo de demostración, pero su respuesta trae otro tipo, como cuando CR-BioLM lo
+    """El catálogo de prueba, pero su respuesta trae otro tipo, como cuando CR-BioLM lo
     precisa con su vocabulario.
     """
 

@@ -28,8 +28,8 @@ ignore = [
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
-# Las pruebas importan su módulo de apoyo como 'apoyo' (tests/apoyo.py).
-known-local-folder = ["apoyo"]
+# Módulos de tests/ que las pruebas importan directamente.
+known-local-folder = ["apoyo", "catalogo_demo"]
 
 
 [tool.mypy]

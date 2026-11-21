@@ -1,6 +1,6 @@
 """Pruebas del registro interno de la intención detectada en cada consulta.
 
-Pasan por la API con el catálogo de demostración y leen las filas de tiempos_respuesta que
+Pasan por la API con el catálogo de prueba y leen las filas de tiempos_respuesta que
 crea cada prueba; al final las borran. Se ejecutan con: docker compose exec backend python
 -m pytest tests -q
 """
@@ -14,9 +14,10 @@ from app.db import SessionLocal
 from app.dominio import IntencionConsulta, MotivoOrientacion, TipoPregunta
 from app.main import app
 from app.services import tiempos
-from app.services.catalogo import CatalogoDemo, obtener_catalogo
+from app.services.catalogo import obtener_catalogo
 
 from apoyo import api, crear_cuenta_verificada, sql
+from catalogo_demo import CatalogoDemo
 
 PASSWORD = "ClaveSegura123"
 

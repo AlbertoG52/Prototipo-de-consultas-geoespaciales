@@ -40,6 +40,7 @@ from mcp.server.fastmcp import FastMCP
 
 from app import config
 from app.sanitizacion import normalizar
+from app.services import catalogo as servicio_catalogo
 from app.services import catalogo_crbiolm
 from app.services.catalogo import obtener_catalogo
 from app.services.catalogo_crbiolm import CatalogoCRBioLM, a_id, a_nombre
@@ -382,9 +383,8 @@ def url_falsa():
 
 @pytest.fixture
 def crbiolm(monkeypatch, url_falsa):
-    """El backend usando CATALOGO=crbiolm contra el servidor falso."""
+    """El catálogo de CR-BioLM contra el servidor falso, también en la API."""
     monkeypatch.setattr(config, "MCP_URL", url_falsa)
-    monkeypatch.setattr(config, "CATALOGO", "crbiolm")
     monkeypatch.setattr(config, "MINIMO_REGISTROS_MAPA", 5)
     monkeypatch.setattr(config, "GBIF_REINTENTOS", 2)
     monkeypatch.setattr(config, "GBIF_ESPERA_REINTENTO_SEGUNDOS", 0)
@@ -401,7 +401,9 @@ def crbiolm(monkeypatch, url_falsa):
     pedidos_a_ia.clear()
     fallos_de_gbif.clear()
     no_actualizadas.clear()
-    return CatalogoCRBioLM()
+    catalogo = CatalogoCRBioLM()
+    monkeypatch.setattr(servicio_catalogo, "catalogo_activo", catalogo)
+    return catalogo
 
 
 # --- id <-> nombre ----------------------------------------------------------------
@@ -420,8 +422,8 @@ def test_el_id_se_convierte_de_ida_y_vuelta(nombre):
 # --- el catálogo --------------------------------------------------------------------
 
 
-def test_obtener_catalogo_elige_segun_el_env(crbiolm):
-    assert isinstance(obtener_catalogo(), CatalogoCRBioLM)
+def test_la_api_usa_el_catalogo_de_crbiolm(crbiolm):
+    assert obtener_catalogo() is crbiolm
 
 
 def test_reconoce_el_nombre_cientifico_dentro_de_la_pregunta(crbiolm):
@@ -552,7 +554,7 @@ def test_el_endpoint_pide_sesion(crbiolm):
     assert api.get("/especies/quercus-costaricensis/mapa").status_code == 401
 
 
-def test_el_catalogo_de_demostracion_no_tiene_mapas(visitante):
+def test_el_catalogo_de_prueba_no_tiene_mapas(visitante):
     assert api.get("/especies/guarianthe-skinneri/mapa", headers=visitante).status_code == 404
 
 

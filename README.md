@@ -17,7 +17,7 @@ mediante MCP.
 ## Requisitos
 
 - Docker Desktop (o Docker con Docker Compose).
-- Para datos reales: el servidor de CR-BioLM (ver "Conexión con CR-BioLM").
+- El servidor de CR-BioLM, de donde salen los datos de especies (ver "Conexión con CR-BioLM").
 
 ## Instalación y arranque
 
@@ -84,7 +84,6 @@ Todas las variables se definen en el `.env` (ver `.env.example`). Las principale
 | `MINUTOS_INACTIVIDAD_SESION` | Minutos sin actividad que cierran la sesión (cada usuario puede elegir otro). |
 | `INTENTOS_LOGIN_MAXIMOS`, `MINUTOS_BLOQUEO_LOGIN` | Bloqueo temporal tras contraseñas incorrectas seguidas. |
 | `SMTP_*`, `URL_FRONTEND` | Envío de correos de verificación y recuperación. Sin SMTP, el enlace se escribe en el log del backend. |
-| `CATALOGO` | `demo` (datos de ejemplo) o `crbiolm` (datos reales). |
 | `MCP_URL`, `MCP_TIMEOUT_SEGUNDOS`, `MCP_LLAMADAS_SIMULTANEAS` | Conexión con CR-BioLM. |
 | `SEGUNDOS_MAXIMOS_CONSULTA` | Tiempo máximo de una consulta. |
 | `SEGUNDOS_MAXIMOS_REDACCION_IA` | Tiempo máximo para la respuesta redactada por el LLM. |
@@ -226,8 +225,7 @@ python -c "from mpcr_rag.mcp.server import server; server.run(transport='streama
 
 - `host='0.0.0.0'` es obligatorio: si escucha solo en 127.0.0.1, rechaza las peticiones del
   contenedor (HTTP 421). Si Windows pregunta por el firewall, permita solo redes privadas.
-- Defina `CATALOGO=crbiolm` en el `.env` del proyecto y compruebe la conexión en
-  http://localhost:8000/mcp-check.
+- Compruebe la conexión en http://localhost:8000/mcp-check.
 - La respuesta redactada necesita una llave de OpenRouter en el `.env` **de CR-BioLM**:
 
   ```
@@ -276,9 +274,9 @@ es compatible con el servidor 2.x de CR-BioLM.
 docker compose exec backend python -m pytest tests -q
 ```
 
-Las pruebas usan el catálogo de demostración y no necesitan CR-BioLM: las del adaptador MCP
-levantan un servidor falso. Las que pasan por la API usan la base de datos y borran lo que
-crean.
+Las pruebas no necesitan CR-BioLM: usan un catálogo de especies en memoria
+(`tests/catalogo_demo.py`), y las del adaptador MCP levantan un servidor falso. Las que
+pasan por la API usan la base de datos y borran lo que crean.
 
 | Revisión | Backend | Frontend |
 |---|---|---|

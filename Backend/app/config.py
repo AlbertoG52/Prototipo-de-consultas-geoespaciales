@@ -130,13 +130,6 @@ ADMIN_VE_TEXTO_CONSULTAS = (
     os.environ.get("ADMIN_VE_TEXTO_CONSULTAS", "true").strip().lower() in _VALORES_SI
 )
 
-# Catálogo de especies (services/catalogo.py):
-#   demo     datos de ejemplo en memoria; lo usan las pruebas.
-#   crbiolm  datos reales del servidor MCP de CR-BioLM (MCP_URL).
-CATALOGO = os.environ.get("CATALOGO", "demo").strip().lower()
-if CATALOGO not in ("demo", "crbiolm"):
-    raise ValueError(f"CATALOGO debe ser 'demo' o 'crbiolm', no {CATALOGO!r}")
-
 # --- CORS -------------------------------------------------------------------
 ORIGENES_PERMITIDOS = [
     o.strip()

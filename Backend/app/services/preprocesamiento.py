@@ -251,7 +251,7 @@ def interpretar(texto: str) -> MotivoOrientacion | None:
     return None
 
 
-# Consultas de ejemplo con nombre científico, válidas en el catálogo de demostración y en el
+# Consultas de ejemplo con nombre científico, válidas en el catálogo de prueba y en el
 # de CR-BioLM. El Manual no tiene Cedrela odorata, por eso se usa C. tonduzii.
 EJEMPLOS_DE_CONSULTA = (
     "¿Dónde crece Quercus costaricensis?",

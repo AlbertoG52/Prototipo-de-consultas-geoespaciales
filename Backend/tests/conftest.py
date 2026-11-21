@@ -7,24 +7,24 @@ import uuid
 
 import pytest
 
-from app import config
 from app.db import SessionLocal
 from app.main import app
 from app.routers import auth
+from app.services import catalogo as servicio_catalogo
 from app.services import permisos
 from app.services.catalogo import obtener_catalogo
 
 from apoyo import api, sql
+from catalogo_demo import CatalogoDemo
 
 
 @pytest.fixture(autouse=True)
 def catalogo_de_demostracion(monkeypatch):
-    """Todas las pruebas usan el catálogo de demostración, diga lo que diga el .env.
+    """Todas las pruebas usan el catálogo en memoria (catalogo_demo.py) en lugar de CR-BioLM.
 
-    Así no dependen de CR-BioLM. test_catalogo_crbiolm.py cambia a 'crbiolm' con su propio
-    servidor falso.
+    test_catalogo_crbiolm.py usa el de CR-BioLM con su propio servidor falso.
     """
-    monkeypatch.setattr(config, "CATALOGO", "demo")
+    monkeypatch.setattr(servicio_catalogo, "catalogo_activo", CatalogoDemo())
 
 
 @pytest.fixture(autouse=True)
